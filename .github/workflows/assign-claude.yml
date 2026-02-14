@@ -1,0 +1,37 @@
+name: Assign Claude
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number to assign Claude to'
+        required: true
+        type: string
+      issue_node_id:
+        description: 'GraphQL node ID of the issue'
+        required: true
+        type: string
+
+jobs:
+  assign:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Playwright
+        run: |
+          npm i -D playwright@latest
+          npx playwright install chromium --with-deps
+
+      - name: Assign Claude via browser
+        env:
+          ISSUE_NUMBER: ${{ inputs.issue_number }}
+          ISSUE_NODE_ID: ${{ inputs.issue_node_id }}
+          GH_SESSION_COOKIE: ${{ secrets.GH_SESSION_COOKIE }}
+          REPO_NWO: ${{ github.repository }}
+        run: node .github/scripts/assign-claude.mjs

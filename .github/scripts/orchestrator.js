@@ -8,14 +8,15 @@
  *
  * For each "⬜ todo" row without a matching open issue, creates a GitHub issue
  * and triggers an AI coding agent with fallback:
- *   Copilot → Codex (round-robin)
+ *   Claude → Copilot → Codex (round-robin)
  *
  * Each agent has a different trigger mechanism:
+ *   - Claude:  Playwright workflow_dispatch → internal GraphQL assignment
  *   - Copilot: REST API `agent_assignment` payload on POST /assignees
  *   - Codex:   @codex comment  (triggers chatgpt-codex-connector app)
  *
- * Note: Claude can only be triggered via the GitHub UI (internal dispatch).
- * There is no public API to trigger it programmatically.
+ * Note: Claude can only be triggered via GitHub's internal GraphQL (browser context).
+ * We use a Playwright wrapper (.github/workflows/assign-claude.yml) to automate this.
  *
  * Issues are distributed round-robin across providers to spread load.
  *
@@ -45,8 +46,9 @@ const LOW_TODO_THRESHOLD = 2; // When <= this many todos remain, generate ideas
 //   claude:   UI-only (no public API trigger exists)
 
 const AGENT_PROVIDERS = [
-  { name: 'Copilot', trigger: 'assign',  botUser: 'copilot-swe-agent[bot]', display: 'Copilot (GitHub)' },
-  { name: 'Codex',   trigger: 'comment', mention: '@codex',   display: 'Codex (OpenAI)' },
+  { name: 'Claude',  trigger: 'workflow', display: 'Claude (Anthropic)' },
+  { name: 'Copilot', trigger: 'assign',   botUser: 'copilot-swe-agent[bot]', display: 'Copilot (GitHub)' },
+  { name: 'Codex',   trigger: 'comment',  mention: '@codex',   display: 'Codex (OpenAI)' },
 ];
 
 // ── GitHub REST API helper ──────────────────────────────────────────
@@ -238,11 +240,34 @@ async function triggerByComment(issueNumber, mention, agentProfile) {
 }
 
 /**
+ * Trigger Claude via the assign-claude workflow (Playwright-based).
+ * Dispatches .github/workflows/assign-claude.yml which uses a browser session
+ * to call GitHub's internal GraphQL and trigger Claude's runtime.
+ */
+async function triggerClaude(issueNumber, issueNodeId) {
+  await githubAPI(
+    `/repos/${OWNER}/${REPO_NAME}/actions/workflows/assign-claude.yml/dispatches`,
+    'POST',
+    {
+      ref: 'main',
+      inputs: {
+        issue_number: String(issueNumber),
+        issue_node_id: issueNodeId,
+      },
+    },
+    AGENT_PAT
+  );
+  return true;
+}
+
+/**
  * Try to trigger the given provider on an issue.
  * Returns true if the trigger was sent successfully.
  */
-async function tryTriggerAgent(issueNumber, provider, agentProfile) {
-  if (provider.trigger === 'assign') {
+async function tryTriggerAgent(issueNumber, provider, agentProfile, issueNodeId) {
+  if (provider.trigger === 'workflow') {
+    return triggerClaude(issueNumber, issueNodeId);
+  } else if (provider.trigger === 'assign') {
     return triggerCopilot(issueNumber, agentProfile);
   } else {
     return triggerByComment(issueNumber, provider.mention, agentProfile);
@@ -289,7 +314,7 @@ async function createAndAssignIssue(title, body, agent) {
     console.log(`   Trying ${provider.display} (${provider.trigger === 'assign' ? 'agent_assignment' : provider.mention + ' comment'})...`);
 
     try {
-      const ok = await tryTriggerAgent(created.number, provider, agent);
+      const ok = await tryTriggerAgent(created.number, provider, agent, created.node_id);
       if (ok) {
         console.log(`   ✅ Triggered ${provider.display}`);
         assigned = true;
