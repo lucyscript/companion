@@ -36,6 +36,15 @@ Each track should have its own issue and branch. Link issues with dependency not
   - Conflict surface (files/folders likely to overlap)
 - If blocked, post a **blocked update** with unblocking options.
 
+## Automated PR policy (no manual acceptance required)
+- Label all agent issues/PRs with `agent-task`.
+- Use label `agent-automerge` on PRs that should merge automatically.
+- `.github/workflows/agent-pr-automation.yml` enforces:
+  1. Automatic rebase of agent PR branches onto latest `main`.
+  2. Automatic review approval from `github-actions[bot]` for agent-task PRs.
+  3. Automatic enablement of squash auto-merge for `agent-automerge` PRs.
+- Maintainers only intervene for failed checks, conflicts, or policy violations.
+
 ## Coordination cadence
 - Maintain an assignment board in `docs/agent-backlog.md`.
 - During active work, each agent posts status in issue comments using: `ready`, `in-progress`, `blocked`, `ready-for-review`.
@@ -55,3 +64,4 @@ A task is done only when:
 - Checks pass (or failure is explained by environment constraints).
 - Documentation is updated for behavioral/process changes.
 - Parallel track integration notes are recorded in the PR.
+- PR carries `agent-automerge` when unattended merge is desired.

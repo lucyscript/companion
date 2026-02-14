@@ -8,10 +8,11 @@ This repository uses an **agent coordination workflow** focused on running multi
 - Split work into parallel tracks (A/B/C/D) to keep agents unblocked.
 - Use `docs/agent-backlog.md` as the assignment board.
 - Follow `.github/copilot-instructions.md` for execution, handoff, and integration rules.
+- Use `.github/workflows/agent-pr-automation.yml` to auto-rebase/review/merge agent PRs.
 
 ## Quick start for maintainers
 1. Break upcoming features into independent parallel tracks.
 2. Create one issue per track from the Copilot Agent Task template.
 3. Assign each issue to `github-copilot`, `codex`, or `pair`.
 4. Require one PR per issue with verification output and integration notes.
-5. Merge by dependency order and open follow-up integration issues as needed.
+5. Add `agent-automerge` label to let automation merge once checks pass.

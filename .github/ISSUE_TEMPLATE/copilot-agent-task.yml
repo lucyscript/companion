@@ -23,6 +23,17 @@ body:
     validations:
       required: true
 
+  - type: dropdown
+    id: merge_mode
+    attributes:
+      label: Merge mode
+      description: Should this issue's PR use unattended auto-merge?
+      options:
+        - manual-merge
+        - agent-automerge
+    validations:
+      required: true
+
   - type: textarea
     id: problem
     attributes:
