@@ -34,14 +34,37 @@ jobs:
     runs-on: ubuntu-latest
     needs: auto-rebase
     steps:
-      - name: Add approval comment
+      - name: Merge PR directly
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.AGENT_PAT || secrets.GITHUB_TOKEN }}
           script: |
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
-              body: '✅ **Automated agent review passed**\n\nThis PR has been automatically rebased onto `main`. Auto-merge will be enabled after this workflow completes.'
-            });
+            const pr = context.payload.pull_request;
+            core.info(`Merging PR #${pr.number} (${pr.title})...`);
+            
+            try {
+              const result = await github.rest.pulls.merge({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr.number,
+                merge_method: 'squash',
+                commit_title: pr.title,
+                commit_message: `${pr.body}\n\nAuto-merged by agent automation workflow.`
+              });
+              
+              core.info(`✅ PR #${pr.number} merged successfully`);
+              core.info(`Merge SHA: ${result.data.sha}`);
+              core.info(`Merged: ${result.data.merged}`);
+            } catch (error) {
+              core.error(`Failed to merge PR: ${error.message}`);
+              
+              // Add comment explaining the failure
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                body: `⚠️ **Automatic merge failed**: ${error.message}\n\nPlease merge manually.`
+              });
+              
+              throw error;
+            }
