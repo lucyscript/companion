@@ -114,11 +114,56 @@ const issue = readyIssues[0];
 1. Mark issue as `in-progress`
 2. Fetch issue details (body, scope, deliverable)
 3. Create working branch `agent/<issue-number>-<slug>`
-4. Run agent logic script
+4. Run agent logic script (with OpenAI API if available)
 5. Commit and push changes
 6. Update issue with status
 
-### 3. Agent Logic Script
+**AI Integration**:
+- If `OPENAI_API_KEY` is set, uses GPT-4 to generate code
+- Falls back to pattern-based handlers if AI unavailable
+- See [docs/ai-agent-config.md](ai-agent-config.md) for configuration
+
+### 3. Issue Discovery Agent
+
+**File**: `.github/workflows/issue-discovery.yml`
+
+**Triggers**:
+- Schedule: Daily at 2am UTC
+- Manual: `workflow_dispatch`
+
+**Capabilities**:
+- Scans for TODO/FIXME comments
+- Analyzes test coverage gaps
+- Checks documentation completeness
+- Reviews package.json scripts
+- **AI Analysis**: Uses OpenAI to suggest high-priority improvements
+
+**Creates Issues For**:
+- Outstanding TODOs in code
+- Files without test coverage
+- Missing documentation
+- AI-suggested improvements
+
+### 4. Web Agent (Alternative)
+
+**File**: `.github/workflows/web-agent.yml`
+
+**Triggers**:
+- Manual workflow dispatch only
+
+**Purpose**:
+Alternative agent executor that uses Playwright to interact with web-based AI interfaces (ChatGPT, Claude, Gemini) when API access is limited.
+
+**Usage**:
+```bash
+gh workflow run web-agent.yml \
+  --field issue_number=42 \
+  --field agent_type=chatgpt
+```
+
+See [docs/ai-agent-config.md](ai-agent-config.md) for setup instructions.
+
+### 5. Agent Logic Script
 
 **File**: `.github/scripts/agent-executor.js`
 

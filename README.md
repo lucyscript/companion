@@ -43,6 +43,28 @@ This project features a **self-improving agent loop** that continuously works on
 - Use `.github/ISSUE_TEMPLATE/copilot-agent-task.yml` template
 - Follow `.github/copilot-instructions.md` for agent collaboration protocol
 
+## 🧠 AI-Powered Intelligence
+
+The agent system supports multiple AI backends:
+
+- **OpenAI API (GPT-4)** - Generates actual code, understands complex requirements
+- **Pattern-Based** - Rule-based handlers for simple tasks (free fallback)
+- **Web Agents** - Playwright-driven access to ChatGPT/Claude web interfaces
+
+See [docs/ai-agent-config.md](docs/ai-agent-config.md) for configuration.
+
+## 🔍 Automatic Issue Discovery
+
+Beyond working on existing issues, agents also **discover new work**:
+
+- Daily codebase analysis
+- Detects TODOs/FIXMEs
+- Identifies test coverage gaps
+- Spots documentation needs
+- AI-powered improvement suggestions
+
+The discovery agent runs daily and creates issues automatically.
+
 ## Quick start
 
 ### For Creating Agent Tasks
@@ -50,6 +72,12 @@ This project features a **self-improving agent loop** that continuously works on
 2. Add the `agent-task` label
 3. Wait for the next orchestrator cycle (max 15 minutes)
 4. Agent picks up issue, implements changes, and auto-merges
+
+### For Enabling AI (Optional)
+```bash
+gh secret set OPENAI_API_KEY --body "sk-..."
+```
+See [.github/SETUP.md](.github/SETUP.md) for full setup instructions.
 
 ### For Manual Contributions
 1. Create issues without `agent-task` label

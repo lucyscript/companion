@@ -73,6 +73,48 @@ When `agent-auto-pr.yml` creates a PR, it needs to push a trigger commit to acti
 
 **Fallback**: If `AGENT_PAT` is not set, the workflow will use `GITHUB_TOKEN`, but you'll need to manually push a commit to trigger the automation.
 
+## Optional but Recommended: OpenAI API Key
+
+To enable AI-powered code generation (instead of pattern-based handlers), add your OpenAI API key:
+
+### Steps to Add OpenAI API Key
+
+1. Get your API key from [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
+
+2. Add it to repository secrets:
+   ```
+   https://github.com/lucyscript/companion/settings/secrets/actions/new
+   ```
+   - **Name**: `OPENAI_API_KEY`
+   - **Secret**: Your API key (starts with `sk-proj-...`)
+   - Click **"Add secret"**
+
+   Or via CLI:
+   ```bash
+   gh secret set OPENAI_API_KEY --body "sk-proj-..."
+   ```
+
+### What This Enables
+
+With `OPENAI_API_KEY` set:
+- ✅ Agents generate actual code (not just documentation)
+- ✅ Understands complex requirements
+- ✅ Follows existing code patterns
+- ✅ Handles bug fixes and features
+
+Without `OPENAI_API_KEY`:
+- ✅ Pattern-based handlers still work
+- ⚠️  Limited to simple tasks (docs, boilerplate, config)
+- ⚠️  Creates documentation instead of code for complex tasks
+
+### Cost
+
+- ~$0.01-0.10 per issue
+- Budget ~$10-20/month for active development
+- See [docs/ai-agent-config.md](../docs/ai-agent-config.md) for details
+
+**Note**: Not required but highly recommended for full automation.
+
 ## Optional: Disable Branch Protection for Agent Branches
 
 For auto-merge to work without manual approval, you may need to adjust branch protection rules:

@@ -92,6 +92,7 @@ jobs:
           ISSUE_BODY: ${{ steps.issue.outputs.body }}
           ISSUE_SCOPE: ${{ steps.issue.outputs.scope }}
           ISSUE_DELIVERABLE: ${{ steps.issue.outputs.deliverable }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           node .github/scripts/agent-executor.js
 

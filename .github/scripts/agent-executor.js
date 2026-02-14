@@ -16,11 +16,16 @@ const ISSUE_TITLE = process.env.ISSUE_TITLE || '';
 const ISSUE_BODY = process.env.ISSUE_BODY || '';
 const ISSUE_SCOPE = process.env.ISSUE_SCOPE || '';
 const ISSUE_DELIVERABLE = process.env.ISSUE_DELIVERABLE || '';
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
+
+// AI-enhanced mode flag
+const AI_ENABLED = !!OPENAI_API_KEY;
 
 console.log('🤖 Agent Executor Started');
 console.log(`📋 Issue #${ISSUE_NUMBER}: ${ISSUE_TITLE}`);
 console.log(`📦 Scope: ${ISSUE_SCOPE}`);
 console.log(`🎯 Deliverable: ${ISSUE_DELIVERABLE}`);
+console.log(`🧠 AI Mode: ${AI_ENABLED ? 'ENABLED (OpenAI)' : 'DISABLED (Pattern-based)'}`);
 
 /**
  * Task analyzers - pattern match issue content to determine task type
@@ -64,10 +69,229 @@ const taskAnalyzers = [
 ];
 
 /**
+ * AI-powered code generation
+ */
+async function handleWithAI(issue) {
+  if (!AI_ENABLED) {
+    return { success: false, reason: 'AI not enabled' };
+  }
+  
+  console.log('🧠 Using AI to generate code changes...');
+  
+  try {
+    // Get codebase context
+    const files = getRelevantFiles(issue);
+    const contextFiles = files.slice(0, 5).map(f => {
+      const content = fs.readFileSync(f, 'utf-8');
+      return `File: ${f}\n\`\`\`\n${content.substring(0, 1000)}\n\`\`\``;
+    }).join('\n\n');
+    
+    const prompt = `You are an AI coding agent working on a GitHub repository.
+
+Issue #${issue.number}: ${issue.title}
+
+## Issue Details
+${issue.body}
+
+## Scope
+${issue.scope}
+
+## Deliverable
+${issue.deliverable}
+
+## Codebase Context
+${contextFiles}
+
+Generate code changes to address this issue. Respond in JSON format:
+{
+  "analysis": "brief analysis of what needs to be done",
+  "changes": [
+    {
+      "file": "path/to/file.ts",
+      "action": "create|modify",
+      "content": "full file content or modification"
+    }
+  ],
+  "explanation": "what was changed and why"
+}
+
+Focus on:
+1. Creating functional, working code
+2. Following existing patterns in the codebase
+3. Being conservative - only change what's necessary
+4. Adding appropriate comments and types`;
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENAI_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4-turbo-preview',
+        messages: [
+          { role: 'system', content: 'You are an expert software engineer. Always respond with valid JSON.' },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.3,
+        max_tokens: 4000
+      })
+    });
+    
+    if (!response.ok) {
+      const error = await response.text();
+      console.log(`   ❌ OpenAI API error: ${response.status} - ${error}`);
+      return { success: false, reason: 'API error' };
+    }
+    
+    const data = await response.json();
+    const content = data.choices[0].message.content;
+    
+    // Extract JSON
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.log('   ❌ Could not parse AI response');
+      return { success: false, reason: 'Invalid response format' };
+    }
+    
+    const aiResult = JSON.parse(jsonMatch[0]);
+    console.log(`   📋 AI Analysis: ${aiResult.analysis}`);
+    
+    // Apply changes
+    const modifiedFiles = [];
+    for (const change of aiResult.changes) {
+      const filePath = path.join(process.cwd(), change.file);
+      
+      if (change.action === 'create') {
+        // Create directory if needed
+        const dir = path.dirname(filePath);
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
+        }
+        fs.writeFileSync(filePath, change.content);
+        console.log(`   ✅ Created: ${change.file}`);
+      } else if (change.action === 'modify') {
+        fs.writeFileSync(filePath, change.content);
+        console.log(`   ✅ Modified: ${change.file}`);
+      }
+      
+      modifiedFiles.push(change.file);
+    }
+    
+    return {
+      success: true,
+      files: modifiedFiles,
+      aiExplanation: aiResult.explanation
+    };
+    
+  } catch (error) {
+    console.log(`   ❌ AI handler error: ${error.message}`);
+    return { success: false, reason: error.message };
+  }
+}
+
+/**
+ * Get relevant files for context
+ */
+function getRelevantFiles(issue) {
+  const keywords = [
+    ...issue.title.toLowerCase().split(/\s+/),
+    ...issue.body.toLowerCase().split(/\s+/)
+  ];
+  
+  // Find TypeScript/JavaScript files that might be relevant
+  const allFiles = [];
+  const searchDirs = ['apps/server/src', 'apps/web/src', 'docs'];
+  
+  for (const dir of searchDirs) {
+    const dirPath = path.join(process.cwd(), dir);
+    if (fs.existsSync(dirPath)) {
+      findFilesRecursive(dirPath, allFiles);
+    }
+  }
+  
+  // Score files by relevance
+  const scoredFiles = allFiles.map(file => {
+    let score = 0;
+    const fileName = file.toLowerCase();
+    
+    for (const keyword of keywords) {
+      if (keyword.length < 3) continue;
+      if (fileName.includes(keyword)) {
+        score += 5;
+      }
+      
+      try {
+        const content = fs.readFileSync(file, 'utf-8').toLowerCase();
+        if (content.includes(keyword)) {
+          score += 1;
+        }
+      } catch (e) {
+        // Skip files we can't read
+      }
+    }
+    
+    return { file, score };
+  });
+  
+  return scoredFiles
+    .filter(f => f.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map(f => f.file);
+}
+
+/**
+ * Helper to find files recursively
+ */
+function findFilesRecursive(dir, files = []) {
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    
+    if (entry.isDirectory() && !entry.name.includes('node_modules') && !entry.name.includes('dist')) {
+      findFilesRecursive(fullPath, files);
+    } else if (entry.isFile() && /\.(ts|tsx|js|jsx|md)$/.test(entry.name)) {
+      files.push(fullPath);
+    }
+  }
+  
+  return files;
+}
+
+/**
  * Analyze issue and execute appropriate handler
  */
 async function main() {
   try {
+    const issue = {
+      number: ISSUE_NUMBER,
+      title: ISSUE_TITLE,
+      body: ISSUE_BODY,
+      scope: ISSUE_SCOPE,
+      deliverable: ISSUE_DELIVERABLE
+    };
+    
+    // Try AI-powered handling first if enabled
+    if (AI_ENABLED) {
+      console.log('🧠 Attempting AI-powered code generation...');
+      const aiResult = await handleWithAI(issue);
+      
+      if (aiResult.success) {
+        console.log('✅ AI successfully generated code');
+        if (aiResult.files) {
+          console.log(`📝 Modified files: ${aiResult.files.join(', ')}`);
+        }
+        if (aiResult.aiExplanation) {
+          console.log(`💡 Explanation: ${aiResult.aiExplanation}`);
+        }
+        return;
+      }
+      
+      console.log('⚠️  AI handler failed, falling back to pattern-based handlers...');
+    }
+    
+    // Fall back to pattern-based handlers
     const issueContent = `${ISSUE_TITLE} ${ISSUE_BODY}`.toLowerCase();
     
     // Find matching task type
@@ -87,13 +311,7 @@ async function main() {
     console.log(`🔍 Detected task type: ${taskType.name}`);
     
     // Execute handler
-    const result = await taskType.handler({
-      number: ISSUE_NUMBER,
-      title: ISSUE_TITLE,
-      body: ISSUE_BODY,
-      scope: ISSUE_SCOPE,
-      deliverable: ISSUE_DELIVERABLE
-    });
+    const result = await taskType.handler(issue);
     
     if (result.success) {
       console.log('✅ Task completed successfully');
