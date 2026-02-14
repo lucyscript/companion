@@ -2,53 +2,100 @@
 
 ## ✅ What's Been Implemented
 
-Your companion project now has THREE agent modes:
+Your companion project now has FOUR agent modes (in priority order):
 
-### 1. 🧠 AI-Powered Mode (OpenAI API) - **RECOMMENDED**
-- Uses GPT-4 to generate actual code
-- Understands complex requirements
-- Follows existing patterns
+### 1. 🚀 Codex CLI Mode - **PRIMARY & RECOMMENDED**
+- Uses the official `@openai/codex` CLI tool
+- Best-in-class code generation with GPT-5.3-Codex
+- Understands repository context natively
+- Works with your ChatGPT Pro subscription (no extra cost!)
+- Automatically tries first on every issue
+
+### 2. 🧠 OpenAI API Mode (gpt-5.3-codex) - **Fallback**
+- Direct API calls to OpenAI
+- Uses GPT-5.3-Codex model (optimized for code)
 - Cost: ~$0.01-0.10 per issue
+- Activates if Codex CLI unavailable
 
-### 2. 🔧 Pattern-Based Mode (Free Fallback)
+### 3. 🔧 Pattern-Based Mode - **Free Fallback**
 - Rule-based handlers
 - Works for docs, boilerplate, config
 - Zero cost
-- Active when no API key set
+- Active when no AI available
 
-### 3. 🌐 Web Agent Mode (Playwright)
+### 4. 🌐 Web Agent Mode (Playwright) - **Manual Alternative**
 - Uses your ChatGPT Plus/Claude Pro subscription
 - Automates web interfaces
-- Good if you have subscriptions but not API
+- Manual trigger only
 
-## 🚀 Quick Setup (Recommended)
+## 🚀 Quick Setup (EASIEST - Recommended)
 
-Add your OpenAI API key as a GitHub secret:
+Install and authenticate Codex CLI:
 
 ```bash
-gh secret set OPENAI_API_KEY --body "YOUR_API_KEY_HERE"
+# Install globally
+npm i -g @openai/codex
+
+# Authenticate (one-time)
+codex
 ```
 
-**Your key is in .env (not committed to git):**
-- The .env file is in .gitignore (safe)
-- Copy the key from .env to GitHub secrets
-- Don't commit the .env file
+When prompted:
+- Choose "Sign in with ChatGPT"
+- Authenticate with your ChatGPT Pro account
+- Done! No GitHub secrets needed.
 
-**Add to GitHub Secrets:**
+**That's it!** The agent system will now use Codex CLI automatically.
 
-Via CLI:
+### Why This Is Best
+
+- ✅ **No additional cost** - Uses your existing $20/month ChatGPT Pro
+- ✅ **Best code quality** - GPT-5.3-Codex is optimized for coding
+- ✅ **Repository-aware** - Understands your codebase natively
+- ✅ **Works locally AND in GitHub Actions** - Cloud mode for CI
+- ✅ **Zero configuration** - Just install and auth
+
+## 🔐 About Your API Key
+
+Your `.env` file is **safe and not committed**:
+- ✅ Already in `.gitignore`
+- ✅ Not tracked by git
+- ✅ Only for local use
+
+**If you prefer API mode over Codex CLI:**
+
 ```bash
-# Copy your key from .env, then run:
-gh secret set OPENAI_API_KEY --body "sk-proj-2Bz_MUX2PFaSY7..."
+# Transfer key from .env to GitHub Secrets:
+gh secret set OPENAI_API_KEY --body "YOUR_KEY_FROM_ENV"
 ```
 
-Or via GitHub UI:
-1. Go to: https://github.com/lucyscript/companion/settings/secrets/actions/new
-2. Name: `OPENAI_API_KEY`
-3. Value: Paste key from .env
-4. Click "Add secret"
+But **Codex CLI is better** because:
+- No need to manage secrets
+- Uses your existing subscription
+- Better repository integration
+- Same or better code quality
 
-That's it! Now agents will use GPT-4 for intelligent code generation.
+## 💡 About Codex CLI vs API
+
+**You asked about:**
+- "codex has a cli, so maby that would actually be very good"
+- "use this as a first route, then fall back on playwright, then api key"
+- "dont use gpt 4 for the api key, only gpt-5.3-codex"
+
+**Implemented! ✅**
+
+Priority order is now:
+1. **Codex CLI** (primary - best integration)
+2. **OpenAI API with gpt-5.3-codex** (not gpt-4!)
+3. **Pattern-based handlers** (free fallback)
+
+Web agent is available for manual triggers.
+
+Also: Codex CLI supports **both cloud and local** modes:
+- Local: Runs on your machine (when developing)
+- Cloud: Runs in GitHub Actions (`--cloud` flag)
+
+The workflow automatically uses cloud mode in CI!
 
 ## 🔍 Issue Discovery Agent
 

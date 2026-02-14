@@ -25,7 +25,7 @@ console.log('🤖 Agent Executor Started');
 console.log(`📋 Issue #${ISSUE_NUMBER}: ${ISSUE_TITLE}`);
 console.log(`📦 Scope: ${ISSUE_SCOPE}`);
 console.log(`🎯 Deliverable: ${ISSUE_DELIVERABLE}`);
-console.log(`🧠 AI Mode: ${AI_ENABLED ? 'ENABLED (OpenAI)' : 'DISABLED (Pattern-based)'}`);
+console.log(`🧠 Agent Priority: Codex CLI → Playwright → OpenAI API (gpt-5.3-codex) → Pattern-based`);
 
 /**
  * Task analyzers - pattern match issue content to determine task type
@@ -67,6 +67,54 @@ const taskAnalyzers = [
     handler: handleConfigTask
   }
 ];
+
+/**
+ * Check if Codex CLI is available
+ */
+function isCodexAvailable() {
+  try {
+    const { execSync } = require('child_process');
+    execSync('which codex', { stdio: 'ignore' });
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+/**
+ * Try Codex CLI agent
+ */
+async function tryCodexAgent(issue) {
+  if (!isCodexAvailable()) {
+    console.log('⏭️  Codex CLI not available');
+    return { success: false, reason: 'Codex CLI not installed' };
+  }
+  
+  console.log('🚀 Attempting Codex CLI agent...');
+  
+  try {
+    const { execSync } = require('child_process');
+    const result = execSync('node .github/scripts/codex-agent.js', {
+      encoding: 'utf-8',
+      env: {
+        ...process.env,
+        ISSUE_NUMBER: issue.number,
+        ISSUE_TITLE: issue.title,
+        ISSUE_BODY: issue.body,
+        ISSUE_SCOPE: issue.scope,
+        ISSUE_DELIVERABLE: issue.deliverable
+      },
+      timeout: 300000 // 5 minutes
+    });
+    
+    console.log('✅ Codex CLI succeeded');
+    return { success: true, output: result };
+    
+  } catch (error) {
+    console.log(`❌ Codex CLI failed: ${error.message}`);
+    return { success: false, reason: error.message };
+  }
+}
 
 /**
  * AI-powered code generation
@@ -128,7 +176,7 @@ Focus on:
         'Authorization': `Bearer ${OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'gpt-4-turbo-preview',
+        model: 'gpt-5.3-codex',  // Use Codex model, not GPT-4
         messages: [
           { role: 'system', content: 'You are an expert software engineer. Always respond with valid JSON.' },
           { role: 'user', content: prompt }
@@ -272,13 +320,26 @@ async function main() {
       deliverable: ISSUE_DELIVERABLE
     };
     
-    // Try AI-powered handling first if enabled
+    // PRIORITY 1: Try Codex CLI first (best integration)
+    console.log('🔄 Agent Priority Order:');
+    console.log('   1. Codex CLI (primary)');
+    console.log('   2. OpenAI API with gpt-5.3-codex');
+    console.log('   3. Pattern-based handlers');
+    console.log('');
+    
+    const codexResult = await tryCodexAgent(issue);
+    if (codexResult.success) {
+      console.log('✅ Codex CLI completed task successfully');
+      return;
+    }
+    
+    // PRIORITY 2: Try AI-powered handling with gpt-5.3-codex
     if (AI_ENABLED) {
-      console.log('🧠 Attempting AI-powered code generation...');
+      console.log('🧠 Codex CLI unavailable, trying OpenAI API (gpt-5.3-codex)...');
       const aiResult = await handleWithAI(issue);
       
       if (aiResult.success) {
-        console.log('✅ AI successfully generated code');
+        console.log('✅ OpenAI API (gpt-5.3-codex) successfully generated code');
         if (aiResult.files) {
           console.log(`📝 Modified files: ${aiResult.files.join(', ')}`);
         }
@@ -288,10 +349,11 @@ async function main() {
         return;
       }
       
-      console.log('⚠️  AI handler failed, falling back to pattern-based handlers...');
+      console.log('⚠️  OpenAI API failed, falling back to pattern-based handlers...');
     }
     
-    // Fall back to pattern-based handlers
+    // PRIORITY 3: Fall back to pattern-based handlers
+    console.log('🔧 Using pattern-based handlers...');
     const issueContent = `${ISSUE_TITLE} ${ISSUE_BODY}`.toLowerCase();
     
     // Find matching task type

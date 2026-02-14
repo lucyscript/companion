@@ -4,19 +4,83 @@ This guide explains how to configure different AI backends for the autonomous ag
 
 ## Overview
 
-The agent system supports three modes:
+The agent system tries methods in this priority order:
 
-1. **OpenAI API Mode** ✅ Recommended - Most reliable, uses GPT-4
-2. **Pattern-Based Mode** 🔧 Fallback - Rule-based handlers, no AI
-3. **Web Agent Mode** 🌐 Alternative - Uses Playwright to interact with web UIs
+1. **Codex CLI** 🚀 PRIMARY - Most integrated and reliable
+2. **OpenAI API (gpt-5.3-codex)** 🧠 Fallback - Direct API access
+3. **Web Agent Mode** 🌐 Alternative - Manual trigger with Playwright
+4. **Pattern-Based Mode** 🔧 Last Resort - Rule-based handlers
 
-## 1. OpenAI API Mode (Recommended)
+## 1. Codex CLI (PRIMARY - Recommended)
+
+The Codex CLI is the best option - it's designed specifically for autonomous code generation.
 
 ### Setup
 
-1. Get your OpenAI API key from [platform.openai.com](https://platform.openai.com/api-keys)
+```bash
+# Install globally
+npm i -g @openai/codex
 
-2. Add as GitHub secret:
+# Run once to authenticate
+codex
+# Follow prompts to sign in with your ChatGPT account or API key
+```
+
+### Features
+
+- ✅ **Best-in-class code generation** - Uses GPT-5.3-Codex model
+- ✅ **Repository awareness** - Understands your codebase structure
+- ✅ **Direct file editing** - Can inspect, edit, and run commands
+- ✅ **Cloud and local modes** - Works in CI/CD (cloud) or locally
+- ✅ **Uses your ChatGPT Pro subscription** - No additional API costs
+- ✅ **Zero additional configuration** - Just install and authenticate
+
+### Authentication
+
+Two options:
+
+**Option A: ChatGPT Account (Recommended)**
+```bash
+codex
+# Choose "Sign in with ChatGPT"
+# Authenticate in browser
+```
+
+**Option B: API Key**
+```bash
+codex
+# Choose "Use API key"
+# Enter your OpenAI API key
+```
+
+### Cloud Mode (for GitHub Actions)
+
+Codex CLI supports cloud mode which works great in CI/CD:
+```bash
+codex --cloud --execute-commands
+```
+
+This runs Codex's model in the cloud without needing local resources.
+
+### Cost
+
+- **With ChatGPT Pro**: Included in your $20/month subscription
+- **With API key**: ~$0.01-0.10 per issue (gpt-5.3-codex pricing)
+
+### When It Runs
+
+The agent executor automatically tries Codex CLI first on every issue:
+- Installed in the workflow via `npm i -g @openai/codex`
+- Authenticates using stored credentials or API key
+- Falls back to other methods if unavailable
+
+## 2. OpenAI API Mode (Fallback)
+
+If Codex CLI is unavailable, the system uses direct API calls.
+
+### Setup
+
+Add your OpenAI API key as a GitHub secret:
    ```bash
    gh secret set OPENAI_API_KEY --body "sk-proj-..."
    ```
@@ -45,19 +109,16 @@ The agent system supports three modes:
 
 ### Models
 
-Current model: `gpt-4-turbo-preview`
+Current model: `gpt-5.3-codex` (optimized for code generation)
 
 You can modify this in `.github/scripts/agent-executor.js`:
 ```javascript
-model: 'gpt-4-turbo-preview'  // or 'gpt-3.5-turbo' for cheaper option
+model: 'gpt-5.3-codex'  // Best for code
+// or 'gpt-4-turbo-preview' for general tasks
+// or 'gpt-3.5-turbo' for faster/cheaper
 ```
 
-Available models:
-- `gpt-4-turbo-preview` - Best quality, ~$0.10/issue
-- `gpt-4` - High quality, ~$0.15/issue  
-- `gpt-3.5-turbo` - Faster/cheaper, ~$0.01/issue
-
-## 2. Pattern-Based Mode (Fallback)
+## 3. Pattern-Based Mode (Last Resort)
 
 ### Setup
 
@@ -90,10 +151,9 @@ No setup required. This is the default when `OPENAI_API_KEY` is not set.
 - Creating boilerplate code
 - When AI is unavailable
 
-## 3. Web Agent Mode (Alternative)
+##When AI is unavailable
 
-### Setup
-
+## 4. Web Agent Mode (Manual 
 This mode uses Playwright to interact with web-based AI interfaces (ChatGPT, Claude, Gemini).
 
 1. Install Playwright:

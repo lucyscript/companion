@@ -84,8 +84,12 @@ jobs:
       - name: Install dependencies
         run: |
           npm install
+          
+      - name: Install Codex CLI
+        run: |
+          npm install -g @openai/codex || echo "Codex install failed, will use fallback"
 
-      - name: Execute agent logic
+      - name: Execute agent logic (Codex CLI priority)
         env:
           ISSUE_NUMBER: ${{ inputs.issue_number }}
           ISSUE_TITLE: ${{ inputs.issue_title }}
