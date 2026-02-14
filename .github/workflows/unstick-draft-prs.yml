@@ -16,6 +16,8 @@ permissions:
 jobs:
   unstick:
     runs-on: ubuntu-latest
+    env:
+      AGENT_PAT: ${{ secrets.AGENT_PAT }}
     steps:
       - name: Process all Copilot draft PRs
         uses: actions/github-script@v7
@@ -138,12 +140,33 @@ jobs:
                         assignees: currentAssignees,
                       });
                     }
-                    // Re-assign to trigger a new Copilot session
-                    await github.rest.issues.addAssignees({
-                      owner, repo,
-                      issue_number: issueNumber,
-                      assignees: ['Copilot'],
-                    });
+
+                    // Wait for unassign event to register
+                    await new Promise(r => setTimeout(r, 2000));
+
+                    // Re-assign via agent_assignment API (requires AGENT_PAT)
+                    const token = process.env.AGENT_PAT || process.env.GITHUB_TOKEN;
+                    const response = await fetch(
+                      `https://api.github.com/repos/${owner}/${repo}/issues/${issueNumber}/assignees`,
+                      {
+                        method: 'POST',
+                        headers: {
+                          'Authorization': `token ${token}`,
+                          'Accept': 'application/vnd.github+json',
+                          'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                          assignees: ['copilot-swe-agent[bot]'],
+                          agent_assignment: {
+                            target_repo: `${owner}/${repo}`,
+                            base_branch: 'main',
+                          },
+                        }),
+                      }
+                    );
+                    if (!response.ok) {
+                      core.warning(`  Agent assignment API returned ${response.status}`);
+                    }
                     await github.rest.issues.createComment({
                       owner, repo,
                       issue_number: issueNumber,
