@@ -140,7 +140,7 @@ function findMissingTests() {
   const issues = [];
   try {
     const srcFiles = execSync(
-      'find apps/server/src apps/web/src -name "*.ts" -o -name "*.tsx" 2>/dev/null | grep -v node_modules | grep -v ".d.ts"',
+      'find apps/server/src apps/web/src -name "*.ts" -o -name "*.tsx" 2>/dev/null | grep -v node_modules | grep -v ".d.ts" | grep -v ".test." | grep -v ".spec."',
       { encoding: 'utf-8' }
     ).trim().split('\n').filter(Boolean);
 
