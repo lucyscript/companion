@@ -121,11 +121,41 @@ jobs:
                   pull_number: pr.number,
                   state: 'closed',
                 });
-                await github.rest.issues.createComment({
-                  owner, repo,
-                  issue_number: pr.number,
-                  body: 'Auto-closed: merge conflicts with main. The orchestrator will recreate this task.',
-                });
+
+                // Find and reassign the linked issue to trigger a fresh attempt
+                const bodyMatch = pr.body && pr.body.match(/(?:Fixes|Closes|Resolves)\s+#(\d+)/i);
+                if (bodyMatch) {
+                  const issueNumber = parseInt(bodyMatch[1]);
+                  core.info(`  Reassigning linked issue #${issueNumber} to Copilot`);
+                  try {
+                    // Remove existing assignees first
+                    const { data: issue } = await github.rest.issues.get({ owner, repo, issue_number: issueNumber });
+                    const currentAssignees = issue.assignees.map(a => a.login);
+                    if (currentAssignees.length > 0) {
+                      await github.rest.issues.removeAssignees({
+                        owner, repo,
+                        issue_number: issueNumber,
+                        assignees: currentAssignees,
+                      });
+                    }
+                    // Re-assign to trigger a new Copilot session
+                    await github.rest.issues.addAssignees({
+                      owner, repo,
+                      issue_number: issueNumber,
+                      assignees: ['Copilot'],
+                    });
+                    await github.rest.issues.createComment({
+                      owner, repo,
+                      issue_number: issueNumber,
+                      body: `PR #${pr.number} was closed due to merge conflicts. Reassigning to Copilot for a fresh attempt.`,
+                    });
+                    core.info(`  Reassigned issue #${issueNumber}`);
+                  } catch (err) {
+                    core.warning(`  Could not reassign issue: ${err.message}`);
+                  }
+                } else {
+                  core.info(`  No linked issue found in PR body`);
+                }
                 continue;
               }
 
