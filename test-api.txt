@@ -1,0 +1,10 @@
+Test: PATCH update issue with agent_assignment
+
+This is a simple test file for the PATCH endpoint that updates issues with agent assignment.
+
+Test Case:
+- Endpoint: PATCH /api/issues/:id
+- Purpose: Update issue with agent assignment
+- Expected: Issue is updated successfully with the assigned agent
+
+Status: Test file created
