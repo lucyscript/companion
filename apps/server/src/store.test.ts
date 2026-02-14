@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { RuntimeStore } from "./store.js";
 import { AgentEvent, AgentName, UserContext } from "./types.js";
 
@@ -76,6 +76,7 @@ describe("RuntimeStore", () => {
         id: "evt-1",
         source: "notes",
         eventType: "assignment.deadline",
+        priority: "medium",
         timestamp: now.toISOString(),
         payload: { test: "data" },
       };
@@ -97,6 +98,7 @@ describe("RuntimeStore", () => {
         id: "evt-1",
         source: "notes",
         eventType: "assignment.deadline",
+        priority: "medium",
         timestamp: now.toISOString(),
         payload: {},
       };
@@ -115,6 +117,7 @@ describe("RuntimeStore", () => {
         id: "evt-1",
         source: "notes",
         eventType: "assignment.deadline",
+        priority: "medium",
         timestamp: "2024-01-15T10:00:00Z",
         payload: {},
       };
@@ -123,6 +126,7 @@ describe("RuntimeStore", () => {
         id: "evt-2",
         source: "lecture-plan",
         eventType: "food.nudge",
+        priority: "low",
         timestamp: "2024-01-15T11:00:00Z",
         payload: {},
       };
@@ -141,6 +145,7 @@ describe("RuntimeStore", () => {
           id: `evt-${i}`,
           source: "notes",
           eventType: "assignment.deadline",
+          priority: "medium",
           timestamp: new Date().toISOString(),
           payload: {},
         };
@@ -160,7 +165,8 @@ describe("RuntimeStore", () => {
       vi.setSystemTime(now);
 
       store.pushNotification({
-        type: "info",
+        priority: "low",
+        source: "notes",
         title: "Test Notification",
         message: "Test message",
       });
@@ -169,7 +175,8 @@ describe("RuntimeStore", () => {
       expect(snapshot.notifications).toHaveLength(1);
       expect(snapshot.notifications[0].title).toBe("Test Notification");
       expect(snapshot.notifications[0].message).toBe("Test message");
-      expect(snapshot.notifications[0].type).toBe("info");
+      expect(snapshot.notifications[0].priority).toBe("low");
+      expect(snapshot.notifications[0].source).toBe("notes");
       expect(snapshot.notifications[0].id).toMatch(/^notif-/);
       expect(snapshot.notifications[0].timestamp).toBe(now.toISOString());
     });
@@ -177,14 +184,16 @@ describe("RuntimeStore", () => {
     it("should keep notifications in reverse chronological order", () => {
       vi.setSystemTime(new Date("2024-01-15T10:00:00Z"));
       store.pushNotification({
-        type: "info",
+        priority: "low",
+        source: "notes",
         title: "First",
         message: "Message 1",
       });
 
       vi.setSystemTime(new Date("2024-01-15T11:00:00Z"));
       store.pushNotification({
-        type: "warning",
+        priority: "high",
+        source: "orchestrator",
         title: "Second",
         message: "Message 2",
       });
@@ -197,7 +206,8 @@ describe("RuntimeStore", () => {
     it("should limit notifications to maximum of 40", () => {
       for (let i = 0; i < 60; i++) {
         store.pushNotification({
-          type: "info",
+          priority: "low",
+          source: "notes",
           title: `Notification ${i}`,
           message: `Message ${i}`,
         });
@@ -291,13 +301,15 @@ describe("RuntimeStore", () => {
         id: "evt-1",
         source: "notes",
         eventType: "assignment.deadline",
+        priority: "medium",
         timestamp: new Date().toISOString(),
         payload: {},
       };
 
       store.recordEvent(event);
       store.pushNotification({
-        type: "info",
+        priority: "low",
+        source: "notes",
         title: "Test",
         message: "Test",
       });
@@ -312,6 +324,7 @@ describe("RuntimeStore", () => {
         id: "evt-1",
         source: "notes",
         eventType: "assignment.deadline",
+        priority: "high",
         timestamp: new Date().toISOString(),
         payload: {},
       };
@@ -320,6 +333,7 @@ describe("RuntimeStore", () => {
         id: "evt-2",
         source: "assignment-tracker",
         eventType: "assignment.deadline",
+        priority: "critical",
         timestamp: new Date().toISOString(),
         payload: {},
       };
@@ -341,6 +355,7 @@ describe("RuntimeStore", () => {
         id: "evt-1",
         source: "food-tracking",
         eventType: "food.nudge",
+        priority: "low",
         timestamp: new Date().toISOString(),
         payload: {},
       };
@@ -355,6 +370,7 @@ describe("RuntimeStore", () => {
           id: `evt-${i}`,
           source: "food-tracking",
           eventType: "food.nudge",
+          priority: "low",
           timestamp: new Date().toISOString(),
           payload: {},
         };
@@ -372,6 +388,7 @@ describe("RuntimeStore", () => {
           id: `evt-${i}`,
           source: "food-tracking",
           eventType: "food.nudge",
+          priority: "low",
           timestamp: new Date().toISOString(),
           payload: {},
         };
@@ -387,6 +404,7 @@ describe("RuntimeStore", () => {
         id: "evt-1",
         source: "video-editor",
         eventType: "video.digest-ready",
+        priority: "medium",
         timestamp: new Date().toISOString(),
         payload: {},
       };
@@ -448,6 +466,7 @@ describe("RuntimeStore", () => {
           id: `evt-${index}`,
           source: name,
           eventType: "assignment.deadline",
+          priority: "medium",
           timestamp: new Date().toISOString(),
           payload: {},
         };
@@ -463,6 +482,7 @@ describe("RuntimeStore", () => {
         id: "evt-1",
         source: "notes",
         eventType: "assignment.deadline",
+        priority: "medium",
         timestamp: new Date().toISOString(),
         payload: {},
       };
@@ -478,6 +498,7 @@ describe("RuntimeStore", () => {
         id: "evt-1",
         source: "notes",
         eventType: "assignment.deadline",
+        priority: "medium",
         timestamp: new Date().toISOString(),
         payload: {
           nested: { data: "value" },
