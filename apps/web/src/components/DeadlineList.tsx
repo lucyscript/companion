@@ -1,13 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Deadline } from "../types";
 import { loadDeadlines, saveDeadlines } from "../lib/storage";
 
 export function DeadlineList(): JSX.Element {
-  const [deadlines, setDeadlines] = useState<Deadline[]>([]);
-
-  useEffect(() => {
-    setDeadlines(loadDeadlines());
-  }, []);
+  const [deadlines, setDeadlines] = useState<Deadline[]>(() => loadDeadlines());
 
   const formatTimeRemaining = (dueDate: string): string => {
     const due = new Date(dueDate).getTime();

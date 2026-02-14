@@ -67,7 +67,7 @@ Features are built in priority order. The orchestrator reads this section to dec
 | ✅ done | `journal-api` | backend-engineer | POST/GET /api/journal endpoints, RuntimeStore storage |
 | ✅ done | `journal-ui` | frontend-engineer | JournalView component, localStorage persistence |
 | ⬜ todo | `schedule-api` | backend-engineer | Schedule + deadline CRUD endpoints |
-| ⬜ todo | `schedule-ui` | frontend-engineer | ScheduleView + DeadlineList components |
+| ✅ done | `schedule-ui` | frontend-engineer | ScheduleView + DeadlineList components |
 | ⬜ todo | `push-notifications` | backend-engineer | VAPID keys, push subscription, service worker |
 | ⬜ todo | `nudge-engine` | backend-engineer | Context-aware notification generation |
 | ⬜ todo | `api-docs` | docs-writer | Document all API endpoints in docs/api.md |

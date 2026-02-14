@@ -1,13 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { LectureEvent } from "../types";
 import { loadSchedule } from "../lib/storage";
 
 export function ScheduleView(): JSX.Element {
-  const [schedule, setSchedule] = useState<LectureEvent[]>([]);
-
-  useEffect(() => {
-    setSchedule(loadSchedule());
-  }, []);
+  const [schedule] = useState<LectureEvent[]>(() => loadSchedule());
 
   const formatTime = (isoString: string): string => {
     const date = new Date(isoString);
