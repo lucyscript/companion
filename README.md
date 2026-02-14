@@ -1,5 +1,7 @@
 # Companion
 
+> **🤖 Zero-Touch Workflow**: Push → Auto-PR → Auto-Review → Auto-Merge
+
 This repository uses an **agent coordination workflow** for ongoing development.
 
 ## Working model
