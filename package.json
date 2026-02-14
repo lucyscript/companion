@@ -11,9 +11,14 @@
     "dev:web": "npm run dev --workspace @companion/web",
     "dev:server": "npm run dev --workspace @companion/server",
     "build": "npm run build --workspace @companion/server && npm run build --workspace @companion/web",
-    "typecheck": "npm run typecheck --workspace @companion/server && npm run typecheck --workspace @companion/web"
+    "typecheck": "npm run typecheck --workspace @companion/server && npm run typecheck --workspace @companion/web",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:debug": "playwright test --debug"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "concurrently": "^9.1.2"
   }
 }
