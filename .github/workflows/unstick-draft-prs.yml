@@ -40,8 +40,37 @@ jobs:
 
             // Minimum age (minutes) before we consider closing a conflicting PR
             const MIN_AGE_MINUTES = 30;
-            // Minimum time since last update before closing
+            // Minimum time since last update before we assume agent is stale
             const MIN_STALE_MINUTES = 15;
+
+            // Map PR author to their expected runtime workflow name
+            const RUNTIME_WORKFLOWS = {
+              'Claude': 'Running Claude',
+              'Codex': 'Running OpenAI Codex',
+              'Copilot': 'Running Copilot coding agent',
+            };
+
+            // Check if an agent's runtime workflow has completed for this PR's head SHA
+            async function isAgentRuntimeDone(prAuthor, headSha) {
+              const workflowName = RUNTIME_WORKFLOWS[prAuthor];
+              if (!workflowName) return false;
+              try {
+                const { data: runs } = await github.rest.actions.listWorkflowRunsForRepo({
+                  owner, repo,
+                  head_sha: headSha,
+                  per_page: 10,
+                });
+                // Also check runs not filtered by SHA (agent runtimes may not set head_sha)
+                const { data: recentRuns } = await github.rest.actions.listWorkflowRunsForRepo({
+                  owner, repo,
+                  per_page: 20,
+                });
+                const allRuns = [...runs.workflow_runs, ...recentRuns.workflow_runs];
+                return allRuns.some(r => r.name === workflowName && r.status === 'completed');
+              } catch {
+                return false;
+              }
+            }
 
             // List all open PRs
             const { data: prs } = await github.rest.pulls.list({
@@ -64,9 +93,13 @@ jobs:
               const staleMins = Math.round((now - updatedAt) / 60000);
               core.info(`  Age: ${ageMinutes}m, last updated: ${staleMins}m ago`);
 
-              // Skip PRs that were recently updated (agent likely still working)
-              if (staleMins < MIN_STALE_MINUTES) {
-                core.info(`  Skipping: updated ${staleMins}m ago (< ${MIN_STALE_MINUTES}m) — agent may still be working`);
+              // Check if the agent's runtime has finished
+              const runtimeDone = await isAgentRuntimeDone(pr.user.login, pr.head.sha);
+              core.info(`  Agent runtime completed: ${runtimeDone}`);
+
+              // Skip PRs that were recently updated AND whose runtime is still going
+              if (staleMins < MIN_STALE_MINUTES && !runtimeDone) {
+                core.info(`  Skipping: updated ${staleMins}m ago (< ${MIN_STALE_MINUTES}m) and runtime still active`);
                 continue;
               }
 
