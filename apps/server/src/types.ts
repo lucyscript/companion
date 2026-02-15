@@ -64,6 +64,11 @@ export interface UserContext {
   mode: "focus" | "balanced" | "recovery";
 }
 
+export interface Tag {
+  id: string;
+  name: string;
+}
+
 export interface JournalEntry {
   id: string;
   content: string;
@@ -71,6 +76,7 @@ export interface JournalEntry {
   updatedAt: string;
   version: number;
   clientEntryId?: string;
+  tags: Tag[];
 }
 
 export interface JournalSyncPayload {
@@ -79,6 +85,7 @@ export interface JournalSyncPayload {
   content: string;
   timestamp: string;
   baseVersion?: number;
+  tags?: string[];
 }
 
 export interface LectureEvent {
@@ -228,6 +235,7 @@ export interface ExportData {
   exportedAt: string;
   version: string;
   journals: JournalEntry[];
+  tags: Tag[];
   schedule: LectureEvent[];
   deadlines: Deadline[];
    habits: HabitWithStatus[];

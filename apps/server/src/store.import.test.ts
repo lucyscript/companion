@@ -23,14 +23,16 @@ describe("RuntimeStore - import data", () => {
           content: "Finished algorithms homework",
           timestamp: "2026-02-15T10:00:00.000Z",
           updatedAt: "2026-02-15T10:00:00.000Z",
-          version: 1
+          version: 1,
+          tags: []
         },
         {
           id: "journal-2",
           content: "Had a productive study session",
           timestamp: "2026-02-15T14:00:00.000Z",
           updatedAt: "2026-02-15T14:00:00.000Z",
-          version: 1
+          version: 1,
+          tags: []
         }
       ],
       schedule: [
@@ -140,7 +142,8 @@ describe("RuntimeStore - import data", () => {
           content: "Test journal entry",
           timestamp: "2026-02-15T10:00:00.000Z",
           updatedAt: "2026-02-15T10:00:00.000Z",
-          version: 1
+          version: 1,
+          tags: []
         }
       ]
     };
@@ -214,7 +217,8 @@ describe("RuntimeStore - import data", () => {
           timestamp: "2026-02-15T10:00:00.000Z",
           updatedAt: "2026-02-15T10:00:00.000Z",
           version: 1,
-          clientEntryId: "client-1"
+          clientEntryId: "client-1",
+          tags: []
         }
       ]
     };
@@ -339,7 +343,8 @@ describe("RuntimeStore - import data", () => {
           content: "Test with specific ID",
           timestamp: specificTimestamp,
           updatedAt: "2026-01-01T12:00:00.000Z",
-          version: 1
+          version: 1,
+          tags: []
         }
       ]
     };
