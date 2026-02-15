@@ -9,35 +9,45 @@ export function buildContextAwareNudge(event: AgentEvent, context: UserContext):
         source: "assignment-tracker",
         title: "Deadline alert",
         message: assignmentMessage(event, context),
-        priority: assignmentPriority(event.priority, context)
+        priority: assignmentPriority(event.priority, context),
+        actions: ["snooze", "view"],
+        url: "/companion/"
       };
     case "lecture.reminder":
       return {
         source: "lecture-plan",
         title: "Lecture reminder",
         message: lectureMessage(event, context),
-        priority: lecturePriority(event.priority, context)
+        priority: lecturePriority(event.priority, context),
+        actions: ["snooze", "view"],
+        url: "/companion/"
       };
     case "note.prompt":
       return {
         source: "notes",
         title: "Journal prompt",
         message: noteMessage(event, context),
-        priority: notePriority(context)
+        priority: notePriority(context),
+        actions: ["view"],
+        url: "/companion/"
       };
     case "location.arrival":
       return {
         source: "orchestrator",
         title: "Location update",
         message: locationArrivalMessage(event, context),
-        priority: locationPriority(event.priority, context)
+        priority: locationPriority(event.priority, context),
+        actions: ["view"],
+        url: "/companion/"
       };
     case "location.context":
       return {
         source: "orchestrator",
         title: "Context reminder",
         message: locationContextMessage(event, context),
-        priority: locationPriority(event.priority, context)
+        priority: locationPriority(event.priority, context),
+        actions: ["view"],
+        url: "/companion/"
       };
     default:
       return null;

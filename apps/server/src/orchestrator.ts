@@ -143,7 +143,9 @@ export class OrchestratorRuntime {
         priority: deadline.priority === "critical" || overdueHours >= 24 ? "critical" : "high",
         metadata: {
           deadlineId: deadline.id
-        }
+        },
+        actions: ["complete", "snooze", "view"],
+        url: "/companion/"
       });
     }
   }

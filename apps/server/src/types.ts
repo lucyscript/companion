@@ -15,6 +15,8 @@ export interface AgentEvent<T = unknown> {
   payload: T;
 }
 
+export type NotificationAction = "complete" | "snooze" | "view";
+
 export interface Notification {
   id: string;
   title: string;
@@ -23,6 +25,8 @@ export interface Notification {
   source: AgentName;
   timestamp: string;
   metadata?: Record<string, unknown>;
+  actions?: NotificationAction[];
+  url?: string;
 }
 
 export interface ScheduledNotification {

@@ -2574,6 +2574,39 @@ export class RuntimeStore {
   }
 
   /**
+   * Snooze a notification by rescheduling it for later
+   */
+  snoozeNotification(notificationId: string, snoozeMinutes: number = 30): ScheduledNotification | null {
+    // Find the original notification
+    const notification = this.db
+      .prepare("SELECT * FROM notifications WHERE id = ?")
+      .get(notificationId) as {
+        id: string;
+        source: string;
+        title: string;
+        message: string;
+        priority: string;
+        timestamp: string;
+      } | undefined;
+
+    if (!notification) {
+      return null;
+    }
+
+    // Schedule it for later
+    const scheduledFor = new Date(Date.now() + snoozeMinutes * 60 * 1000);
+    return this.scheduleNotification(
+      {
+        source: notification.source as AgentName,
+        title: notification.title,
+        message: notification.message,
+        priority: notification.priority as Notification["priority"]
+      },
+      scheduledFor
+    );
+  }
+
+  /**
    * Get all deadline reminder states (for historical pattern analysis)
    */
   getAllDeadlineReminderStates(): DeadlineReminderState[] {

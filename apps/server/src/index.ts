@@ -893,6 +893,11 @@ const notificationInteractionSchema = z.object({
   timeToInteractionMs: z.number().int().min(0).optional()
 });
 
+const notificationSnoozeSchema = z.object({
+  notificationId: z.string().min(1),
+  snoozeMinutes: z.number().int().min(1).max(1440).optional().default(30)
+});
+
 app.post("/api/notification-interactions", (req, res) => {
   const parsed = notificationInteractionSchema.safeParse(req.body ?? {});
 
@@ -928,6 +933,22 @@ app.get("/api/notification-interactions/metrics", (req, res) => {
 
   const metrics = store.getNotificationInteractionMetrics({ since, until });
   return res.json({ metrics });
+});
+
+app.post("/api/notifications/snooze", (req, res) => {
+  const parsed = notificationSnoozeSchema.safeParse(req.body ?? {});
+
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid snooze payload", issues: parsed.error.issues });
+  }
+
+  const scheduled = store.snoozeNotification(parsed.data.notificationId, parsed.data.snoozeMinutes);
+
+  if (!scheduled) {
+    return res.status(404).json({ error: "Notification not found" });
+  }
+
+  return res.json({ scheduled });
 });
 
 app.post("/api/push/subscribe", (req, res) => {
