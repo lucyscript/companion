@@ -110,5 +110,5 @@ Features are built in priority order. The orchestrator reads this section to dec
 | ✅ done | `notification-action-buttons` | backend-engineer | Add Web Push notification action buttons (Complete, Snooze, View) for deadlines and tasks so users can respond directly from notifications without opening the app. |
 | ⬜ todo | `background-sync-service` | backend-engineer | Implement background sync API to queue and automatically sync journal entries, deadline updates, and context changes when connectivity is restored or app reopens. |
 | ✅ done | `deadline-priority-auto-escalation` | backend-engineer | Add automatic deadline priority escalation logic that increases urgency level as due date approaches (e.g., high→critical 24hrs before) to ensure timely reminders. |
-| ⬜ todo | `streak-persistence-recovery` | backend-engineer | Add grace period logic for habit/goal streaks that allows recovery within 24hrs of missed check-in to prevent demotivation from one-time lapses. |
+| ✅ done | `streak-persistence-recovery` | backend-engineer | Add grace period logic for habit/goal streaks that allows recovery within 24hrs of missed check-in to prevent demotivation from one-time lapses. |
 | ⬜ todo | `share-to-journal` | frontend-engineer | Add Web Share Target API handler so users can share text, links, or images from other apps directly into a new journal entry on iPhone. |

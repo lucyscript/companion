@@ -2677,10 +2677,20 @@ export class RuntimeStore {
     const completedDates = new Set(checkIns.filter((c) => c.completed).map((c) => this.toDateKey(c.date)));
     let streak = 0;
     let cursor = new Date(`${referenceDateKey}T00:00:00.000Z`);
+    let gracePeriodUsed = false;
 
     while (true) {
       const key = this.toDateKey(cursor);
       if (!completedDates.has(key)) {
+        // Grace period logic: allow ONE missed day if recovery happens within 24hrs
+        // This means if we miss day N but completed day N+1 (already counted), we can continue
+        if (!gracePeriodUsed && streak > 0) {
+          // Use the grace period for this missed day
+          gracePeriodUsed = true;
+          cursor.setUTCDate(cursor.getUTCDate() - 1);
+          continue;
+        }
+        // No grace period available or already used - streak ends
         break;
       }
       streak += 1;
