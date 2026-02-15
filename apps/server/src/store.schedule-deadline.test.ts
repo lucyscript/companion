@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { RuntimeStore } from "./store.js";
 
 describe("RuntimeStore - Schedule and Deadlines", () => {
@@ -173,6 +173,46 @@ describe("RuntimeStore - Schedule and Deadlines", () => {
       expect(store.getDeadlines()).toHaveLength(0);
       expect(store.deleteDeadline(deadline.id)).toBe(false);
       expect(store.updateDeadline("missing-id", { completed: true })).toBeNull();
+    });
+
+    it("escalates approaching deadline priority without mutating completed items", () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-03-01T12:00:00.000Z"));
+
+      try {
+        const urgent = store.createDeadline({
+          course: "Operating Systems",
+          task: "Lab report",
+          dueDate: "2026-03-02T10:00:00.000Z", // ~22 hours away
+          priority: "high",
+          completed: false
+        });
+        const medium = store.createDeadline({
+          course: "Databases",
+          task: "Schema draft",
+          dueDate: "2026-03-02T06:00:00.000Z", // ~18 hours away
+          priority: "medium",
+          completed: false
+        });
+        const done = store.createDeadline({
+          course: "Math",
+          task: "Worksheet",
+          dueDate: "2026-03-02T02:00:00.000Z",
+          priority: "low",
+          completed: true
+        });
+
+        const deadlines = store.getDeadlines();
+        const escalatedUrgent = deadlines.find((d) => d.id === urgent.id);
+        const escalatedMedium = deadlines.find((d) => d.id === medium.id);
+        const completedDeadline = deadlines.find((d) => d.id === done.id);
+
+        expect(escalatedUrgent?.priority).toBe("critical");
+        expect(escalatedMedium?.priority).toBe("high");
+        expect(completedDeadline?.priority).toBe("low");
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 

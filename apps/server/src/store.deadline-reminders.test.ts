@@ -30,14 +30,18 @@ describe("RuntimeStore - deadline completion reminders", () => {
       completed: false
     });
 
-    expect(store.getOverdueDeadlinesRequiringReminder()).toEqual([overdue]);
+    const overdueCandidates = store.getOverdueDeadlinesRequiringReminder();
+    expect(overdueCandidates).toHaveLength(1);
+    expect(overdueCandidates[0]).toMatchObject({ id: overdue.id, priority: "critical" });
 
     const reminder = store.recordDeadlineReminder(overdue.id);
     expect(reminder?.reminderCount).toBe(1);
     expect(store.getOverdueDeadlinesRequiringReminder()).toHaveLength(0);
 
     vi.advanceTimersByTime(3 * 60 * 60 * 1000);
-    expect(store.getOverdueDeadlinesRequiringReminder()).toEqual([overdue]);
+    const afterCooldown = store.getOverdueDeadlinesRequiringReminder();
+    expect(afterCooldown).toHaveLength(1);
+    expect(afterCooldown[0]).toMatchObject({ id: overdue.id, priority: "critical" });
   });
 
   it("records completion confirmations and updates the deadline state", () => {

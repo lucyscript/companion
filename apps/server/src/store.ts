@@ -1402,7 +1402,50 @@ export class RuntimeStore {
     return deadline;
   }
 
-  getDeadlines(): Deadline[] {
+  private applyDeadlinePriorityEscalation(deadline: Deadline, referenceDate: Date): Deadline {
+    if (deadline.completed) {
+      return deadline;
+    }
+
+    const dueMs = new Date(deadline.dueDate).getTime();
+    if (Number.isNaN(dueMs)) {
+      return deadline;
+    }
+
+    const hoursUntilDue = (dueMs - referenceDate.getTime()) / 3_600_000;
+    let priority = deadline.priority;
+
+    if (hoursUntilDue <= 0) {
+      priority = "critical";
+    } else if (hoursUntilDue <= 24) {
+      if (priority === "high") {
+        priority = "critical";
+      } else if (priority === "medium") {
+        priority = "high";
+      } else if (priority === "low") {
+        priority = "medium";
+      }
+    } else if (hoursUntilDue <= 48) {
+      if (priority === "medium") {
+        priority = "high";
+      } else if (priority === "low") {
+        priority = "medium";
+      }
+    } else if (hoursUntilDue <= 72 && priority === "low") {
+      priority = "medium";
+    }
+
+    if (priority === deadline.priority) {
+      return deadline;
+    }
+
+    return {
+      ...deadline,
+      priority
+    };
+  }
+
+  getDeadlines(referenceDate: Date = new Date(), applyEscalation = true): Deadline[] {
     const rows = this.db.prepare("SELECT * FROM deadlines ORDER BY dueDate DESC").all() as Array<{
       id: string;
       course: string;
@@ -1419,10 +1462,10 @@ export class RuntimeStore {
       dueDate: row.dueDate,
       priority: row.priority as Deadline["priority"],
       completed: Boolean(row.completed)
-    }));
+    })).map((deadline) => (applyEscalation ? this.applyDeadlinePriorityEscalation(deadline, referenceDate) : deadline));
   }
 
-  getDeadlineById(id: string): Deadline | null {
+  getDeadlineById(id: string, applyEscalation = true, referenceDate: Date = new Date()): Deadline | null {
     const row = this.db.prepare("SELECT * FROM deadlines WHERE id = ?").get(id) as
       | {
           id: string;
@@ -1438,7 +1481,7 @@ export class RuntimeStore {
       return null;
     }
 
-    return {
+    const deadline: Deadline = {
       id: row.id,
       course: row.course,
       task: row.task,
@@ -1446,10 +1489,12 @@ export class RuntimeStore {
       priority: row.priority as Deadline["priority"],
       completed: Boolean(row.completed)
     };
+
+    return applyEscalation ? this.applyDeadlinePriorityEscalation(deadline, referenceDate) : deadline;
   }
 
   updateDeadline(id: string, patch: Partial<Omit<Deadline, "id">>): Deadline | null {
-    const existing = this.getDeadlineById(id);
+    const existing = this.getDeadlineById(id, false);
 
     if (!existing) {
       return null;
@@ -1464,7 +1509,7 @@ export class RuntimeStore {
       .prepare("UPDATE deadlines SET course = ?, task = ?, dueDate = ?, priority = ?, completed = ? WHERE id = ?")
       .run(next.course, next.task, next.dueDate, next.priority, next.completed ? 1 : 0, id);
 
-    return next;
+    return this.applyDeadlinePriorityEscalation(next, new Date());
   }
 
   deleteDeadline(id: string): boolean {
@@ -1784,7 +1829,8 @@ export class RuntimeStore {
   }
 
   getOverdueDeadlinesRequiringReminder(referenceDate: string = nowIso(), cooldownMinutes = 180): Deadline[] {
-    const nowMs = new Date(referenceDate).getTime();
+    const reference = new Date(referenceDate);
+    const nowMs = reference.getTime();
 
     if (Number.isNaN(nowMs)) {
       return [];
@@ -1792,7 +1838,7 @@ export class RuntimeStore {
 
     const cooldownMs = Math.max(0, cooldownMinutes) * 60_000;
 
-    const deadlines = this.getDeadlines();
+    const deadlines = this.getDeadlines(reference);
 
     return deadlines.filter((deadline) => {
       if (deadline.completed) {
