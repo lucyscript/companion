@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { AgentStatusList } from "./components/AgentStatusList";
 import { ContextControls } from "./components/ContextControls";
 import { DeadlineList } from "./components/DeadlineList";
@@ -6,9 +7,63 @@ import { NotificationFeed } from "./components/NotificationFeed";
 import { ScheduleView } from "./components/ScheduleView";
 import { SummaryTiles } from "./components/SummaryTiles";
 import { useDashboard } from "./hooks/useDashboard";
+import { enablePushNotifications, isPushEnabled, supportsPushNotifications } from "./lib/push";
+
+type PushState = "checking" | "ready" | "enabled" | "unsupported" | "denied" | "error";
 
 export default function App(): JSX.Element {
   const { data, loading, error, refresh } = useDashboard();
+  const [pushState, setPushState] = useState<PushState>("checking");
+  const [pushMessage, setPushMessage] = useState("");
+
+  useEffect(() => {
+    let disposed = false;
+
+    const syncPushState = async (): Promise<void> => {
+      if (!supportsPushNotifications()) {
+        if (!disposed) {
+          setPushState("unsupported");
+        }
+        return;
+      }
+
+      if (Notification.permission === "denied") {
+        if (!disposed) {
+          setPushState("denied");
+          setPushMessage("Notification permission is blocked in browser settings.");
+        }
+        return;
+      }
+
+      const enabled = await isPushEnabled();
+      if (!disposed) {
+        setPushState(enabled ? "enabled" : "ready");
+      }
+    };
+
+    void syncPushState();
+
+    return () => {
+      disposed = true;
+    };
+  }, []);
+
+  const handleEnablePush = async (): Promise<void> => {
+    setPushState("checking");
+    const result = await enablePushNotifications();
+    setPushState(result.status === "enabled" ? "enabled" : result.status);
+    setPushMessage(result.message ?? "");
+  };
+
+  const pushButtonLabel =
+    pushState === "enabled"
+      ? "Push Enabled"
+      : pushState === "checking"
+        ? "Connecting..."
+        : "Enable Push";
+
+  const pushButtonDisabled =
+    pushState === "checking" || pushState === "enabled" || pushState === "unsupported";
 
   return (
     <main className="app-shell">
@@ -17,10 +72,16 @@ export default function App(): JSX.Element {
           <p className="eyebrow">Companion</p>
           <h1>Personal AI Assistant</h1>
         </div>
-        <button type="button" onClick={() => void refresh()}>
-          Refresh
-        </button>
+        <div className="hero-actions">
+          <button type="button" onClick={() => void refresh()}>
+            Refresh
+          </button>
+          <button type="button" onClick={() => void handleEnablePush()} disabled={pushButtonDisabled}>
+            {pushButtonLabel}
+          </button>
+        </div>
       </header>
+      {pushMessage && <p>{pushMessage}</p>}
 
       {loading && <p>Loading dashboard...</p>}
       {error && <p className="error">{error}</p>}

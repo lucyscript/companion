@@ -30,6 +30,12 @@ describe("config", () => {
       const { config } = await import("./config.js");
       expect(config.AXIS_USER_NAME).toBe("friend");
     });
+
+    it("should use default AXIS_VAPID_SUBJECT when not provided", async () => {
+      delete process.env.AXIS_VAPID_SUBJECT;
+      const { config } = await import("./config.js");
+      expect(config.AXIS_VAPID_SUBJECT).toBe("mailto:companion@example.com");
+    });
   });
 
   describe("custom values", () => {
@@ -55,12 +61,18 @@ describe("config", () => {
       process.env.PORT = "5000";
       process.env.AXIS_TIMEZONE = "Asia/Tokyo";
       process.env.AXIS_USER_NAME = "Bob";
+      process.env.AXIS_VAPID_PUBLIC_KEY = "public-key";
+      process.env.AXIS_VAPID_PRIVATE_KEY = "private-key";
+      process.env.AXIS_VAPID_SUBJECT = "mailto:bob@example.com";
 
       const { config } = await import("./config.js");
 
       expect(config.PORT).toBe(5000);
       expect(config.AXIS_TIMEZONE).toBe("Asia/Tokyo");
       expect(config.AXIS_USER_NAME).toBe("Bob");
+      expect(config.AXIS_VAPID_PUBLIC_KEY).toBe("public-key");
+      expect(config.AXIS_VAPID_PRIVATE_KEY).toBe("private-key");
+      expect(config.AXIS_VAPID_SUBJECT).toBe("mailto:bob@example.com");
     });
   });
 

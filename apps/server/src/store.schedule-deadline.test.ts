@@ -117,4 +117,49 @@ describe("RuntimeStore - Schedule and Deadlines", () => {
       expect(store.getSnapshot().summary.pendingDeadlines).toBe(1);
     });
   });
+
+  describe("push subscriptions", () => {
+    it("upserts and removes push subscriptions", () => {
+      const subscription = {
+        endpoint: "https://example.com/subscription-1",
+        expirationTime: null,
+        keys: {
+          p256dh: "p256dh-key",
+          auth: "auth-key"
+        }
+      };
+
+      store.addPushSubscription(subscription);
+      store.addPushSubscription({ ...subscription, keys: { p256dh: "updated", auth: "updated" } });
+
+      expect(store.getPushSubscriptions()).toHaveLength(1);
+      expect(store.getPushSubscriptions()[0].keys.p256dh).toBe("updated");
+      expect(store.removePushSubscription(subscription.endpoint)).toBe(true);
+      expect(store.removePushSubscription(subscription.endpoint)).toBe(false);
+    });
+
+    it("notifies listeners when a notification is added", () => {
+      const received: string[] = [];
+      const unsubscribe = store.onNotification((notification) => {
+        received.push(notification.title);
+      });
+
+      store.pushNotification({
+        source: "orchestrator",
+        title: "Test push",
+        message: "Message body",
+        priority: "low"
+      });
+
+      unsubscribe();
+      store.pushNotification({
+        source: "orchestrator",
+        title: "Ignored",
+        message: "Message body",
+        priority: "low"
+      });
+
+      expect(received).toEqual(["Test push"]);
+    });
+  });
 });

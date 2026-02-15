@@ -7,6 +7,7 @@ import {
   JournalEntry,
   LectureEvent,
   Notification,
+  PushSubscriptionRecord,
   UserContext
 } from "./types.js";
 import { makeId, nowIso } from "./utils.js";
@@ -24,11 +25,14 @@ export class RuntimeStore {
   private readonly maxJournalEntries = 100;
   private readonly maxScheduleEvents = 200;
   private readonly maxDeadlines = 200;
+  private readonly maxPushSubscriptions = 50;
   private events: AgentEvent[] = [];
   private notifications: Notification[] = [];
   private journalEntries: JournalEntry[] = [];
   private scheduleEvents: LectureEvent[] = [];
   private deadlines: Deadline[] = [];
+  private pushSubscriptions: PushSubscriptionRecord[] = [];
+  private notificationListeners: Array<(notification: Notification) => void> = [];
   private agentStates: AgentState[] = agentNames.map((name) => ({
     name,
     status: "idle",
@@ -71,6 +75,9 @@ export class RuntimeStore {
       timestamp: nowIso()
     };
     this.notifications = [full, ...this.notifications].slice(0, this.maxNotifications);
+    for (const listener of this.notificationListeners) {
+      listener(full);
+    }
   }
 
   setUserContext(next: Partial<UserContext>): UserContext {
@@ -178,6 +185,32 @@ export class RuntimeStore {
     const before = this.deadlines.length;
     this.deadlines = this.deadlines.filter((deadline) => deadline.id !== id);
     return this.deadlines.length < before;
+  }
+
+  addPushSubscription(subscription: PushSubscriptionRecord): PushSubscriptionRecord {
+    this.pushSubscriptions = [
+      subscription,
+      ...this.pushSubscriptions.filter((existing) => existing.endpoint !== subscription.endpoint)
+    ].slice(0, this.maxPushSubscriptions);
+
+    return subscription;
+  }
+
+  getPushSubscriptions(): PushSubscriptionRecord[] {
+    return this.pushSubscriptions;
+  }
+
+  removePushSubscription(endpoint: string): boolean {
+    const before = this.pushSubscriptions.length;
+    this.pushSubscriptions = this.pushSubscriptions.filter((subscription) => subscription.endpoint !== endpoint);
+    return this.pushSubscriptions.length < before;
+  }
+
+  onNotification(listener: (notification: Notification) => void): () => void {
+    this.notificationListeners = [...this.notificationListeners, listener];
+    return () => {
+      this.notificationListeners = this.notificationListeners.filter((existing) => existing !== listener);
+    };
   }
 
   getSnapshot(): DashboardSnapshot {

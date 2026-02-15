@@ -37,6 +37,11 @@ body {
   margin-bottom: 18px;
 }
 
+.hero-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .hero h1 {
   margin: 0;
   font-size: clamp(1.4rem, 4vw, 2.4rem);
@@ -196,6 +201,11 @@ button {
 
 button:hover {
   border-color: rgba(246, 195, 127, 0.8);
+}
+
+button:disabled {
+  cursor: default;
+  opacity: 0.65;
 }
 
 .error {

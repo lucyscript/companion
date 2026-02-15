@@ -3,7 +3,9 @@ import express from "express";
 import { z } from "zod";
 import { config } from "./config.js";
 import { OrchestratorRuntime } from "./orchestrator.js";
+import { getVapidPublicKey, hasStaticVapidKeys, sendPushNotification } from "./push.js";
 import { RuntimeStore } from "./store.js";
+import { Notification } from "./types.js";
 
 const app = express();
 const store = new RuntimeStore();
@@ -56,6 +58,47 @@ const deadlineUpdateSchema = deadlineCreateSchema.partial().refine(
   (value) => Object.keys(value).length > 0,
   "At least one field is required"
 );
+
+const pushSubscriptionSchema = z.object({
+  endpoint: z.string().url(),
+  expirationTime: z.number().nullable(),
+  keys: z.object({
+    p256dh: z.string().min(1),
+    auth: z.string().min(1)
+  })
+});
+
+const pushUnsubscribeSchema = z.object({
+  endpoint: z.string().url()
+});
+
+const pushTestSchema = z.object({
+  title: z.string().trim().min(1).max(120).optional(),
+  message: z.string().trim().min(1).max(500).optional(),
+  priority: z.enum(["low", "medium", "high", "critical"]).optional()
+});
+
+store.onNotification((notification) => {
+  void broadcastNotification(notification);
+});
+
+async function broadcastNotification(notification: Notification): Promise<void> {
+  const subscriptions = store.getPushSubscriptions();
+
+  if (subscriptions.length === 0) {
+    return;
+  }
+
+  const deliveryResults = await Promise.all(
+    subscriptions.map((subscription) => sendPushNotification(subscription, notification))
+  );
+
+  for (let i = 0; i < subscriptions.length; i += 1) {
+    if (deliveryResults[i].shouldDropSubscription) {
+      store.removePushSubscription(subscriptions[i].endpoint);
+    }
+  }
+}
 
 app.post("/api/context", (req, res) => {
   const parsed = contextSchema.safeParse(req.body ?? {});
@@ -191,6 +234,58 @@ app.delete("/api/deadlines/:id", (req, res) => {
   }
 
   return res.status(204).send();
+});
+
+app.get("/api/push/vapid-public-key", (_req, res) => {
+  return res.json({
+    publicKey: getVapidPublicKey(),
+    source: hasStaticVapidKeys() ? "configured" : "generated",
+    subject: config.AXIS_VAPID_SUBJECT
+  });
+});
+
+app.post("/api/push/subscribe", (req, res) => {
+  const parsed = pushSubscriptionSchema.safeParse(req.body ?? {});
+
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid push subscription payload", issues: parsed.error.issues });
+  }
+
+  const subscription = store.addPushSubscription(parsed.data);
+  return res.status(201).json({ subscription });
+});
+
+app.post("/api/push/unsubscribe", (req, res) => {
+  const parsed = pushUnsubscribeSchema.safeParse(req.body ?? {});
+
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid unsubscribe payload", issues: parsed.error.issues });
+  }
+
+  const removed = store.removePushSubscription(parsed.data.endpoint);
+
+  if (!removed) {
+    return res.status(404).json({ error: "Push subscription not found" });
+  }
+
+  return res.status(204).send();
+});
+
+app.post("/api/push/test", (req, res) => {
+  const parsed = pushTestSchema.safeParse(req.body ?? {});
+
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid push test payload", issues: parsed.error.issues });
+  }
+
+  store.pushNotification({
+    source: "orchestrator",
+    title: parsed.data.title ?? "Companion test push",
+    message: parsed.data.message ?? "Push notifications are connected and ready.",
+    priority: parsed.data.priority ?? "medium"
+  });
+
+  return res.status(202).json({ queued: true, subscribers: store.getPushSubscriptions().length });
 });
 
 const server = app.listen(config.PORT, () => {
