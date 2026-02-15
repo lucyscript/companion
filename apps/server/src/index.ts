@@ -24,6 +24,12 @@ app.get("/api/dashboard", (_req, res) => {
   res.json(store.getSnapshot());
 });
 
+app.get("/api/weekly-review", (req, res) => {
+  const referenceDate = typeof req.query.referenceDate === "string" ? req.query.referenceDate : undefined;
+  const summary = store.getWeeklySummary(referenceDate);
+  return res.json({ summary });
+});
+
 const contextSchema = z.object({
   stressLevel: z.enum(["low", "medium", "high"]).optional(),
   energyLevel: z.enum(["low", "medium", "high"]).optional(),

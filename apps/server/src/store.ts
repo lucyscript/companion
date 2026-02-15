@@ -10,7 +10,8 @@ import {
   NotificationPreferences,
   NotificationPreferencesPatch,
   PushSubscriptionRecord,
-  UserContext
+  UserContext,
+  WeeklySummary
 } from "./types.js";
 import { makeId, nowIso } from "./utils.js";
 
@@ -155,6 +156,36 @@ export class RuntimeStore {
     };
     this.journalEntries = [entry, ...this.journalEntries].slice(0, this.maxJournalEntries);
     return entry;
+  }
+
+  getWeeklySummary(referenceDate: string = nowIso()): WeeklySummary {
+    const windowEnd = new Date(referenceDate);
+    const windowStart = new Date(windowEnd);
+    windowStart.setDate(windowStart.getDate() - 7);
+
+    const isWithinWindow = (value: string): boolean => {
+      const date = new Date(value);
+      return !Number.isNaN(date.getTime()) && date >= windowStart && date <= windowEnd;
+    };
+
+    const deadlinesInWindow = this.deadlines.filter((deadline) => isWithinWindow(deadline.dueDate));
+    const deadlinesCompleted = deadlinesInWindow.filter((deadline) => deadline.completed).length;
+    const completionRate =
+      deadlinesInWindow.length === 0 ? 0 : Math.round((deadlinesCompleted / deadlinesInWindow.length) * 100);
+
+    const journalHighlights = this.journalEntries
+      .filter((entry) => isWithinWindow(entry.timestamp))
+      .slice(0, 3)
+      .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+
+    return {
+      windowStart: windowStart.toISOString(),
+      windowEnd: windowEnd.toISOString(),
+      deadlinesDue: deadlinesInWindow.length,
+      deadlinesCompleted,
+      completionRate,
+      journalHighlights
+    };
   }
 
   getJournalEntries(limit?: number): JournalEntry[] {

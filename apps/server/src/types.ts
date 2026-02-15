@@ -106,3 +106,12 @@ export interface NotificationPreferencesPatch {
   allowCriticalInQuietHours?: boolean;
   categoryToggles?: Partial<Record<NotificationCategory, boolean>>;
 }
+
+export interface WeeklySummary {
+  windowStart: string;
+  windowEnd: string;
+  deadlinesDue: number;
+  deadlinesCompleted: number;
+  completionRate: number;
+  journalHighlights: JournalEntry[];
+}
