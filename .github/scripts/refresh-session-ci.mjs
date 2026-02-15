@@ -17,7 +17,7 @@
 
 import { chromium } from 'playwright';
 
-const REPO = process.env.GITHUB_REPOSITORY || 'lucyscript/companion';
+const REPO = process.env.GITHUB_REPOSITORY || 'svewat/companion';
 const SESSION_COOKIE = process.env.GH_SESSION_COOKIE || '';
 
 if (!SESSION_COOKIE) {

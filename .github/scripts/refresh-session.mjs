@@ -24,7 +24,7 @@ import { existsSync, writeFileSync } from 'fs';
 import { resolve } from 'path';
 
 const STATE_FILE = resolve('.github/.playwright-state.json');
-const REPO = process.env.GITHUB_REPOSITORY || 'lucyscript/companion';
+const REPO = process.env.GITHUB_REPOSITORY || 'svewat/companion';
 const TOKEN = process.env.TOKEN || process.env.GH_TOKEN || process.env.GITHUB_TOKEN || '';
 
 if (!TOKEN) {

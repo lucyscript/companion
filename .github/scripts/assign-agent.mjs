@@ -34,7 +34,7 @@ async function assignAgent() {
     AGENT_DISPLAY_NAME = 'agent',
     ISSUE_NODE_ID,
     GH_SESSION_COOKIE,
-    REPO_NWO = 'lucyscript/companion',
+    REPO_NWO = 'svewat/companion',
     ISSUE_NUMBER,
   } = process.env;
 

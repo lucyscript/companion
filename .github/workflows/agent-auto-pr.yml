@@ -195,7 +195,7 @@ jobs:
         with:
           ref: ${{ steps.extract.outputs.branch }}
           fetch-depth: 0
-          token: ${{ secrets.AGENT_PAT || secrets.AGENT_PAT_COLLAB || secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.AGENT_PAT_COLLAB || secrets.AGENT_PAT || secrets.GITHUB_TOKEN }}
 
       - name: Trigger PR automation
         if: steps.check-pr.outputs.exists == 'false'
@@ -208,7 +208,7 @@ jobs:
           agent-pr-automation.yml (auto-rebase, auto-approve, auto-merge)."
           git push origin ${{ steps.extract.outputs.branch }}
         env:
-          GITHUB_TOKEN: ${{ secrets.AGENT_PAT || secrets.AGENT_PAT_COLLAB || secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.AGENT_PAT_COLLAB || secrets.AGENT_PAT || secrets.GITHUB_TOKEN }}
 
       - name: Summary
         if: steps.check-pr.outputs.exists == 'false'
