@@ -415,6 +415,11 @@ app.get("/api/journal", (req, res) => {
   return res.json({ entries });
 });
 
+app.get("/api/journal/tags", (_req, res) => {
+  const tags = store.getTags().map((tag) => tag.name);
+  return res.json({ tags });
+});
+
 app.get("/api/journal/search", (req, res) => {
   const { q, startDate, endDate, limit } = req.query;
   const tagsParam = req.query.tags;
