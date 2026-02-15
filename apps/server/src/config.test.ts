@@ -36,6 +36,12 @@ describe("config", () => {
       const { config } = await import("./config.js");
       expect(config.AXIS_VAPID_SUBJECT).toBe("mailto:companion@example.com");
     });
+
+    it("should use default AXIS_RUNTIME_DB_PATH when not provided", async () => {
+      delete process.env.AXIS_RUNTIME_DB_PATH;
+      const { config } = await import("./config.js");
+      expect(config.AXIS_RUNTIME_DB_PATH).toBe(".data/runtime.sqlite");
+    });
   });
 
   describe("custom values", () => {
@@ -64,6 +70,7 @@ describe("config", () => {
       process.env.AXIS_VAPID_PUBLIC_KEY = "public-key";
       process.env.AXIS_VAPID_PRIVATE_KEY = "private-key";
       process.env.AXIS_VAPID_SUBJECT = "mailto:bob@example.com";
+      process.env.AXIS_RUNTIME_DB_PATH = ".tmp/custom-runtime.sqlite";
 
       const { config } = await import("./config.js");
 
@@ -73,6 +80,7 @@ describe("config", () => {
       expect(config.AXIS_VAPID_PUBLIC_KEY).toBe("public-key");
       expect(config.AXIS_VAPID_PRIVATE_KEY).toBe("private-key");
       expect(config.AXIS_VAPID_SUBJECT).toBe("mailto:bob@example.com");
+      expect(config.AXIS_RUNTIME_DB_PATH).toBe(".tmp/custom-runtime.sqlite");
     });
   });
 

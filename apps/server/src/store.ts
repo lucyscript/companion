@@ -27,6 +27,38 @@ const agentNames: AgentName[] = [
   "orchestrator"
 ];
 
+interface PushDeliveryMetricsBase {
+  attempted: number;
+  delivered: number;
+  failed: number;
+  droppedSubscriptions: number;
+  totalRetries: number;
+}
+
+export interface RuntimeStoreStateSnapshot {
+  events: AgentEvent[];
+  notifications: Notification[];
+  journalEntries: JournalEntry[];
+  scheduleEvents: LectureEvent[];
+  deadlines: Deadline[];
+  deadlineReminderState: Record<string, DeadlineReminderState>;
+  pushSubscriptions: PushSubscriptionRecord[];
+  pushDeliveryMetricsBase: PushDeliveryMetricsBase;
+  pushDeliveryFailures: PushDeliveryFailureRecord[];
+  agentStates: AgentState[];
+  userContext: UserContext;
+  notificationPreferences: NotificationPreferences;
+}
+
+export interface RuntimeStorePersistence {
+  load(): RuntimeStoreStateSnapshot | null;
+  save(snapshot: RuntimeStoreStateSnapshot): void;
+}
+
+interface RuntimeStoreOptions {
+  persistence?: RuntimeStorePersistence;
+}
+
 export class RuntimeStore {
   private readonly maxEvents = 100;
   private readonly maxNotifications = 40;
@@ -42,7 +74,7 @@ export class RuntimeStore {
   private deadlineReminderState: Record<string, DeadlineReminderState> = {};
   private pushSubscriptions: PushSubscriptionRecord[] = [];
   private readonly maxPushFailures = 100;
-  private pushDeliveryMetricsBase = {
+  private pushDeliveryMetricsBase: PushDeliveryMetricsBase = {
     attempted: 0,
     delivered: 0,
     failed: 0,
@@ -78,12 +110,29 @@ export class RuntimeStore {
       orchestrator: true
     }
   };
+  private readonly persistence?: RuntimeStorePersistence;
+
+  constructor(options: RuntimeStoreOptions = {}) {
+    if (!options.persistence) {
+      return;
+    }
+
+    const snapshot = options.persistence.load();
+    if (!snapshot) {
+      this.persistence = options.persistence;
+      return;
+    }
+
+    this.hydrateFromSnapshot(snapshot);
+    this.persistence = options.persistence;
+  }
 
   markAgentRunning(name: AgentName): void {
     this.updateAgent(name, {
       status: "running",
       lastRunAt: nowIso()
     });
+    this.persist();
   }
 
   markAgentError(name: AgentName): void {
@@ -91,6 +140,7 @@ export class RuntimeStore {
       status: "error",
       lastRunAt: nowIso()
     });
+    this.persist();
   }
 
   recordEvent(event: AgentEvent): void {
@@ -100,6 +150,7 @@ export class RuntimeStore {
       lastRunAt: event.timestamp,
       lastEvent: event
     });
+    this.persist();
   }
 
   pushNotification(notification: Omit<Notification, "id" | "timestamp">): void {
@@ -112,6 +163,7 @@ export class RuntimeStore {
     for (const listener of this.notificationListeners) {
       listener(full);
     }
+    this.persist();
   }
 
   setUserContext(next: Partial<UserContext>): UserContext {
@@ -119,6 +171,7 @@ export class RuntimeStore {
       ...this.userContext,
       ...next
     };
+    this.persist();
     return this.userContext;
   }
 
@@ -144,6 +197,7 @@ export class RuntimeStore {
       }
     };
 
+    this.persist();
     return this.notificationPreferences;
   }
 
@@ -173,6 +227,7 @@ export class RuntimeStore {
       version: 1
     };
     this.journalEntries = [entry, ...this.journalEntries].slice(0, this.maxJournalEntries);
+    this.persist();
     return entry;
   }
 
@@ -247,6 +302,10 @@ export class RuntimeStore {
       applied.push(merged);
     }
 
+    if (applied.length > 0) {
+      this.persist();
+    }
+
     return { applied, conflicts };
   }
 
@@ -263,6 +322,7 @@ export class RuntimeStore {
       ...entry
     };
     this.scheduleEvents = [lectureEvent, ...this.scheduleEvents].slice(0, this.maxScheduleEvents);
+    this.persist();
     return lectureEvent;
   }
 
@@ -287,13 +347,18 @@ export class RuntimeStore {
     };
 
     this.scheduleEvents = this.scheduleEvents.map((event, eventIndex) => (eventIndex === index ? next : event));
+    this.persist();
     return next;
   }
 
   deleteScheduleEvent(id: string): boolean {
     const before = this.scheduleEvents.length;
     this.scheduleEvents = this.scheduleEvents.filter((event) => event.id !== id);
-    return this.scheduleEvents.length < before;
+    const deleted = this.scheduleEvents.length < before;
+    if (deleted) {
+      this.persist();
+    }
+    return deleted;
   }
 
   createDeadline(entry: Omit<Deadline, "id">): Deadline {
@@ -302,6 +367,7 @@ export class RuntimeStore {
       ...entry
     };
     this.deadlines = [deadline, ...this.deadlines].slice(0, this.maxDeadlines);
+    this.persist();
     return deadline;
   }
 
@@ -326,6 +392,7 @@ export class RuntimeStore {
     };
 
     this.deadlines = this.deadlines.map((deadline, deadlineIndex) => (deadlineIndex === index ? next : deadline));
+    this.persist();
     return next;
   }
 
@@ -333,7 +400,11 @@ export class RuntimeStore {
     const before = this.deadlines.length;
     this.deadlines = this.deadlines.filter((deadline) => deadline.id !== id);
     delete this.deadlineReminderState[id];
-    return this.deadlines.length < before;
+    const deleted = this.deadlines.length < before;
+    if (deleted) {
+      this.persist();
+    }
+    return deleted;
   }
 
   getOverdueDeadlinesRequiringReminder(referenceDate: string = nowIso(), cooldownMinutes = 180): Deadline[] {
@@ -384,6 +455,7 @@ export class RuntimeStore {
     };
 
     this.deadlineReminderState[deadlineId] = next;
+    this.persist();
     return next;
   }
 
@@ -405,6 +477,7 @@ export class RuntimeStore {
     };
 
     this.deadlineReminderState[deadlineId] = reminder;
+    this.persist();
 
     return {
       deadline,
@@ -422,6 +495,7 @@ export class RuntimeStore {
       ...this.pushSubscriptions.filter((existing) => existing.endpoint !== subscription.endpoint)
     ].slice(0, this.maxPushSubscriptions);
 
+    this.persist();
     return subscription;
   }
 
@@ -432,7 +506,11 @@ export class RuntimeStore {
   removePushSubscription(endpoint: string): boolean {
     const before = this.pushSubscriptions.length;
     this.pushSubscriptions = this.pushSubscriptions.filter((subscription) => subscription.endpoint !== endpoint);
-    return this.pushSubscriptions.length < before;
+    const removed = this.pushSubscriptions.length < before;
+    if (removed) {
+      this.persist();
+    }
+    return removed;
   }
 
 
@@ -476,6 +554,7 @@ export class RuntimeStore {
     };
 
     this.pushDeliveryFailures = [failure, ...this.pushDeliveryFailures].slice(0, this.maxPushFailures);
+    this.persist();
   }
 
   getPushDeliveryMetrics(): PushDeliveryMetrics {
@@ -493,6 +572,74 @@ export class RuntimeStore {
     this.notificationListeners = [...this.notificationListeners, listener];
     return () => {
       this.notificationListeners = this.notificationListeners.filter((existing) => existing !== listener);
+    };
+  }
+
+  private persist(): void {
+    if (!this.persistence) {
+      return;
+    }
+
+    this.persistence.save(this.toSnapshot());
+  }
+
+  private toSnapshot(): RuntimeStoreStateSnapshot {
+    return {
+      events: [...this.events],
+      notifications: [...this.notifications],
+      journalEntries: [...this.journalEntries],
+      scheduleEvents: [...this.scheduleEvents],
+      deadlines: [...this.deadlines],
+      deadlineReminderState: { ...this.deadlineReminderState },
+      pushSubscriptions: [...this.pushSubscriptions],
+      pushDeliveryMetricsBase: { ...this.pushDeliveryMetricsBase },
+      pushDeliveryFailures: [...this.pushDeliveryFailures],
+      agentStates: [...this.agentStates],
+      userContext: { ...this.userContext },
+      notificationPreferences: {
+        ...this.notificationPreferences,
+        quietHours: { ...this.notificationPreferences.quietHours },
+        categoryToggles: { ...this.notificationPreferences.categoryToggles }
+      }
+    };
+  }
+
+  private hydrateFromSnapshot(snapshot: RuntimeStoreStateSnapshot): void {
+    this.events = Array.isArray(snapshot.events) ? snapshot.events : [];
+    this.notifications = Array.isArray(snapshot.notifications) ? snapshot.notifications : [];
+    this.journalEntries = Array.isArray(snapshot.journalEntries) ? snapshot.journalEntries : [];
+    this.scheduleEvents = Array.isArray(snapshot.scheduleEvents) ? snapshot.scheduleEvents : [];
+    this.deadlines = Array.isArray(snapshot.deadlines) ? snapshot.deadlines : [];
+    this.deadlineReminderState =
+      snapshot.deadlineReminderState && typeof snapshot.deadlineReminderState === "object"
+        ? snapshot.deadlineReminderState
+        : {};
+    this.pushSubscriptions = Array.isArray(snapshot.pushSubscriptions) ? snapshot.pushSubscriptions : [];
+    this.pushDeliveryMetricsBase = {
+      attempted: snapshot.pushDeliveryMetricsBase?.attempted ?? 0,
+      delivered: snapshot.pushDeliveryMetricsBase?.delivered ?? 0,
+      failed: snapshot.pushDeliveryMetricsBase?.failed ?? 0,
+      droppedSubscriptions: snapshot.pushDeliveryMetricsBase?.droppedSubscriptions ?? 0,
+      totalRetries: snapshot.pushDeliveryMetricsBase?.totalRetries ?? 0
+    };
+    this.pushDeliveryFailures = Array.isArray(snapshot.pushDeliveryFailures) ? snapshot.pushDeliveryFailures : [];
+    this.agentStates = Array.isArray(snapshot.agentStates) ? snapshot.agentStates : this.agentStates;
+    this.userContext = {
+      stressLevel: snapshot.userContext?.stressLevel ?? this.userContext.stressLevel,
+      energyLevel: snapshot.userContext?.energyLevel ?? this.userContext.energyLevel,
+      mode: snapshot.userContext?.mode ?? this.userContext.mode
+    };
+    this.notificationPreferences = {
+      ...this.notificationPreferences,
+      ...(snapshot.notificationPreferences ?? {}),
+      quietHours: {
+        ...this.notificationPreferences.quietHours,
+        ...(snapshot.notificationPreferences?.quietHours ?? {})
+      },
+      categoryToggles: {
+        ...this.notificationPreferences.categoryToggles,
+        ...(snapshot.notificationPreferences?.categoryToggles ?? {})
+      }
     };
   }
 

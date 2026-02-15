@@ -9,7 +9,8 @@ const schema = z.object({
   AXIS_USER_NAME: z.string().default("friend"),
   AXIS_VAPID_PUBLIC_KEY: z.string().optional(),
   AXIS_VAPID_PRIVATE_KEY: z.string().optional(),
-  AXIS_VAPID_SUBJECT: z.string().default("mailto:companion@example.com")
+  AXIS_VAPID_SUBJECT: z.string().default("mailto:companion@example.com"),
+  AXIS_RUNTIME_DB_PATH: z.string().default(".data/runtime.sqlite")
 });
 
 export const config = schema.parse(process.env);

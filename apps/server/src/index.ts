@@ -5,11 +5,13 @@ import { buildCalendarImportPreview, parseICS } from "./calendar-import.js";
 import { config } from "./config.js";
 import { OrchestratorRuntime } from "./orchestrator.js";
 import { getVapidPublicKey, hasStaticVapidKeys, sendPushNotification } from "./push.js";
+import { SqliteRuntimeStorePersistence } from "./sqlite-persistence.js";
 import { RuntimeStore } from "./store.js";
 import { Notification, NotificationPreferencesPatch } from "./types.js";
 
 const app = express();
-const store = new RuntimeStore();
+const persistence = new SqliteRuntimeStorePersistence(config.AXIS_RUNTIME_DB_PATH);
+const store = new RuntimeStore({ persistence });
 const runtime = new OrchestratorRuntime(store);
 
 runtime.start();
@@ -459,6 +461,7 @@ const server = app.listen(config.PORT, () => {
 
 const shutdown = (): void => {
   runtime.stop();
+  persistence.close();
   server.close(() => {
     process.exit(0);
   });
