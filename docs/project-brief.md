@@ -83,7 +83,7 @@ Features are built in priority order. The orchestrator reads this section to dec
 | ✅ done | `notification-delivery-retries` | backend-engineer | Add retry/backoff + failure tracking for web-push deliveries to improve iPhone notification reliability. |
 | ✅ done | `persistent-runtime-storage` | backend-engineer | Replace in-memory RuntimeStore with file-backed persistence (SQLite) so schedules, deadlines, preferences, and journals survive restarts. |
 | ✅ done | `calendar-import-ui` | frontend-engineer | Add a Calendar Import screen in the PWA to paste ICS text or URL and review imported lecture/deadline records before applying. |
-| ⬜ todo | `deadline-status-confirmation-ui` | frontend-engineer | Add UI quick actions for overdue reminders so users can confirm completed/still-working status from notifications or deadline cards. |
+| ✅ done | `deadline-status-confirmation-ui` | frontend-engineer | Add UI quick actions for overdue reminders so users can confirm completed/still-working status from notifications or deadline cards. |
 | ✅ done | `weekly-review-ui` | frontend-engineer | Build a weekly reflection view that renders `/api/weekly-review` with completion rate, highlights, and suggested next priorities. |
 | ✅ done | `journal-search-filter` | backend-engineer | Add GET /api/journal/search endpoint with text search and date range filters so users can find past entries quickly. |
 | ⬜ todo | `journal-search-ui` | frontend-engineer | Add search bar and date filters to JournalView component backed by /api/journal/search endpoint. |

@@ -22,6 +22,7 @@ export interface Notification {
   priority: Priority;
   source: AgentName;
   timestamp: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface ScheduledNotification {
