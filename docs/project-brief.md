@@ -69,6 +69,6 @@ Features are built in priority order. The orchestrator reads this section to dec
 | ✅ done | `schedule-api` | backend-engineer | Schedule + deadline CRUD endpoints |
 | ✅ done | `schedule-ui` | frontend-engineer | ScheduleView + DeadlineList components |
 | ⬜ todo | `push-notifications` | backend-engineer | VAPID keys, push subscription, service worker |
-| ⬜ todo | `nudge-engine` | backend-engineer | Context-aware notification generation |
+| ✅ done | `nudge-engine` | backend-engineer | Context-aware notification generation |
 | ⬜ todo | `api-docs` | docs-writer | Document all API endpoints in docs/api.md |
 | ⬜ todo | `test-coverage` | test-engineer | Add tests for store, orchestrator, and agent modules |

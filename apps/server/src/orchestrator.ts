@@ -1,6 +1,7 @@
 import { BaseAgent } from "./agent-base.js";
 import { AssignmentTrackerAgent } from "./agents/assignment-agent.js";
 import { LecturePlanAgent } from "./agents/lecture-plan-agent.js";
+import { buildContextAwareNudge } from "./nudge-engine.js";
 import { NotesAgent } from "./agents/notes-agent.js";
 import { RuntimeStore } from "./store.js";
 import { AgentEvent } from "./types.js";
@@ -56,44 +57,20 @@ export class OrchestratorRuntime {
 
   private handleEvent(event: AgentEvent): void {
     this.store.recordEvent(event);
+    const context = this.store.getUserContext();
+    const nudge = buildContextAwareNudge(event, context);
 
-    switch (event.eventType) {
-      case "assignment.deadline": {
-        const message = `${asText(event.payload, "task")} for ${asText(event.payload, "course")} is approaching.`;
-        this.store.pushNotification({
-          source: "assignment-tracker",
-          title: "Deadline alert",
-          message,
-          priority: event.priority
-        });
-        break;
-      }
-      case "lecture.reminder": {
-        this.store.pushNotification({
-          source: "lecture-plan",
-          title: "Lecture reminder",
-          message: `${asText(event.payload, "title")} starts in ${asText(event.payload, "minutesUntil")} min`,
-          priority: event.priority
-        });
-        break;
-      }
-      case "note.prompt": {
-        this.store.pushNotification({
-          source: "notes",
-          title: "Journal prompt",
-          message: asText(event.payload, "prompt"),
-          priority: "low"
-        });
-        break;
-      }
-      default:
-        this.store.pushNotification({
-          source: "orchestrator",
-          title: "Unknown event",
-          message: `Unhandled event type: ${event.eventType}`,
-          priority: "low"
-        });
+    if (nudge) {
+      this.store.pushNotification(nudge);
+      return;
     }
+
+    this.store.pushNotification({
+      source: "orchestrator",
+      title: "Unknown event",
+      message: `Unhandled event type: ${event.eventType}`,
+      priority: "low"
+    });
   }
 
   private emitBootNotification(): void {
@@ -104,13 +81,4 @@ export class OrchestratorRuntime {
       priority: "medium"
     });
   }
-}
-
-function asText(value: unknown, key: string): string {
-  if (value && typeof value === "object" && key in value) {
-    const parsed = (value as Record<string, unknown>)[key];
-    return String(parsed);
-  }
-
-  return "n/a";
 }
