@@ -810,3 +810,186 @@ Error Response `400`:
   ]
 }
 ```
+
+## Background Sync
+
+Background sync API enables queuing operations for automatic synchronization when connectivity is restored or the app reopens.
+
+### `POST /api/sync/queue`
+
+Add an operation to the background sync queue.
+
+Request:
+
+```json
+{
+  "operationType": "journal|deadline|context",
+  "payload": {
+    "...": "operation-specific data"
+  }
+}
+```
+
+**Journal Sync Payload**:
+```json
+{
+  "operationType": "journal",
+  "payload": {
+    "clientEntryId": "client-uuid",
+    "content": "Journal entry text",
+    "timestamp": "2026-02-15T01:00:00.000Z",
+    "baseVersion": 1,
+    "tags": ["tag-id-1", "tag-id-2"],
+    "photos": [
+      {
+        "dataUrl": "data:image/png;base64,...",
+        "fileName": "photo.png"
+      }
+    ]
+  }
+}
+```
+
+**Deadline Sync Payload (create)**:
+```json
+{
+  "operationType": "deadline",
+  "payload": {
+    "deadlineId": "temp-new-deadline-uuid",
+    "updates": {
+      "course": "CS101",
+      "task": "Assignment 1",
+      "dueDate": "2026-02-20T23:59:00.000Z",
+      "priority": "high",
+      "completed": false
+    }
+  }
+}
+```
+
+**Deadline Sync Payload (update)**:
+```json
+{
+  "operationType": "deadline",
+  "payload": {
+    "deadlineId": "deadline-existing-id",
+    "updates": {
+      "completed": true,
+      "priority": "low"
+    }
+  }
+}
+```
+
+**Context Sync Payload**:
+```json
+{
+  "operationType": "context",
+  "payload": {
+    "stressLevel": "low",
+    "energyLevel": "high",
+    "mode": "focus"
+  }
+}
+```
+
+Response `201`:
+
+```json
+{
+  "item": {
+    "id": "sync-1739570000000-1",
+    "operationType": "journal",
+    "payload": { "...": "..." },
+    "status": "pending",
+    "attempts": 0,
+    "lastAttemptAt": null,
+    "createdAt": "2026-02-15T01:00:00.000Z",
+    "completedAt": null,
+    "error": null
+  }
+}
+```
+
+### `POST /api/sync/process`
+
+Manually trigger sync queue processing (processes all pending items).
+
+Response `200`:
+
+```json
+{
+  "success": true,
+  "processed": 5,
+  "failed": 1
+}
+```
+
+Error Response `500`:
+
+```json
+{
+  "error": "Sync processing failed",
+  "message": "Detailed error message"
+}
+```
+
+### `GET /api/sync/status`
+
+Get the current status of the sync queue.
+
+Response `200`:
+
+```json
+{
+  "status": {
+    "pending": 3,
+    "processing": 0,
+    "failed": 1,
+    "recentItems": [
+      {
+        "id": "sync-1739570000000-1",
+        "operationType": "journal",
+        "payload": { "...": "..." },
+        "status": "completed",
+        "attempts": 1,
+        "lastAttemptAt": "2026-02-15T01:00:30.000Z",
+        "createdAt": "2026-02-15T01:00:00.000Z",
+        "completedAt": "2026-02-15T01:00:30.000Z",
+        "error": null
+      }
+    ]
+  },
+  "isProcessing": false
+}
+```
+
+**Status Field Values**:
+- `pending`: Items waiting to be processed or retried
+- `processing`: Items currently being processed
+- `failed`: Items that failed after max retries (5 attempts)
+- `completed`: Successfully processed items
+
+**Item Status Values**:
+- `pending`: Waiting for processing or retry
+- `processing`: Currently being processed
+- `completed`: Successfully synced
+- `failed`: Failed after max retries
+
+### `DELETE /api/sync/cleanup`
+
+Clean up completed sync items older than 7 days.
+
+Response `200`:
+
+```json
+{
+  "deleted": 15
+}
+```
+
+**Automatic Sync Processing**:
+- Background sync service runs every 30 seconds automatically
+- Failed operations are retried with exponential backoff (1s, 2s, 4s, 8s, 16s)
+- Operations are marked as failed after 5 retry attempts
+- Completed items older than 7 days can be cleaned up via the cleanup endpoint

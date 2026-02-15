@@ -36,7 +36,10 @@ import {
   GoalWithStatus,
   Tag,
   Location,
-  LocationHistory
+  LocationHistory,
+  SyncQueueItem,
+  SyncQueueStatus,
+  SyncOperationType
 } from "./types.js";
 import { makeId, nowIso } from "./utils.js";
 
@@ -315,6 +318,22 @@ export class RuntimeStore {
       CREATE INDEX IF NOT EXISTS idx_locations_label ON locations(label);
       CREATE INDEX IF NOT EXISTS idx_location_history_timestamp ON location_history(timestamp);
       CREATE INDEX IF NOT EXISTS idx_location_history_locationId ON location_history(locationId);
+
+      CREATE TABLE IF NOT EXISTS sync_queue (
+        id TEXT PRIMARY KEY,
+        operationType TEXT NOT NULL,
+        payload TEXT NOT NULL,
+        status TEXT NOT NULL,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        lastAttemptAt TEXT,
+        createdAt TEXT NOT NULL,
+        completedAt TEXT,
+        error TEXT,
+        insertOrder INTEGER NOT NULL DEFAULT (unixepoch('subsec') * 1000000)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_sync_queue_status ON sync_queue(status);
+      CREATE INDEX IF NOT EXISTS idx_sync_queue_createdAt ON sync_queue(createdAt);
     `);
 
     const journalColumns = this.db.prepare("PRAGMA table_info(journal_entries)").all() as Array<{ name: string }>;
@@ -3074,6 +3093,190 @@ export class RuntimeStore {
         )
         .run(count - this.maxLocationHistory);
     }
+  }
+
+  /**
+   * Add an operation to the background sync queue
+   */
+  enqueueSyncOperation(operationType: SyncOperationType, payload: Record<string, unknown>): SyncQueueItem {
+    const item: SyncQueueItem = {
+      id: makeId("sync"),
+      operationType,
+      payload,
+      status: "pending",
+      attempts: 0,
+      lastAttemptAt: null,
+      createdAt: nowIso(),
+      completedAt: null,
+      error: null
+    };
+
+    this.db
+      .prepare(
+        `INSERT INTO sync_queue (id, operationType, payload, status, attempts, lastAttemptAt, createdAt, completedAt, error)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        item.id,
+        item.operationType,
+        JSON.stringify(item.payload),
+        item.status,
+        item.attempts,
+        item.lastAttemptAt,
+        item.createdAt,
+        item.completedAt,
+        item.error
+      );
+
+    return item;
+  }
+
+  /**
+   * Get pending sync queue items
+   */
+  getPendingSyncItems(limit?: number): SyncQueueItem[] {
+    const rows = this.db
+      .prepare(
+        `SELECT id, operationType, payload, status, attempts, lastAttemptAt, createdAt, completedAt, error
+         FROM sync_queue
+         WHERE status IN ('pending', 'failed')
+         ORDER BY createdAt ASC
+         LIMIT ?`
+      )
+      .all(limit ?? 100) as Array<{
+      id: string;
+      operationType: string;
+      payload: string;
+      status: string;
+      attempts: number;
+      lastAttemptAt: string | null;
+      createdAt: string;
+      completedAt: string | null;
+      error: string | null;
+    }>;
+
+    return rows.map((row) => ({
+      id: row.id,
+      operationType: row.operationType as SyncOperationType,
+      payload: JSON.parse(row.payload) as Record<string, unknown>,
+      status: row.status as SyncQueueItem["status"],
+      attempts: row.attempts,
+      lastAttemptAt: row.lastAttemptAt,
+      createdAt: row.createdAt,
+      completedAt: row.completedAt,
+      error: row.error
+    }));
+  }
+
+  /**
+   * Update sync queue item status
+   */
+  updateSyncItemStatus(
+    id: string,
+    status: SyncQueueItem["status"],
+    error?: string
+  ): void {
+    const updates: Record<string, string | number | null> = {
+      status,
+      lastAttemptAt: nowIso()
+    };
+
+    if (status === "completed") {
+      updates.completedAt = nowIso();
+    }
+
+    if (error !== undefined) {
+      updates.error = error;
+    }
+
+    this.db
+      .prepare(
+        `UPDATE sync_queue
+         SET status = ?, lastAttemptAt = ?, completedAt = ?, error = ?, attempts = attempts + 1
+         WHERE id = ?`
+      )
+      .run(updates.status, updates.lastAttemptAt, updates.completedAt ?? null, updates.error ?? null, id);
+  }
+
+  /**
+   * Delete completed sync items older than a certain date
+   */
+  cleanupCompletedSyncItems(olderThanDays: number = 7): number {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
+    const cutoffIso = cutoffDate.toISOString();
+
+    const result = this.db
+      .prepare(
+        `DELETE FROM sync_queue
+         WHERE status = 'completed' AND completedAt < ?`
+      )
+      .run(cutoffIso);
+
+    return result.changes;
+  }
+
+  /**
+   * Get sync queue status overview
+   */
+  getSyncQueueStatus(): SyncQueueStatus {
+    const pending = (
+      this.db.prepare("SELECT COUNT(*) as count FROM sync_queue WHERE status = 'pending'").get() as { count: number }
+    ).count;
+
+    const processing = (
+      this.db.prepare("SELECT COUNT(*) as count FROM sync_queue WHERE status = 'processing'").get() as { count: number }
+    ).count;
+
+    const failed = (
+      this.db.prepare("SELECT COUNT(*) as count FROM sync_queue WHERE status = 'failed'").get() as { count: number }
+    ).count;
+
+    const recentRows = this.db
+      .prepare(
+        `SELECT id, operationType, payload, status, attempts, lastAttemptAt, createdAt, completedAt, error
+         FROM sync_queue
+         ORDER BY createdAt DESC
+         LIMIT 20`
+      )
+      .all() as Array<{
+      id: string;
+      operationType: string;
+      payload: string;
+      status: string;
+      attempts: number;
+      lastAttemptAt: string | null;
+      createdAt: string;
+      completedAt: string | null;
+      error: string | null;
+    }>;
+
+    const recentItems: SyncQueueItem[] = recentRows.map((row) => ({
+      id: row.id,
+      operationType: row.operationType as SyncOperationType,
+      payload: JSON.parse(row.payload) as Record<string, unknown>,
+      status: row.status as SyncQueueItem["status"],
+      attempts: row.attempts,
+      lastAttemptAt: row.lastAttemptAt,
+      createdAt: row.createdAt,
+      completedAt: row.completedAt,
+      error: row.error
+    }));
+
+    return {
+      pending,
+      processing,
+      failed,
+      recentItems
+    };
+  }
+
+  /**
+   * Delete a sync queue item
+   */
+  deleteSyncQueueItem(id: string): boolean {
+    const result = this.db.prepare("DELETE FROM sync_queue WHERE id = ?").run(id);
+    return result.changes > 0;
   }
 }
 

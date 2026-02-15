@@ -1,6 +1,7 @@
 import cors from "cors";
 import express from "express";
 import { z } from "zod";
+import { BackgroundSyncService } from "./background-sync.js";
 import { buildCalendarImportPreview, parseICS } from "./calendar-import.js";
 import { config } from "./config.js";
 import { generateDeadlineSuggestions } from "./deadline-suggestions.js";
@@ -12,8 +13,10 @@ import { Notification, NotificationPreferencesPatch } from "./types.js";
 const app = express();
 const store = new RuntimeStore();
 const runtime = new OrchestratorRuntime(store);
+const syncService = new BackgroundSyncService(store);
 
 runtime.start();
+syncService.start();
 
 app.use(cors());
 app.use(express.json());
@@ -995,6 +998,48 @@ app.post("/api/push/test", (req, res) => {
   return res.status(202).json({ queued: true, subscribers: store.getPushSubscriptions().length });
 });
 
+// Background Sync API endpoints
+const syncOperationSchema = z.object({
+  operationType: z.enum(["journal", "deadline", "context"]),
+  payload: z.record(z.unknown())
+});
+
+app.post("/api/sync/queue", (req, res) => {
+  const parsed = syncOperationSchema.safeParse(req.body ?? {});
+
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid sync operation payload", issues: parsed.error.issues });
+  }
+
+  const item = store.enqueueSyncOperation(parsed.data.operationType, parsed.data.payload);
+  return res.status(201).json({ item });
+});
+
+app.post("/api/sync/process", async (_req, res) => {
+  try {
+    const result = await syncService.triggerSync();
+    return res.json({ success: true, processed: result.processed, failed: result.failed });
+  } catch (error) {
+    return res.status(500).json({ 
+      error: "Sync processing failed", 
+      message: error instanceof Error ? error.message : "Unknown error" 
+    });
+  }
+});
+
+app.get("/api/sync/status", (_req, res) => {
+  const status = store.getSyncQueueStatus();
+  return res.json({ 
+    status,
+    isProcessing: syncService.isCurrentlyProcessing()
+  });
+});
+
+app.delete("/api/sync/cleanup", (_req, res) => {
+  const deleted = store.cleanupCompletedSyncItems(7);
+  return res.json({ deleted });
+});
+
 async function fetchCalendarIcs(url: string): Promise<string | null> {
   try {
     const response = await fetch(url);
@@ -1016,6 +1061,7 @@ const server = app.listen(config.PORT, () => {
 
 const shutdown = (): void => {
   runtime.stop();
+  syncService.stop();
   server.close(() => {
     process.exit(0);
   });
