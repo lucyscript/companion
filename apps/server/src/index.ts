@@ -204,6 +204,33 @@ app.get("/api/journal", (req, res) => {
   return res.json({ entries });
 });
 
+app.get("/api/journal/search", (req, res) => {
+  const { q, startDate, endDate, limit } = req.query;
+
+  const limitValue = limit ? parseInt(limit as string, 10) : undefined;
+
+  if (limitValue !== undefined && (isNaN(limitValue) || limitValue <= 0)) {
+    return res.status(400).json({ error: "Invalid limit parameter" });
+  }
+
+  if (startDate && typeof startDate === "string" && isNaN(Date.parse(startDate))) {
+    return res.status(400).json({ error: "Invalid startDate parameter" });
+  }
+
+  if (endDate && typeof endDate === "string" && isNaN(Date.parse(endDate))) {
+    return res.status(400).json({ error: "Invalid endDate parameter" });
+  }
+
+  const entries = store.searchJournalEntries({
+    query: q as string | undefined,
+    startDate: startDate as string | undefined,
+    endDate: endDate as string | undefined,
+    limit: limitValue
+  });
+
+  return res.json({ entries });
+});
+
 app.post("/api/calendar/import", async (req, res) => {
   const parsed = calendarImportSchema.safeParse(req.body ?? {});
 

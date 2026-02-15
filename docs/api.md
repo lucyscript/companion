@@ -199,6 +199,37 @@ Response `200`:
 }
 ```
 
+### `GET /api/journal/search`
+
+Search journal entries by text query and/or date range.
+
+Query params:
+- `q` (optional, string) - Text search query (case-insensitive, partial match)
+- `startDate` (optional, ISO datetime string) - Filter entries on or after this date
+- `endDate` (optional, ISO datetime string) - Filter entries on or before this date
+- `limit` (optional, positive integer) - Maximum number of results to return
+
+Response `200`:
+
+```json
+{
+  "entries": [
+    {
+      "id": "journal-1739570000000-1",
+      "content": "Finished algorithms chapter 4 and outlined notes.",
+      "timestamp": "2026-02-15T01:00:00.000Z",
+      "updatedAt": "2026-02-15T01:00:00.000Z",
+      "version": 1
+    }
+  ]
+}
+```
+
+Examples:
+- `/api/journal/search?q=algorithms` - Find all entries containing "algorithms"
+- `/api/journal/search?startDate=2026-02-01T00:00:00.000Z&endDate=2026-02-28T23:59:59.999Z` - Find entries in February 2026
+- `/api/journal/search?q=algorithms&startDate=2026-02-01T00:00:00.000Z&limit=5` - Find up to 5 entries containing "algorithms" from February 2026 onwards
+
 ## Schedule
 
 Schedule payload fields:

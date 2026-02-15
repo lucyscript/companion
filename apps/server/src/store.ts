@@ -588,6 +588,58 @@ export class RuntimeStore {
     }));
   }
 
+  searchJournalEntries(options: {
+    query?: string;
+    startDate?: string;
+    endDate?: string;
+    limit?: number;
+  }): JournalEntry[] {
+    const conditions: string[] = [];
+    const params: (string | number)[] = [];
+
+    if (options.query && options.query.trim()) {
+      conditions.push("content LIKE ?");
+      params.push(`%${options.query.trim()}%`);
+    }
+
+    if (options.startDate) {
+      conditions.push("timestamp >= ?");
+      params.push(options.startDate);
+    }
+
+    if (options.endDate) {
+      conditions.push("timestamp <= ?");
+      params.push(options.endDate);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+    const limitClause = options.limit !== undefined && options.limit > 0 ? "LIMIT ?" : "";
+
+    if (limitClause) {
+      params.push(options.limit!);
+    }
+
+    const query = `SELECT * FROM journal_entries ${whereClause} ORDER BY timestamp DESC ${limitClause}`.trim();
+
+    const rows = this.db.prepare(query).all(...params) as Array<{
+      id: string;
+      clientEntryId: string | null;
+      content: string;
+      timestamp: string;
+      updatedAt: string;
+      version: number;
+    }>;
+
+    return rows.map((row) => ({
+      id: row.id,
+      clientEntryId: row.clientEntryId ?? undefined,
+      content: row.content,
+      timestamp: row.timestamp,
+      updatedAt: row.updatedAt,
+      version: row.version
+    }));
+  }
+
   createLectureEvent(entry: Omit<LectureEvent, "id">): LectureEvent {
     const lectureEvent: LectureEvent = {
       id: makeId("lecture"),

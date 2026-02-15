@@ -85,7 +85,7 @@ Features are built in priority order. The orchestrator reads this section to dec
 | ✅ done | `calendar-import-ui` | frontend-engineer | Add a Calendar Import screen in the PWA to paste ICS text or URL and review imported lecture/deadline records before applying. |
 | ⬜ todo | `deadline-status-confirmation-ui` | frontend-engineer | Add UI quick actions for overdue reminders so users can confirm completed/still-working status from notifications or deadline cards. |
 | ✅ done | `weekly-review-ui` | frontend-engineer | Build a weekly reflection view that renders `/api/weekly-review` with completion rate, highlights, and suggested next priorities. |
-| ⬜ todo | `journal-search-filter` | backend-engineer | Add GET /api/journal/search endpoint with text search and date range filters so users can find past entries quickly. |
+| ✅ done | `journal-search-filter` | backend-engineer | Add GET /api/journal/search endpoint with text search and date range filters so users can find past entries quickly. |
 | ⬜ todo | `journal-search-ui` | frontend-engineer | Add search bar and date filters to JournalView component backed by /api/journal/search endpoint. |
 | ⬜ todo | `dark-mode` | frontend-engineer | Add dark mode toggle in settings with CSS variables for all components and persist preference in localStorage for iPhone nighttime use. |
 | ⬜ todo | `data-export-api` | backend-engineer | Add GET /api/export endpoint that returns all user data (journals, schedule, deadlines, preferences) as downloadable JSON for backup and portability. |
