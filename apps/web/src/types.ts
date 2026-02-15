@@ -83,3 +83,11 @@ export interface Deadline {
   priority: Priority;
   completed: boolean;
 }
+
+export interface OnboardingProfile {
+  name: string;
+  timezone: string;
+  baselineSchedule: string;
+  nudgeTone: "gentle" | "balanced" | "direct";
+  completedAt: string;
+}
