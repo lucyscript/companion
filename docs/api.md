@@ -502,6 +502,59 @@ Response `200`:
 }
 ```
 
+### `GET /api/deadlines/suggestions`
+
+Analyzes schedule gaps and recommends optimal work time blocks for upcoming deadlines. Returns smart suggestions based on deadline priority, urgency, available time slots, and time-of-day quality.
+
+The endpoint looks ahead 72 hours by default and suggests the best times to work on each incomplete deadline by considering:
+- Schedule gaps (free time between lectures/events)
+- Deadline urgency (how soon it's due)
+- Deadline priority (critical, high, medium, low)
+- Time of day quality (peak productivity hours)
+- Proximity to current time (sooner is more actionable)
+
+Response `200`:
+
+```json
+{
+  "suggestions": [
+    {
+      "deadline": {
+        "id": "deadline-1739570000000-3",
+        "course": "Algorithms",
+        "task": "Problem Set 4",
+        "dueDate": "2026-02-17T23:59:00.000Z",
+        "priority": "high",
+        "completed": false
+      },
+      "suggestedStartTime": "2026-02-15T14:00:00.000Z",
+      "suggestedEndTime": "2026-02-15T16:00:00.000Z",
+      "durationMinutes": 120,
+      "gapQualityScore": 85,
+      "priorityScore": 135,
+      "overallScore": 110,
+      "rationale": "⏰ Due tomorrow. You have 180 minutes free - plenty of time to complete this task (estimated 120 min). Coming up soon - good time to prepare."
+    }
+  ]
+}
+```
+
+**Response Fields**:
+- `deadline`: The deadline object this suggestion is for
+- `suggestedStartTime`: ISO datetime when to start working
+- `suggestedEndTime`: ISO datetime when the work block ends
+- `durationMinutes`: Length of suggested work session
+- `gapQualityScore`: Score (0-100) for how good this time slot is
+- `priorityScore`: Score based on deadline priority and urgency
+- `overallScore`: Combined score used for ranking suggestions
+- `rationale`: Human-readable explanation of why this suggestion is recommended
+
+**Notes**:
+- Returns up to 10 suggestions, sorted by overall score (highest first)
+- Only includes incomplete deadlines
+- Only suggests gaps of at least 60 minutes
+- Only includes suggestions with overall score ≥ 30
+
 ## Export
 
 ### `GET /api/export`

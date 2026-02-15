@@ -572,6 +572,21 @@ app.get("/api/deadlines", (_req, res) => {
   return res.json({ deadlines: store.getDeadlines() });
 });
 
+app.get("/api/deadlines/suggestions", (_req, res) => {
+  const deadlines = store.getDeadlines();
+  const scheduleEvents = store.getScheduleEvents();
+  const userContext = store.getUserContext();
+
+  const suggestions = generateDeadlineSuggestions(
+    deadlines,
+    scheduleEvents,
+    userContext,
+    new Date()
+  );
+
+  return res.json({ suggestions });
+});
+
 app.get("/api/deadlines/:id", (req, res) => {
   const deadline = store.getDeadlineById(req.params.id);
 
@@ -622,21 +637,6 @@ app.delete("/api/deadlines/:id", (req, res) => {
   }
 
   return res.status(204).send();
-});
-
-app.get("/api/deadlines/suggestions", (_req, res) => {
-  const deadlines = store.getDeadlines();
-  const scheduleEvents = store.getScheduleEvents();
-  const userContext = store.getUserContext();
-  
-  const suggestions = generateDeadlineSuggestions(
-    deadlines,
-    scheduleEvents,
-    userContext,
-    new Date()
-  );
-  
-  return res.json({ suggestions });
 });
 
 app.get("/api/habits", (_req, res) => {
