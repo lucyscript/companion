@@ -231,6 +231,34 @@ export interface WeeklySummary {
   journalHighlights: JournalEntry[];
 }
 
+export interface ContextTrendBucket {
+  total: number;
+  energyLevels: Record<UserContext["energyLevel"], number>;
+  stressLevels: Record<UserContext["stressLevel"], number>;
+  dominantEnergy: UserContext["energyLevel"] | null;
+  dominantStress: UserContext["stressLevel"] | null;
+}
+
+export interface ContextTrends {
+  sampleSize: number;
+  byHour: Array<
+    {
+      hour: number;
+    } & ContextTrendBucket
+  >;
+  byDayOfWeek: Array<
+    {
+      dayOfWeek: number;
+    } & ContextTrendBucket
+  >;
+  recommendations: {
+    bestNotificationHours: number[];
+    cautionHours: number[];
+    bestDays: number[];
+  };
+  latestContext: UserContext;
+}
+
 export interface ExportData {
   exportedAt: string;
   version: string;

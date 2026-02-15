@@ -31,6 +31,11 @@ app.get("/api/weekly-review", (req, res) => {
   return res.json({ summary });
 });
 
+app.get("/api/trends", (_req, res) => {
+  const trends = store.getContextTrends();
+  return res.json({ trends });
+});
+
 app.get("/api/export", (_req, res) => {
   const exportData = store.getExportData();
   res.setHeader("Content-Type", "application/json");

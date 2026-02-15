@@ -7,6 +7,7 @@ import {
   Deadline,
   DeadlineReminderState,
   DeadlineStatusConfirmation,
+  ContextTrends,
   ExportData,
   ImportData,
   ImportResult,
@@ -48,6 +49,7 @@ export class RuntimeStore {
   private readonly maxDeadlines = 200;
   private readonly maxHabits = 100;
   private readonly maxGoals = 100;
+  private readonly maxContextHistory = 500;
   private readonly maxCheckInsPerItem = 400;
   private readonly maxPushSubscriptions = 50;
   private readonly maxPushFailures = 100;
@@ -221,6 +223,15 @@ export class RuntimeStore {
         stressLevel TEXT NOT NULL,
         energyLevel TEXT NOT NULL,
         mode TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS context_history (
+        id TEXT PRIMARY KEY,
+        timestamp TEXT NOT NULL,
+        stressLevel TEXT NOT NULL,
+        energyLevel TEXT NOT NULL,
+        mode TEXT NOT NULL,
+        insertOrder INTEGER NOT NULL DEFAULT (unixepoch('subsec') * 1000000)
       );
 
       CREATE TABLE IF NOT EXISTS notification_preferences (
@@ -456,13 +467,33 @@ export class RuntimeStore {
     }
   }
 
+  private recordContextHistory(context: UserContext, timestamp: string): void {
+    this.db
+      .prepare("INSERT INTO context_history (id, timestamp, stressLevel, energyLevel, mode) VALUES (?, ?, ?, ?, ?)")
+      .run(makeId("ctx"), timestamp, context.stressLevel, context.energyLevel, context.mode);
+
+    const count = (this.db.prepare("SELECT COUNT(*) as count FROM context_history").get() as { count: number }).count;
+    if (count > this.maxContextHistory) {
+      this.db
+        .prepare(
+          `DELETE FROM context_history WHERE id IN (
+            SELECT id FROM context_history ORDER BY insertOrder ASC LIMIT ?
+          )`
+        )
+        .run(count - this.maxContextHistory);
+    }
+  }
+
   setUserContext(next: Partial<UserContext>): UserContext {
     const current = this.getUserContext();
     const updated = { ...current, ...next };
+    const timestamp = nowIso();
 
     this.db
       .prepare("UPDATE user_context SET stressLevel = ?, energyLevel = ?, mode = ? WHERE id = 1")
       .run(updated.stressLevel, updated.energyLevel, updated.mode);
+
+    this.recordContextHistory(updated, timestamp);
 
     return updated;
   }
@@ -478,6 +509,149 @@ export class RuntimeStore {
       stressLevel: row.stressLevel as UserContext["stressLevel"],
       energyLevel: row.energyLevel as UserContext["energyLevel"],
       mode: row.mode as UserContext["mode"]
+    };
+  }
+
+  getContextTrends(): ContextTrends {
+    const history = this.db
+      .prepare("SELECT timestamp, stressLevel, energyLevel, mode FROM context_history ORDER BY insertOrder DESC")
+      .all() as Array<{
+      timestamp: string;
+      stressLevel: UserContext["stressLevel"];
+      energyLevel: UserContext["energyLevel"];
+      mode: UserContext["mode"];
+    }>;
+
+    const latestContext = this.getUserContext();
+
+    if (history.length === 0) {
+      return {
+        sampleSize: 0,
+        byHour: [],
+        byDayOfWeek: [],
+        recommendations: {
+          bestNotificationHours: [],
+          cautionHours: [],
+          bestDays: []
+        },
+        latestContext
+      };
+    }
+
+    const createBucket = () => ({
+      total: 0,
+      energyLevels: {
+        low: 0,
+        medium: 0,
+        high: 0
+      } as Record<UserContext["energyLevel"], number>,
+      stressLevels: {
+        low: 0,
+        medium: 0,
+        high: 0
+      } as Record<UserContext["stressLevel"], number>
+    });
+
+    const hourBuckets: Record<number, ReturnType<typeof createBucket>> = {};
+    const dayBuckets: Record<number, ReturnType<typeof createBucket>> = {};
+
+    for (const entry of history) {
+      const date = new Date(entry.timestamp);
+      const hour = date.getUTCHours();
+      const day = date.getUTCDay();
+
+      if (!hourBuckets[hour]) {
+        hourBuckets[hour] = createBucket();
+      }
+      if (!dayBuckets[day]) {
+        dayBuckets[day] = createBucket();
+      }
+
+      hourBuckets[hour].total += 1;
+      hourBuckets[hour].energyLevels[entry.energyLevel] += 1;
+      hourBuckets[hour].stressLevels[entry.stressLevel] += 1;
+
+      dayBuckets[day].total += 1;
+      dayBuckets[day].energyLevels[entry.energyLevel] += 1;
+      dayBuckets[day].stressLevels[entry.stressLevel] += 1;
+    }
+
+    const pickDominant = <T extends string>(counts: Record<T, number>, fallback: T): T => {
+      const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+      return (sorted[0]?.[0] as T) ?? fallback;
+    };
+
+    const byHour = Object.entries(hourBuckets)
+      .map(([hour, bucket]) => ({
+        hour: Number(hour),
+        total: bucket.total,
+        energyLevels: bucket.energyLevels,
+        stressLevels: bucket.stressLevels,
+        dominantEnergy: pickDominant(bucket.energyLevels, "medium"),
+        dominantStress: pickDominant(bucket.stressLevels, "medium")
+      }))
+      .sort((a, b) => a.hour - b.hour);
+
+    const byDayOfWeek = Object.entries(dayBuckets)
+      .map(([day, bucket]) => ({
+        dayOfWeek: Number(day),
+        total: bucket.total,
+        energyLevels: bucket.energyLevels,
+        stressLevels: bucket.stressLevels,
+        dominantEnergy: pickDominant(bucket.energyLevels, "medium"),
+        dominantStress: pickDominant(bucket.stressLevels, "medium")
+      }))
+      .sort((a, b) => a.dayOfWeek - b.dayOfWeek);
+
+    const scoredHours = byHour.map((bucket) => ({
+      hour: bucket.hour,
+      score: bucket.energyLevels.high * 2 + bucket.energyLevels.medium - (bucket.stressLevels.high * 2 + bucket.stressLevels.medium)
+    }));
+
+    const bestNotificationHours = scoredHours
+      .slice()
+      .sort((a, b) => b.score - a.score || a.hour - b.hour)
+      .filter((entry) => entry.score > 0)
+      .slice(0, 5)
+      .map((entry) => entry.hour);
+
+    const fallbackHours = scoredHours
+      .slice()
+      .sort((a, b) => b.score - a.score || a.hour - b.hour)
+      .slice(0, 3)
+      .map((entry) => entry.hour);
+
+    const cautionHours = byHour
+      .slice()
+      .sort(
+        (a, b) =>
+          b.stressLevels.high + b.stressLevels.medium - (a.stressLevels.high + a.stressLevels.medium) ||
+          b.total - a.total
+      )
+      .filter((bucket) => bucket.stressLevels.high > 0 || bucket.stressLevels.medium > bucket.stressLevels.low)
+      .slice(0, 3)
+      .map((bucket) => bucket.hour);
+
+    const bestDays = byDayOfWeek
+      .map((bucket) => ({
+        dayOfWeek: bucket.dayOfWeek,
+        score: bucket.energyLevels.high * 2 + bucket.energyLevels.medium - (bucket.stressLevels.high * 2 + bucket.stressLevels.medium)
+      }))
+      .sort((a, b) => b.score - a.score || a.dayOfWeek - b.dayOfWeek)
+      .filter((entry) => entry.score > 0)
+      .slice(0, 3)
+      .map((entry) => entry.dayOfWeek);
+
+    return {
+      sampleSize: history.length,
+      byHour,
+      byDayOfWeek,
+      recommendations: {
+        bestNotificationHours: bestNotificationHours.length > 0 ? bestNotificationHours : fallbackHours,
+        cautionHours,
+        bestDays
+      },
+      latestContext
     };
   }
 
