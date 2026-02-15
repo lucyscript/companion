@@ -36,3 +36,9 @@ npm run dev
 2. Tag one agent owner (`Codex`, `Claude`, or `Copilot`).
 3. Ensure PR includes `.agents/ORCHESTRATION.md` handoff template fields.
 4. Merge backend contracts first, then frontend consumers.
+
+## Codex Model Configuration
+
+- Repository-scoped Codex defaults should live at `.codex/config.toml` (not `config.toml` at repo root).
+- User-scoped defaults should live at `~/.codex/config.toml`.
+- Changing either config affects new Codex sessions; it does not hot-swap the model of an already running chat session.

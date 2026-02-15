@@ -1,0 +1,10 @@
+# Codex user configuration
+# Set default model for new sessions
+model = "gpt-5.3-codex"
+model_reasoning_effort = "xhigh"
+
+[projects."/home/lucyscript/dev/self/companion"]
+trust_level = "trusted"
+
+[notice]
+hide_full_access_warning = true
