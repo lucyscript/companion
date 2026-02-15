@@ -1,11 +1,15 @@
 name: Unstick Agent Draft PRs
 
-# Runs every 3 minutes to catch agent draft PRs and process them.
-# Handles PRs from Claude (Anthropic), Codex (OpenAI), and Copilot (GitHub).
-# Flow: detect done → rebase/resolve conflicts → mark ready → label for merge.
+# Processes agent draft PRs: detect done → rebase/resolve conflicts → mark ready → merge.
+# Triggers:
+#   - Cron every 3 min (GitHub may delay; not guaranteed)
+#   - On push to main (catches post-merge immediately)
+#   - Manual dispatch
 on:
   schedule:
     - cron: '*/3 * * * *'
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
