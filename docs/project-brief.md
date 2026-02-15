@@ -72,6 +72,10 @@ Features are built in priority order. The orchestrator reads this section to dec
 | ✅ done | `nudge-engine` | backend-engineer | Context-aware notification generation |
 | ✅ done | `api-docs` | docs-writer | Document all API endpoints in docs/api.md |
 | ✅ done | `test-coverage` | test-engineer | Add tests for store, orchestrator, and agent modules |
+| ⬜ todo | `onboarding-profile` | frontend-engineer | Add first-run onboarding flow to collect name, timezone, baseline schedule, and preferred nudge tone on iPhone. |
+| ⬜ todo | `journal-offline-queue` | backend-engineer | Queue journal writes offline in the PWA and sync them safely when connectivity returns. |
+| ⬜ todo | `notification-settings-ui` | frontend-engineer | Build a settings screen for quiet hours, priority thresholds, and category toggles backed by notification preferences API. |
+| ⬜ todo | `deadline-completion-reminders` | backend-engineer | Add reminders that trigger when a deadline passes without completion and request quick status confirmation. |
 | ✅ done | `notification-preferences-api` | backend-engineer | Persist notification settings (quiet hours, urgency rules, category toggles) and apply them in dispatch logic. |
 | ✅ done | `journal-sync-conflict-resolution` | backend-engineer | Add journal sync/versioning support so offline writes can be merged safely without data loss. |
 | ✅ done | `weekly-review-digest` | backend-engineer | Generate a weekly summary API from deadlines, completed tasks, and journal highlights for Sunday evening reflection. |
