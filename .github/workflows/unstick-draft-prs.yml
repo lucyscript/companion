@@ -335,13 +335,18 @@ jobs:
                 }
               }
 
+              // If PR already has agent-work-done label (from a previous run) and is not draft,
+              // treat it as effectively done — the runtime check is no longer relevant
+              // (e.g., head SHA changed after rebase so runtime runs can't be found).
+              const alreadyMarkedDone = !pr.draft && labels.includes('agent-work-done');
+
               // Determine if runtime is stalled
               const runtimeStalled =
                 labels.includes('agent-runtime-timeout') ||
                 (!runtime.done && !runtime.active && staleMins >= MIN_RUNTIME_STALL_MINUTES);
 
-              // Only proceed if runtime is done or stalled
-              if (!runtime.done && !runtimeStalled) {
+              // Only proceed if runtime is done, stalled, or already marked done
+              if (!runtime.done && !runtimeStalled && !alreadyMarkedDone) {
                 core.info(`  Runtime not done, not stalled — skipping`);
                 continue;
               }
