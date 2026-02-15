@@ -31,6 +31,13 @@ app.get("/api/weekly-review", (req, res) => {
   return res.json({ summary });
 });
 
+app.get("/api/export", (_req, res) => {
+  const exportData = store.getExportData();
+  res.setHeader("Content-Type", "application/json");
+  res.setHeader("Content-Disposition", 'attachment; filename="companion-export.json"');
+  return res.json(exportData);
+});
+
 const contextSchema = z.object({
   stressLevel: z.enum(["low", "medium", "high"]).optional(),
   energyLevel: z.enum(["low", "medium", "high"]).optional(),

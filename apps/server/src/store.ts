@@ -7,6 +7,7 @@ import {
   Deadline,
   DeadlineReminderState,
   DeadlineStatusConfirmation,
+  ExportData,
   JournalEntry,
   JournalSyncPayload,
   LectureEvent,
@@ -1121,6 +1122,18 @@ export class RuntimeStore {
         timestamp: row.timestamp,
         payload: JSON.parse(row.payload)
       }))
+    };
+  }
+
+  getExportData(): ExportData {
+    return {
+      exportedAt: nowIso(),
+      version: "1.0",
+      journals: this.getJournalEntries(),
+      schedule: this.getScheduleEvents(),
+      deadlines: this.getDeadlines(),
+      userContext: this.getUserContext(),
+      notificationPreferences: this.getNotificationPreferences()
     };
   }
 

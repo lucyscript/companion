@@ -162,3 +162,13 @@ export interface WeeklySummary {
   completionRate: number;
   journalHighlights: JournalEntry[];
 }
+
+export interface ExportData {
+  exportedAt: string;
+  version: string;
+  journals: JournalEntry[];
+  schedule: LectureEvent[];
+  deadlines: Deadline[];
+  userContext: UserContext;
+  notificationPreferences: NotificationPreferences;
+}
