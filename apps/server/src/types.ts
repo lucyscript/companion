@@ -86,3 +86,23 @@ export interface PushSubscriptionRecord {
     auth: string;
   };
 }
+
+export type NotificationCategory = AgentName;
+
+export interface NotificationPreferences {
+  quietHours: {
+    enabled: boolean;
+    startHour: number;
+    endHour: number;
+  };
+  minimumPriority: Priority;
+  allowCriticalInQuietHours: boolean;
+  categoryToggles: Record<NotificationCategory, boolean>;
+}
+
+export interface NotificationPreferencesPatch {
+  quietHours?: Partial<NotificationPreferences["quietHours"]>;
+  minimumPriority?: Priority;
+  allowCriticalInQuietHours?: boolean;
+  categoryToggles?: Partial<Record<NotificationCategory, boolean>>;
+}

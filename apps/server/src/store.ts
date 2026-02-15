@@ -7,6 +7,8 @@ import {
   JournalEntry,
   LectureEvent,
   Notification,
+  NotificationPreferences,
+  NotificationPreferencesPatch,
   PushSubscriptionRecord,
   UserContext
 } from "./types.js";
@@ -43,6 +45,22 @@ export class RuntimeStore {
     stressLevel: "medium",
     energyLevel: "medium",
     mode: "balanced"
+  };
+
+  private notificationPreferences: NotificationPreferences = {
+    quietHours: {
+      enabled: false,
+      startHour: 22,
+      endHour: 7
+    },
+    minimumPriority: "low",
+    allowCriticalInQuietHours: true,
+    categoryToggles: {
+      notes: true,
+      "lecture-plan": true,
+      "assignment-tracker": true,
+      orchestrator: true
+    }
   };
 
   markAgentRunning(name: AgentName): void {
@@ -90,6 +108,43 @@ export class RuntimeStore {
 
   getUserContext(): UserContext {
     return this.userContext;
+  }
+
+  getNotificationPreferences(): NotificationPreferences {
+    return this.notificationPreferences;
+  }
+
+  setNotificationPreferences(next: NotificationPreferencesPatch): NotificationPreferences {
+    this.notificationPreferences = {
+      ...this.notificationPreferences,
+      ...next,
+      quietHours: {
+        ...this.notificationPreferences.quietHours,
+        ...(next.quietHours ?? {})
+      },
+      categoryToggles: {
+        ...this.notificationPreferences.categoryToggles,
+        ...(next.categoryToggles ?? {})
+      }
+    };
+
+    return this.notificationPreferences;
+  }
+
+  shouldDispatchNotification(notification: Notification): boolean {
+    if (!this.notificationPreferences.categoryToggles[notification.source]) {
+      return false;
+    }
+
+    if (priorityValue(notification.priority) < priorityValue(this.notificationPreferences.minimumPriority)) {
+      return false;
+    }
+
+    if (this.notificationPreferences.quietHours.enabled && this.isInQuietHours(notification.timestamp)) {
+      return this.notificationPreferences.allowCriticalInQuietHours && notification.priority === "critical";
+    }
+
+    return true;
   }
 
   recordJournalEntry(content: string): JournalEntry {
@@ -247,5 +302,39 @@ export class RuntimeStore {
 
   private updateAgent(name: AgentName, patch: Partial<AgentState>): void {
     this.agentStates = this.agentStates.map((agent) => (agent.name === name ? { ...agent, ...patch } : agent));
+  }
+
+  private isInQuietHours(timestamp: string): boolean {
+    const date = new Date(timestamp);
+
+    if (Number.isNaN(date.getTime())) {
+      return false;
+    }
+
+    const hour = date.getHours();
+    const { startHour, endHour } = this.notificationPreferences.quietHours;
+
+    if (startHour === endHour) {
+      return true;
+    }
+
+    if (startHour < endHour) {
+      return hour >= startHour && hour < endHour;
+    }
+
+    return hour >= startHour || hour < endHour;
+  }
+}
+
+function priorityValue(priority: Notification["priority"]): number {
+  switch (priority) {
+    case "low":
+      return 0;
+    case "medium":
+      return 1;
+    case "high":
+      return 2;
+    case "critical":
+      return 3;
   }
 }

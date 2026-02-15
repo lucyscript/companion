@@ -5,7 +5,7 @@ import { config } from "./config.js";
 import { OrchestratorRuntime } from "./orchestrator.js";
 import { getVapidPublicKey, hasStaticVapidKeys, sendPushNotification } from "./push.js";
 import { RuntimeStore } from "./store.js";
-import { Notification } from "./types.js";
+import { Notification, NotificationPreferencesPatch } from "./types.js";
 
 const app = express();
 const store = new RuntimeStore();
@@ -78,11 +78,35 @@ const pushTestSchema = z.object({
   priority: z.enum(["low", "medium", "high", "critical"]).optional()
 });
 
+const notificationPreferencesSchema = z.object({
+  quietHours: z
+    .object({
+      enabled: z.boolean().optional(),
+      startHour: z.number().int().min(0).max(23).optional(),
+      endHour: z.number().int().min(0).max(23).optional()
+    })
+    .optional(),
+  minimumPriority: z.enum(["low", "medium", "high", "critical"]).optional(),
+  allowCriticalInQuietHours: z.boolean().optional(),
+  categoryToggles: z
+    .object({
+      notes: z.boolean().optional(),
+      "lecture-plan": z.boolean().optional(),
+      "assignment-tracker": z.boolean().optional(),
+      orchestrator: z.boolean().optional()
+    })
+    .optional()
+});
+
 store.onNotification((notification) => {
   void broadcastNotification(notification);
 });
 
 async function broadcastNotification(notification: Notification): Promise<void> {
+  if (!store.shouldDispatchNotification(notification)) {
+    return;
+  }
+
   const subscriptions = store.getPushSubscriptions();
 
   if (subscriptions.length === 0) {
@@ -242,6 +266,22 @@ app.get("/api/push/vapid-public-key", (_req, res) => {
     source: hasStaticVapidKeys() ? "configured" : "generated",
     subject: config.AXIS_VAPID_SUBJECT
   });
+});
+
+app.get("/api/notification-preferences", (_req, res) => {
+  return res.json({ preferences: store.getNotificationPreferences() });
+});
+
+app.put("/api/notification-preferences", (req, res) => {
+  const parsed = notificationPreferencesSchema.safeParse(req.body ?? {});
+
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid notification preferences payload", issues: parsed.error.issues });
+  }
+
+  const next = parsed.data as NotificationPreferencesPatch;
+  const preferences = store.setNotificationPreferences(next);
+  return res.json({ preferences });
 });
 
 app.post("/api/push/subscribe", (req, res) => {
