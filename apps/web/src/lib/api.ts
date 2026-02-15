@@ -16,6 +16,8 @@ import {
 } from "../types";
 import {
   JournalQueueItem,
+  SyncQueueItem,
+  enqueueSyncOperation,
   loadContext,
   loadDashboard,
   loadDeadlines,
@@ -23,7 +25,9 @@ import {
   loadHabits,
   loadJournalEntries,
   loadNotificationPreferences,
+  loadSyncQueue,
   removeJournalQueueItem,
+  removeSyncQueueItem,
   saveContext,
   saveDashboard,
   saveDeadlines,
@@ -66,6 +70,9 @@ export async function updateContext(payload: Partial<UserContext>): Promise<{ co
       body: JSON.stringify(payload)
     });
   } catch {
+    // Queue for background sync
+    enqueueSyncOperation("context", payload);
+
     const current = loadContext();
     const merged = { ...current, ...payload };
     saveContext(merged);
@@ -430,3 +437,63 @@ export async function getNotificationInteractions(options?: {
     return [];
   }
 }
+
+// Background Sync API
+export async function processSyncQueue(): Promise<{ processed: number; failed: number }> {
+  const queue = loadSyncQueue();
+
+  if (queue.length === 0) {
+    return { processed: 0, failed: 0 };
+  }
+
+  let processed = 0;
+  let failed = 0;
+
+  for (const item of queue) {
+    try {
+      await jsonOrThrow("/api/sync/queue", {
+        method: "POST",
+        body: JSON.stringify({
+          operationType: item.operationType,
+          payload: item.payload
+        })
+      });
+      removeSyncQueueItem(item.id);
+      processed += 1;
+    } catch {
+      failed += 1;
+    }
+  }
+
+  // Trigger server-side processing
+  try {
+    await jsonOrThrow("/api/sync/process", {
+      method: "POST"
+    });
+  } catch {
+    // Server may process on its own schedule
+  }
+
+  return { processed, failed };
+}
+
+export async function getSyncQueueStatus(): Promise<{
+  status: { pending: number; processing: number; completed: number; failed: number };
+  isProcessing: boolean;
+}> {
+  try {
+    return await jsonOrThrow("/api/sync/status");
+  } catch {
+    const queue = loadSyncQueue();
+    return {
+      status: {
+        pending: queue.length,
+        processing: 0,
+        completed: 0,
+        failed: 0
+      },
+      isProcessing: false
+    };
+  }
+}
+

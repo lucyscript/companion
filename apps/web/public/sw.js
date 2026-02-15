@@ -78,6 +78,102 @@ self.addEventListener("push", (event) => {
   );
 });
 
+// Background Sync API - sync when connectivity is restored
+self.addEventListener("sync", (event) => {
+  if (event.tag === "sync-operations") {
+    event.waitUntil(syncOperations());
+  }
+});
+
+async function syncOperations() {
+  try {
+    // Get sync queue from localStorage
+    const syncQueueRaw = await getFromIndexedDB("companion:sync-queue");
+    const journalQueueRaw = await getFromIndexedDB("companion:journal-queue");
+
+    // Process sync queue
+    if (syncQueueRaw) {
+      const syncQueue = JSON.parse(syncQueueRaw);
+      for (const item of syncQueue) {
+        try {
+          await fetch("/companion/api/sync/queue", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              operationType: item.operationType,
+              payload: item.payload
+            })
+          });
+        } catch (error) {
+          // Will retry on next sync event
+          console.error("Sync failed for item:", item.id, error);
+        }
+      }
+    }
+
+    // Process journal queue
+    if (journalQueueRaw) {
+      const journalQueue = JSON.parse(journalQueueRaw);
+      if (journalQueue.length > 0) {
+        const entries = journalQueue.map((item) => ({
+          clientEntryId: item.clientEntryId,
+          content: item.content,
+          timestamp: item.timestamp,
+          baseVersion: item.baseVersion,
+          tags: item.tags,
+          photos: item.photos
+        }));
+
+        await fetch("/companion/api/journal/sync", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ entries })
+        });
+      }
+    }
+
+    // Trigger server-side processing
+    await fetch("/companion/api/sync/process", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      }
+    });
+  } catch (error) {
+    console.error("Background sync failed:", error);
+    throw error; // Re-throw to retry later
+  }
+}
+
+// Helper to read from IndexedDB (fallback to localStorage)
+async function getFromIndexedDB(key) {
+  try {
+    // For simplicity, we'll use localStorage via a message to the client
+    // In a real implementation, you'd use IndexedDB directly
+    const clients = await self.clients.matchAll();
+    if (clients.length > 0) {
+      return new Promise((resolve) => {
+        const channel = new MessageChannel();
+        channel.port1.onmessage = (event) => {
+          resolve(event.data);
+        };
+        clients[0].postMessage(
+          { type: "GET_STORAGE", key },
+          [channel.port2]
+        );
+      });
+    }
+  } catch (error) {
+    console.error("Failed to get from storage:", error);
+  }
+  return null;
+}
+
+
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
 

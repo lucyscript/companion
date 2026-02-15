@@ -17,6 +17,7 @@ import { AppearanceSettings } from "./components/AppearanceSettings";
 import { HabitsGoalsView } from "./components/HabitsGoalsView";
 import { useDashboard } from "./hooks/useDashboard";
 import { enablePushNotifications, isPushEnabled, supportsPushNotifications } from "./lib/push";
+import { setupSyncListeners } from "./lib/sync";
 import { applyTheme } from "./lib/theme";
 import { loadOnboardingProfile, loadThemePreference, saveOnboardingProfile, saveThemePreference } from "./lib/storage";
 import { OnboardingProfile, ThemePreference } from "./types";
@@ -46,6 +47,11 @@ export default function App(): JSX.Element {
     media.addEventListener("change", handler);
     return () => media.removeEventListener("change", handler);
   }, [themePreference]);
+
+  // Set up background sync listeners
+  useEffect(() => {
+    setupSyncListeners();
+  }, []);
 
   useEffect(() => {
     let disposed = false;

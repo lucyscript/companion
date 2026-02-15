@@ -17,6 +17,7 @@ const STORAGE_KEYS = {
   context: "companion:context",
   journal: "companion:journal",
   journalQueue: "companion:journal-queue",
+  syncQueue: "companion:sync-queue",
   schedule: "companion:schedule",
   deadlines: "companion:deadlines",
   habits: "companion:habits",
@@ -34,6 +35,13 @@ export interface JournalQueueItem {
   baseVersion?: number;
   tags?: string[];
   photos?: JournalPhoto[];
+}
+
+export interface SyncQueueItem {
+  id: string;
+  operationType: "journal" | "deadline" | "context";
+  payload: Record<string, unknown>;
+  createdAt: string;
 }
 
 const defaultContext: UserContext = {
@@ -458,3 +466,42 @@ export function loadGoals(): Goal[] {
 export function saveGoals(goals: Goal[]): void {
   localStorage.setItem(STORAGE_KEYS.goals, JSON.stringify(goals));
 }
+
+// Sync Queue management
+export function loadSyncQueue(): SyncQueueItem[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.syncQueue);
+    if (raw) return JSON.parse(raw) as SyncQueueItem[];
+  } catch {
+    // corrupted
+  }
+  return [];
+}
+
+export function saveSyncQueue(items: SyncQueueItem[]): void {
+  localStorage.setItem(STORAGE_KEYS.syncQueue, JSON.stringify(items));
+}
+
+export function enqueueSyncOperation(
+  operationType: "journal" | "deadline" | "context",
+  payload: Record<string, unknown>
+): void {
+  const queue = loadSyncQueue();
+  queue.push({
+    id: crypto.randomUUID(),
+    operationType,
+    payload,
+    createdAt: new Date().toISOString()
+  });
+  saveSyncQueue(queue);
+}
+
+export function removeSyncQueueItem(id: string): void {
+  const queue = loadSyncQueue().filter((item) => item.id !== id);
+  saveSyncQueue(queue);
+}
+
+export function clearSyncQueue(): void {
+  saveSyncQueue([]);
+}
+
