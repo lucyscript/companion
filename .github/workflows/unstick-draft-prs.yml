@@ -139,9 +139,9 @@ jobs:
                 `  Agent runtime state: done=${runtime.done}, active=${runtime.active}, seen=${runtime.seen}`
               );
 
-              // Skip PRs that were recently updated AND whose runtime is still going
-              if (staleMins < MIN_STALE_MINUTES && !runtime.done) {
-                core.info(`  Skipping: updated ${staleMins}m ago (< ${MIN_STALE_MINUTES}m) and still in progress`);
+              // For draft PRs, skip very recent updates while work is likely still in progress.
+              if (pr.draft && staleMins < MIN_STALE_MINUTES && !runtime.done) {
+                core.info(`  Skipping draft: updated ${staleMins}m ago (< ${MIN_STALE_MINUTES}m) and still in progress`);
                 continue;
               }
 
@@ -287,7 +287,9 @@ jobs:
                 core.info(`  Mergeability not yet computed — continuing with draft progression checks`);
               }
 
-              const runtimeStalled = !runtime.done && !runtime.active && staleMins >= MIN_RUNTIME_STALL_MINUTES;
+              const runtimeStalled =
+                labels.includes('agent-runtime-timeout') ||
+                (!runtime.done && !runtime.active && staleMins >= MIN_RUNTIME_STALL_MINUTES);
 
               // Hard gate: move drafts only when runtime is complete, or when runtime appears stalled.
               if (!runtime.done && !runtimeStalled) {
