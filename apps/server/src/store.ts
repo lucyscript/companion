@@ -1,4 +1,14 @@
-import { AgentEvent, AgentName, AgentState, DashboardSnapshot, JournalEntry, Notification, UserContext } from "./types.js";
+import {
+  AgentEvent,
+  AgentName,
+  AgentState,
+  DashboardSnapshot,
+  Deadline,
+  JournalEntry,
+  LectureEvent,
+  Notification,
+  UserContext
+} from "./types.js";
 import { makeId, nowIso } from "./utils.js";
 
 const agentNames: AgentName[] = [
@@ -12,9 +22,13 @@ export class RuntimeStore {
   private readonly maxEvents = 100;
   private readonly maxNotifications = 40;
   private readonly maxJournalEntries = 100;
+  private readonly maxScheduleEvents = 200;
+  private readonly maxDeadlines = 200;
   private events: AgentEvent[] = [];
   private notifications: Notification[] = [];
   private journalEntries: JournalEntry[] = [];
+  private scheduleEvents: LectureEvent[] = [];
+  private deadlines: Deadline[] = [];
   private agentStates: AgentState[] = agentNames.map((name) => ({
     name,
     status: "idle",
@@ -88,8 +102,88 @@ export class RuntimeStore {
     return this.journalEntries;
   }
 
+  createLectureEvent(entry: Omit<LectureEvent, "id">): LectureEvent {
+    const lectureEvent: LectureEvent = {
+      id: makeId("lecture"),
+      ...entry
+    };
+    this.scheduleEvents = [lectureEvent, ...this.scheduleEvents].slice(0, this.maxScheduleEvents);
+    return lectureEvent;
+  }
+
+  getScheduleEvents(): LectureEvent[] {
+    return this.scheduleEvents;
+  }
+
+  getScheduleEventById(id: string): LectureEvent | null {
+    return this.scheduleEvents.find((event) => event.id === id) ?? null;
+  }
+
+  updateScheduleEvent(id: string, patch: Partial<Omit<LectureEvent, "id">>): LectureEvent | null {
+    const index = this.scheduleEvents.findIndex((event) => event.id === id);
+
+    if (index === -1) {
+      return null;
+    }
+
+    const next: LectureEvent = {
+      ...this.scheduleEvents[index],
+      ...patch
+    };
+
+    this.scheduleEvents = this.scheduleEvents.map((event, eventIndex) => (eventIndex === index ? next : event));
+    return next;
+  }
+
+  deleteScheduleEvent(id: string): boolean {
+    const before = this.scheduleEvents.length;
+    this.scheduleEvents = this.scheduleEvents.filter((event) => event.id !== id);
+    return this.scheduleEvents.length < before;
+  }
+
+  createDeadline(entry: Omit<Deadline, "id">): Deadline {
+    const deadline: Deadline = {
+      id: makeId("deadline"),
+      ...entry
+    };
+    this.deadlines = [deadline, ...this.deadlines].slice(0, this.maxDeadlines);
+    return deadline;
+  }
+
+  getDeadlines(): Deadline[] {
+    return this.deadlines;
+  }
+
+  getDeadlineById(id: string): Deadline | null {
+    return this.deadlines.find((deadline) => deadline.id === id) ?? null;
+  }
+
+  updateDeadline(id: string, patch: Partial<Omit<Deadline, "id">>): Deadline | null {
+    const index = this.deadlines.findIndex((deadline) => deadline.id === id);
+
+    if (index === -1) {
+      return null;
+    }
+
+    const next: Deadline = {
+      ...this.deadlines[index],
+      ...patch
+    };
+
+    this.deadlines = this.deadlines.map((deadline, deadlineIndex) => (deadlineIndex === index ? next : deadline));
+    return next;
+  }
+
+  deleteDeadline(id: string): boolean {
+    const before = this.deadlines.length;
+    this.deadlines = this.deadlines.filter((deadline) => deadline.id !== id);
+    return this.deadlines.length < before;
+  }
+
   getSnapshot(): DashboardSnapshot {
-    const pendingDeadlines = this.events.filter((evt) => evt.eventType === "assignment.deadline").length;
+    const trackedPendingDeadlines = this.deadlines.filter((deadline) => !deadline.completed).length;
+    const fallbackEventDeadlines = this.events.filter((evt) => evt.eventType === "assignment.deadline").length;
+    const pendingDeadlines = trackedPendingDeadlines > 0 ? trackedPendingDeadlines : fallbackEventDeadlines;
     const activeAgents = this.agentStates.filter((a) => a.status === "running").length;
 
     return {
