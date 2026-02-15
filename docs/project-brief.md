@@ -90,3 +90,10 @@ Features are built in priority order. The orchestrator reads this section to dec
 | ✅ done | `dark-mode` | frontend-engineer | Add dark mode toggle in settings with CSS variables for all components and persist preference in localStorage for iPhone nighttime use. |
 | ✅ done | `data-export-api` | backend-engineer | Add GET /api/export endpoint that returns all user data (journals, schedule, deadlines, preferences) as downloadable JSON for backup and portability. |
 | ✅ done | `smart-notification-timing` | backend-engineer | Enhance nudge engine to schedule reminders at optimal times based on user's schedule gaps, energy levels, and historical completion patterns. |
+| ⬜ todo | `voice-journal-input` | frontend-engineer | Add Web Speech API voice input to journal entry form with real-time transcription so users can journal hands-free on iPhone. |
+| ⬜ todo | `habit-goal-tracking-api` | backend-engineer | Add POST/GET /api/habits and /api/goals endpoints with completion tracking, streak calculation, and integration with nudge engine for check-in reminders. |
+| ⬜ todo | `habit-goal-tracking-ui` | frontend-engineer | Build Habits and Goals views with daily check-in cards, streak visualizations, and quick completion toggles backed by habit/goal APIs. |
+| ⬜ todo | `data-import-api` | backend-engineer | Add POST /api/import endpoint that validates and restores user data from JSON export format with conflict resolution for existing records. |
+| ⬜ todo | `focus-session-timer` | frontend-engineer | Add a Pomodoro-style focus timer component with configurable duration, break intervals, and integration with context tracking for flow state sessions. |
+| ⬜ todo | `journal-tags-api` | backend-engineer | Extend journal entries with tags array field, add tag CRUD endpoints, and update search endpoint to filter by tags for better organization. |
+| ⬜ todo | `journal-tags-ui` | frontend-engineer | Add tag input with autocomplete to journal form, tag pills on entries, and tag filtering to search UI backed by journal tags API. |
