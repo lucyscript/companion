@@ -4,10 +4,13 @@ import { ContextControls } from "./components/ContextControls";
 import { DeadlineList } from "./components/DeadlineList";
 import { JournalView } from "./components/JournalView";
 import { NotificationFeed } from "./components/NotificationFeed";
+import { OnboardingFlow } from "./components/OnboardingFlow";
 import { ScheduleView } from "./components/ScheduleView";
 import { SummaryTiles } from "./components/SummaryTiles";
 import { useDashboard } from "./hooks/useDashboard";
 import { enablePushNotifications, isPushEnabled, supportsPushNotifications } from "./lib/push";
+import { loadOnboardingProfile, saveOnboardingProfile } from "./lib/storage";
+import { OnboardingProfile } from "./types";
 
 type PushState = "checking" | "ready" | "enabled" | "unsupported" | "denied" | "error";
 
@@ -15,6 +18,7 @@ export default function App(): JSX.Element {
   const { data, loading, error, refresh } = useDashboard();
   const [pushState, setPushState] = useState<PushState>("checking");
   const [pushMessage, setPushMessage] = useState("");
+  const [profile, setProfile] = useState<OnboardingProfile | null>(loadOnboardingProfile());
 
   useEffect(() => {
     let disposed = false;
@@ -55,6 +59,11 @@ export default function App(): JSX.Element {
     setPushMessage(result.message ?? "");
   };
 
+  const handleOnboardingComplete = (nextProfile: OnboardingProfile): void => {
+    saveOnboardingProfile(nextProfile);
+    setProfile(nextProfile);
+  };
+
   const pushButtonLabel =
     pushState === "enabled"
       ? "Push Enabled"
@@ -65,12 +74,21 @@ export default function App(): JSX.Element {
   const pushButtonDisabled =
     pushState === "checking" || pushState === "enabled" || pushState === "unsupported";
 
+  if (!profile) {
+    return (
+      <main className="app-shell">
+        <OnboardingFlow onComplete={handleOnboardingComplete} />
+      </main>
+    );
+  }
+
   return (
     <main className="app-shell">
       <header className="hero">
         <div>
           <p className="eyebrow">Companion</p>
           <h1>Personal AI Assistant</h1>
+          <p>Welcome back, {profile.name}.</p>
         </div>
         <div className="hero-actions">
           <button type="button" onClick={() => void refresh()}>

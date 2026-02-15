@@ -1,4 +1,4 @@
-import { DashboardSnapshot, Deadline, JournalEntry, LectureEvent, UserContext } from "../types";
+import { DashboardSnapshot, Deadline, JournalEntry, LectureEvent, OnboardingProfile, UserContext } from "../types";
 
 const STORAGE_KEYS = {
   dashboard: "companion:dashboard",
@@ -6,7 +6,8 @@ const STORAGE_KEYS = {
   journal: "companion:journal",
   journalQueue: "companion:journal-queue",
   schedule: "companion:schedule",
-  deadlines: "companion:deadlines"
+  deadlines: "companion:deadlines",
+  onboarding: "companion:onboarding",
 } as const;
 
 export interface JournalQueueItem {
@@ -69,6 +70,24 @@ export function loadContext(): UserContext {
 
 export function saveContext(ctx: UserContext): void {
   localStorage.setItem(STORAGE_KEYS.context, JSON.stringify(ctx));
+}
+
+
+export function loadOnboardingProfile(): OnboardingProfile | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.onboarding);
+    if (raw) {
+      return JSON.parse(raw) as OnboardingProfile;
+    }
+  } catch {
+    // ignore corrupted data
+  }
+
+  return null;
+}
+
+export function saveOnboardingProfile(profile: OnboardingProfile): void {
+  localStorage.setItem(STORAGE_KEYS.onboarding, JSON.stringify(profile));
 }
 
 export function loadJournalEntries(): JournalEntry[] {
