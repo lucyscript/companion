@@ -51,6 +51,23 @@ const journalPhotoSchema = z.object({
 });
 
 // Import validation schemas
+const recurrenceRuleSchema = z.object({
+  frequency: z.enum(["daily", "weekly", "monthly"]),
+  interval: z.number().int().positive().max(365).optional(),
+  count: z.number().int().positive().max(365).optional(),
+  until: z.string().datetime().optional(),
+  byWeekDay: z.array(z.number().int().min(0).max(6)).max(7).optional(),
+  byMonthDay: z.number().int().min(1).max(31).optional()
+}).refine(
+  (data) => {
+    if (data.count !== undefined && data.until !== undefined) {
+      return false;
+    }
+    return true;
+  },
+  { message: "Cannot specify both count and until" }
+);
+
 const journalImportSchema = z.object({
   id: z.string().min(1),
   content: z.string().min(1).max(10000),
@@ -66,7 +83,9 @@ const lectureImportSchema = z.object({
   title: z.string().trim().min(1).max(200),
   startTime: z.string().datetime(),
   durationMinutes: z.number().int().positive().max(24 * 60),
-  workload: z.enum(["low", "medium", "high"])
+  workload: z.enum(["low", "medium", "high"]),
+  recurrence: recurrenceRuleSchema.optional(),
+  recurrenceParentId: z.string().min(1).optional()
 });
 
 const deadlineImportSchema = z.object({
@@ -184,7 +203,9 @@ const scheduleCreateSchema = z.object({
   title: z.string().trim().min(1).max(200),
   startTime: z.string().datetime(),
   durationMinutes: z.number().int().positive().max(24 * 60),
-  workload: z.enum(["low", "medium", "high"])
+  workload: z.enum(["low", "medium", "high"]),
+  recurrence: recurrenceRuleSchema.optional(),
+  recurrenceParentId: z.string().min(1).optional()
 });
 
 const scheduleUpdateSchema = scheduleCreateSchema.partial().refine(

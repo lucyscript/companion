@@ -120,6 +120,8 @@ export class RuntimeStore {
         startTime TEXT NOT NULL,
         durationMinutes INTEGER NOT NULL,
         workload TEXT NOT NULL,
+        recurrence TEXT,
+        recurrenceParentId TEXT,
         insertOrder INTEGER NOT NULL DEFAULT (unixepoch('subsec') * 1000000)
       );
 
@@ -1248,9 +1250,11 @@ export class RuntimeStore {
       ...entry
     };
 
+    const recurrenceJson = lectureEvent.recurrence ? JSON.stringify(lectureEvent.recurrence) : null;
+
     this.db
-      .prepare("INSERT INTO schedule_events (id, title, startTime, durationMinutes, workload) VALUES (?, ?, ?, ?, ?)")
-      .run(lectureEvent.id, lectureEvent.title, lectureEvent.startTime, lectureEvent.durationMinutes, lectureEvent.workload);
+      .prepare("INSERT INTO schedule_events (id, title, startTime, durationMinutes, workload, recurrence, recurrenceParentId) VALUES (?, ?, ?, ?, ?, ?, ?)")
+      .run(lectureEvent.id, lectureEvent.title, lectureEvent.startTime, lectureEvent.durationMinutes, lectureEvent.workload, recurrenceJson, lectureEvent.recurrenceParentId ?? null);
 
     // Trim to maxScheduleEvents
     const count = (this.db.prepare("SELECT COUNT(*) as count FROM schedule_events").get() as { count: number }).count;
@@ -1274,6 +1278,8 @@ export class RuntimeStore {
       startTime: string;
       durationMinutes: number;
       workload: string;
+      recurrence: string | null;
+      recurrenceParentId: string | null;
     }>;
 
     return rows.map((row) => ({
@@ -1281,7 +1287,9 @@ export class RuntimeStore {
       title: row.title,
       startTime: row.startTime,
       durationMinutes: row.durationMinutes,
-      workload: row.workload as LectureEvent["workload"]
+      workload: row.workload as LectureEvent["workload"],
+      ...(row.recurrence ? { recurrence: JSON.parse(row.recurrence) } : {}),
+      ...(row.recurrenceParentId ? { recurrenceParentId: row.recurrenceParentId } : {})
     }));
   }
 
@@ -1293,6 +1301,8 @@ export class RuntimeStore {
           startTime: string;
           durationMinutes: number;
           workload: string;
+          recurrence: string | null;
+          recurrenceParentId: string | null;
         }
       | undefined;
 
@@ -1305,7 +1315,9 @@ export class RuntimeStore {
       title: row.title,
       startTime: row.startTime,
       durationMinutes: row.durationMinutes,
-      workload: row.workload as LectureEvent["workload"]
+      workload: row.workload as LectureEvent["workload"],
+      ...(row.recurrence ? { recurrence: JSON.parse(row.recurrence) } : {}),
+      ...(row.recurrenceParentId ? { recurrenceParentId: row.recurrenceParentId } : {})
     };
   }
 
@@ -1321,9 +1333,11 @@ export class RuntimeStore {
       ...patch
     };
 
+    const recurrenceJson = next.recurrence ? JSON.stringify(next.recurrence) : null;
+
     this.db
-      .prepare("UPDATE schedule_events SET title = ?, startTime = ?, durationMinutes = ?, workload = ? WHERE id = ?")
-      .run(next.title, next.startTime, next.durationMinutes, next.workload, id);
+      .prepare("UPDATE schedule_events SET title = ?, startTime = ?, durationMinutes = ?, workload = ?, recurrence = ?, recurrenceParentId = ? WHERE id = ?")
+      .run(next.title, next.startTime, next.durationMinutes, next.workload, recurrenceJson, next.recurrenceParentId ?? null, id);
 
     return next;
   }

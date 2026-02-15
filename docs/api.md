@@ -301,10 +301,19 @@ Schedule payload fields:
 - `startTime`: ISO datetime string
 - `durationMinutes`: positive integer (max `1440`)
 - `workload`: `low | medium | high`
+- `recurrence` (optional): Recurrence rule object
+  - `frequency`: `daily | weekly | monthly`
+  - `interval` (optional): positive integer (how often to repeat, e.g., every 2 weeks)
+  - `count` (optional): positive integer (number of occurrences)
+  - `until` (optional): ISO datetime string (end date)
+  - `byWeekDay` (optional): array of integers 0-6 (0=Sunday, 6=Saturday) for weekly recurrence
+  - `byMonthDay` (optional): integer 1-31 (day of month) for monthly recurrence
+  - Note: Cannot specify both `count` and `until`
+- `recurrenceParentId` (optional): string (ID of parent recurring event)
 
 ### `POST /api/schedule`
 
-Request:
+Request (non-recurring):
 
 ```json
 {
@@ -312,6 +321,53 @@ Request:
   "startTime": "2026-02-16T10:00:00.000Z",
   "durationMinutes": 90,
   "workload": "high"
+}
+```
+
+Request (daily recurrence with count):
+
+```json
+{
+  "title": "Morning Standup",
+  "startTime": "2026-02-17T09:00:00.000Z",
+  "durationMinutes": 15,
+  "workload": "low",
+  "recurrence": {
+    "frequency": "daily",
+    "count": 10
+  }
+}
+```
+
+Request (weekly recurrence on specific days):
+
+```json
+{
+  "title": "Algorithms Lecture",
+  "startTime": "2026-02-17T10:00:00.000Z",
+  "durationMinutes": 90,
+  "workload": "high",
+  "recurrence": {
+    "frequency": "weekly",
+    "byWeekDay": [1, 3, 5],
+    "until": "2026-05-01T00:00:00.000Z"
+  }
+}
+```
+
+Request (monthly recurrence on specific day):
+
+```json
+{
+  "title": "Monthly Review",
+  "startTime": "2026-02-15T16:00:00.000Z",
+  "durationMinutes": 60,
+  "workload": "medium",
+  "recurrence": {
+    "frequency": "monthly",
+    "byMonthDay": 15,
+    "count": 6
+  }
 }
 ```
 
@@ -324,7 +380,12 @@ Response `201`:
     "title": "Algorithms",
     "startTime": "2026-02-16T10:00:00.000Z",
     "durationMinutes": 90,
-    "workload": "high"
+    "workload": "high",
+    "recurrence": {
+      "frequency": "weekly",
+      "byWeekDay": [1, 3, 5],
+      "until": "2026-05-01T00:00:00.000Z"
+    }
   }
 }
 ```

@@ -23,6 +23,70 @@ describe("RuntimeStore - Schedule and Deadlines", () => {
       expect(store.getScheduleEventById(lecture.id)).toEqual(lecture);
     });
 
+    it("creates schedule entry with daily recurrence", () => {
+      const lecture = store.createLectureEvent({
+        title: "Algorithms",
+        startTime: "2026-02-16T10:00:00.000Z",
+        durationMinutes: 90,
+        workload: "high",
+        recurrence: {
+          frequency: "daily",
+          count: 5
+        }
+      });
+
+      expect(lecture.id).toMatch(/^lecture-/);
+      expect(lecture.recurrence).toEqual({
+        frequency: "daily",
+        count: 5
+      });
+      expect(store.getScheduleEvents()).toHaveLength(1);
+      expect(store.getScheduleEventById(lecture.id)?.recurrence).toEqual({
+        frequency: "daily",
+        count: 5
+      });
+    });
+
+    it("creates schedule entry with weekly recurrence", () => {
+      const lecture = store.createLectureEvent({
+        title: "Databases",
+        startTime: "2026-02-17T14:00:00.000Z",
+        durationMinutes: 120,
+        workload: "medium",
+        recurrence: {
+          frequency: "weekly",
+          byWeekDay: [1, 3],
+          until: "2026-05-01T00:00:00.000Z"
+        }
+      });
+
+      expect(lecture.recurrence).toEqual({
+        frequency: "weekly",
+        byWeekDay: [1, 3],
+        until: "2026-05-01T00:00:00.000Z"
+      });
+    });
+
+    it("creates schedule entry with monthly recurrence", () => {
+      const lecture = store.createLectureEvent({
+        title: "Seminar",
+        startTime: "2026-02-15T16:00:00.000Z",
+        durationMinutes: 60,
+        workload: "low",
+        recurrence: {
+          frequency: "monthly",
+          byMonthDay: 15,
+          count: 6
+        }
+      });
+
+      expect(lecture.recurrence).toEqual({
+        frequency: "monthly",
+        byMonthDay: 15,
+        count: 6
+      });
+    });
+
     it("updates and deletes schedule entries", () => {
       const lecture = store.createLectureEvent({
         title: "Databases",
@@ -44,6 +108,30 @@ describe("RuntimeStore - Schedule and Deadlines", () => {
       expect(store.getScheduleEvents()).toHaveLength(0);
       expect(store.deleteScheduleEvent(lecture.id)).toBe(false);
       expect(store.updateScheduleEvent("missing-id", { title: "Nope" })).toBeNull();
+    });
+
+    it("updates schedule entry with recurrence", () => {
+      const lecture = store.createLectureEvent({
+        title: "Algorithms",
+        startTime: "2026-02-16T10:00:00.000Z",
+        durationMinutes: 90,
+        workload: "high"
+      });
+
+      const updated = store.updateScheduleEvent(lecture.id, {
+        recurrence: {
+          frequency: "weekly",
+          byWeekDay: [1, 3, 5],
+          count: 10
+        }
+      });
+
+      expect(updated).not.toBeNull();
+      expect(updated?.recurrence).toEqual({
+        frequency: "weekly",
+        byWeekDay: [1, 3, 5],
+        count: 10
+      });
     });
   });
 

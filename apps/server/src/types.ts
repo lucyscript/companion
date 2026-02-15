@@ -96,12 +96,25 @@ export interface JournalSyncPayload {
   photos?: JournalPhoto[];
 }
 
+export type RecurrenceFrequency = "daily" | "weekly" | "monthly";
+
+export interface RecurrenceRule {
+  frequency: RecurrenceFrequency;
+  interval?: number;
+  count?: number;
+  until?: string;
+  byWeekDay?: number[];
+  byMonthDay?: number;
+}
+
 export interface LectureEvent {
   id: string;
   title: string;
   startTime: string;
   durationMinutes: number;
   workload: "low" | "medium" | "high";
+  recurrence?: RecurrenceRule;
+  recurrenceParentId?: string;
 }
 
 export interface Deadline {
