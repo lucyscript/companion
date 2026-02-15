@@ -66,7 +66,7 @@ export function generateDigestContent(
   const endOfDay = new Date(now);
   endOfDay.setHours(23, 59, 59, 999);
   
-  const allSchedule = store.getSchedule();
+  const allSchedule = store.getScheduleEvents();
   const todaySchedule = allSchedule
     .filter(event => {
       const eventTime = new Date(event.startTime);
@@ -92,7 +92,7 @@ export function generateDigestContent(
         return entryDate >= new Date(weeklySummary.windowStart);
       }).length,
       habitsCompleted: habits.reduce((sum, h) => {
-        const completedLast7d = h.recentCheckIns.filter(c => c.completed).length;
+        const completedLast7d = (h.recentCheckIns || []).filter(c => c.completed).length;
         return sum + completedLast7d;
       }, 0)
     };

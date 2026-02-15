@@ -106,4 +106,4 @@ Features are built in priority order. The orchestrator reads this section to dec
 | ✅ done | `notification-history-ui` | frontend-engineer | Build a notification history view showing all past notifications with tap/dismiss actions and ability to re-trigger missed reminders. |
 | ✅ done | `journal-photo-attachments` | backend-engineer | Extend journal entries with photo attachment support (base64 inline storage for simplicity) so users can attach lecture notes, whiteboard photos, or assignment screenshots. |
 | ⬜ todo | `location-context-api` | backend-engineer | Add location tracking endpoints (lat/lng with named places) and integrate with nudge engine to adjust reminder timing based on user's location context (e.g., at library, at home). |
-| ⬜ todo | `email-digest-fallback` | backend-engineer | Add daily/weekly email digest generation and delivery as backup notification channel when push notifications fail or user hasn't checked app recently. |
+| ✅ done | `email-digest-fallback` | backend-engineer | Add daily/weekly email digest generation and delivery as backup notification channel when push notifications fail or user hasn't checked app recently. |
