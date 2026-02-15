@@ -284,8 +284,7 @@ jobs:
 
               // mergeable can be null (not yet computed) — skip and retry next run
               if (prDetail.mergeable === null) {
-                core.info(`  Mergeability not yet computed — will retry next run`);
-                continue;
+                core.info(`  Mergeability not yet computed — continuing with draft progression checks`);
               }
 
               const runtimeStalled = !runtime.done && !runtime.active && staleMins >= MIN_RUNTIME_STALL_MINUTES;
