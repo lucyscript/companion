@@ -1,0 +1,329 @@
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import {
+  GeminiClient,
+  GeminiError,
+  RateLimitError,
+  buildContextWindow,
+  buildSystemPrompt,
+  type GeminiChatRequest,
+  type ContextWindow
+} from "./gemini.js";
+import type { Deadline, JournalEntry, LectureEvent, UserContext } from "./types.js";
+
+describe("GeminiClient", () => {
+  describe("initialization", () => {
+    it("should initialize without API key", () => {
+      const client = new GeminiClient(undefined);
+      expect(client.isConfigured()).toBe(false);
+    });
+
+    it("should initialize with API key", () => {
+      const client = new GeminiClient("test-api-key");
+      expect(client.isConfigured()).toBe(true);
+    });
+  });
+
+  describe("configuration check", () => {
+    it("should throw error when API key not configured", async () => {
+      const client = new GeminiClient(undefined);
+      const request: GeminiChatRequest = {
+        messages: [{ role: "user", parts: [{ text: "Hello" }] }]
+      };
+
+      await expect(client.generateChatResponse(request)).rejects.toThrow(
+        "Gemini API key not configured"
+      );
+    });
+  });
+
+  describe("request validation", () => {
+    it("should throw error when last message is not from user", async () => {
+      const client = new GeminiClient("test-api-key");
+      const request: GeminiChatRequest = {
+        messages: [{ role: "model", parts: [{ text: "Hello" }] }]
+      };
+
+      await expect(client.generateChatResponse(request)).rejects.toThrow(
+        "Last message must be from user"
+      );
+    });
+  });
+
+  describe("rate limiting", () => {
+    it("should track rate limit status", () => {
+      const client = new GeminiClient("test-api-key", 15);
+      const status = client.getRateLimitStatus();
+
+      expect(status.requestCount).toBe(0);
+      expect(status.limit).toBe(15);
+    });
+
+    it("should reset rate limiter", () => {
+      const client = new GeminiClient("test-api-key", 15);
+      client.resetRateLimiter();
+
+      const status = client.getRateLimitStatus();
+      expect(status.requestCount).toBe(0);
+    });
+  });
+
+  describe("error handling", () => {
+    it("should create GeminiError with status code", () => {
+      const error = new GeminiError("Test error", 500);
+      expect(error.message).toBe("Test error");
+      expect(error.statusCode).toBe(500);
+      expect(error.name).toBe("GeminiError");
+    });
+
+    it("should create RateLimitError", () => {
+      const error = new RateLimitError();
+      expect(error.message).toContain("rate limit");
+      expect(error.statusCode).toBe(429);
+      expect(error.name).toBe("RateLimitError");
+    });
+  });
+});
+
+describe("buildContextWindow", () => {
+  it("should build context with schedule only", () => {
+    const schedule: LectureEvent[] = [
+      {
+        id: "1",
+        title: "DAT520 Distributed Systems",
+        startTime: "2026-02-16T10:15:00.000Z",
+        durationMinutes: 90,
+        workload: "medium"
+      }
+    ];
+
+    const context: ContextWindow = {
+      todaySchedule: schedule,
+      upcomingDeadlines: [],
+      recentJournals: []
+    };
+
+    const result = buildContextWindow(context);
+    expect(result).toContain("Today's Schedule:");
+    expect(result).toContain("DAT520 Distributed Systems");
+  });
+
+  it("should build context with deadlines only", () => {
+    const deadlines: Deadline[] = [
+      {
+        id: "1",
+        course: "DAT520",
+        task: "Lab 1",
+        dueDate: "2026-02-20T23:59:00.000Z",
+        priority: "high",
+        completed: false
+      }
+    ];
+
+    const context: ContextWindow = {
+      todaySchedule: [],
+      upcomingDeadlines: deadlines,
+      recentJournals: []
+    };
+
+    const result = buildContextWindow(context);
+    expect(result).toContain("Upcoming Deadlines:");
+    expect(result).toContain("DAT520: Lab 1");
+    expect(result).toContain("Priority: high");
+  });
+
+  it("should build context with journal entries", () => {
+    const journals: JournalEntry[] = [
+      {
+        id: "1",
+        content: "Had a great lecture today on distributed systems",
+        timestamp: "2026-02-16T14:30:00.000Z",
+        updatedAt: "2026-02-16T14:30:00.000Z",
+        version: 1
+      }
+    ];
+
+    const context: ContextWindow = {
+      todaySchedule: [],
+      upcomingDeadlines: [],
+      recentJournals: journals
+    };
+
+    const result = buildContextWindow(context);
+    expect(result).toContain("Recent Journal Entries:");
+    expect(result).toContain("Had a great lecture today");
+  });
+
+  it("should truncate long journal entries", () => {
+    const longContent = "a".repeat(150);
+    const journals: JournalEntry[] = [
+      {
+        id: "1",
+        content: longContent,
+        timestamp: "2026-02-16T14:30:00.000Z",
+        updatedAt: "2026-02-16T14:30:00.000Z",
+        version: 1
+      }
+    ];
+
+    const context: ContextWindow = {
+      todaySchedule: [],
+      upcomingDeadlines: [],
+      recentJournals: journals
+    };
+
+    const result = buildContextWindow(context);
+    expect(result).toContain("...");
+    expect(result.length).toBeLessThan(longContent.length + 100);
+  });
+
+  it("should include user state", () => {
+    const userState: UserContext = {
+      energyLevel: "high",
+      stressLevel: "low",
+      mode: "focus"
+    };
+
+    const context: ContextWindow = {
+      todaySchedule: [],
+      upcomingDeadlines: [],
+      recentJournals: [],
+      userState
+    };
+
+    const result = buildContextWindow(context);
+    expect(result).toContain("User State:");
+    expect(result).toContain("Energy: high");
+    expect(result).toContain("Stress: low");
+    expect(result).toContain("Mode: focus");
+  });
+
+  it("should include custom context", () => {
+    const context: ContextWindow = {
+      todaySchedule: [],
+      upcomingDeadlines: [],
+      recentJournals: [],
+      customContext: "Additional context information"
+    };
+
+    const result = buildContextWindow(context);
+    expect(result).toContain("Additional context information");
+  });
+
+  it("should build complete context window", () => {
+    const schedule: LectureEvent[] = [
+      {
+        id: "1",
+        title: "DAT520 Lecture",
+        startTime: "2026-02-16T10:15:00.000Z",
+        durationMinutes: 90,
+        workload: "medium"
+      }
+    ];
+
+    const deadlines: Deadline[] = [
+      {
+        id: "1",
+        course: "DAT520",
+        task: "Lab 1",
+        dueDate: "2026-02-20T23:59:00.000Z",
+        priority: "high",
+        completed: false
+      }
+    ];
+
+    const journals: JournalEntry[] = [
+      {
+        id: "1",
+        content: "Started working on Lab 1",
+        timestamp: "2026-02-16T14:30:00.000Z",
+        updatedAt: "2026-02-16T14:30:00.000Z",
+        version: 1
+      }
+    ];
+
+    const userState: UserContext = {
+      energyLevel: "medium",
+      stressLevel: "medium",
+      mode: "balanced"
+    };
+
+    const context: ContextWindow = {
+      todaySchedule: schedule,
+      upcomingDeadlines: deadlines,
+      recentJournals: journals,
+      userState,
+      customContext: "Working on distributed systems course"
+    };
+
+    const result = buildContextWindow(context);
+    expect(result).toContain("Today's Schedule:");
+    expect(result).toContain("Upcoming Deadlines:");
+    expect(result).toContain("Recent Journal Entries:");
+    expect(result).toContain("User State:");
+    expect(result).toContain("Working on distributed systems course");
+  });
+
+  it("should show completed status for deadlines", () => {
+    const deadlines: Deadline[] = [
+      {
+        id: "1",
+        course: "DAT520",
+        task: "Lab 1",
+        dueDate: "2026-02-20T23:59:00.000Z",
+        priority: "high",
+        completed: true
+      },
+      {
+        id: "2",
+        course: "DAT560",
+        task: "Assignment 1",
+        dueDate: "2026-02-25T23:59:00.000Z",
+        priority: "medium",
+        completed: false
+      }
+    ];
+
+    const context: ContextWindow = {
+      todaySchedule: [],
+      upcomingDeadlines: deadlines,
+      recentJournals: []
+    };
+
+    const result = buildContextWindow(context);
+    expect(result).toContain("✅");
+    expect(result).toContain("⬜");
+  });
+});
+
+describe("buildSystemPrompt", () => {
+  it("should build system prompt with user name and context", () => {
+    const contextWindow = "Today's Schedule:\n- 10:15 AM: DAT520 Lecture";
+    const result = buildSystemPrompt("Lucy", contextWindow);
+
+    expect(result).toContain("Lucy");
+    expect(result).toContain("UiS (University of Stavanger)");
+    expect(result).toContain(contextWindow);
+    expect(result).toContain("encouraging, conversational, and proactive");
+  });
+
+  it("should include context window in prompt", () => {
+    const contextWindow = buildContextWindow({
+      todaySchedule: [],
+      upcomingDeadlines: [
+        {
+          id: "1",
+          course: "DAT520",
+          task: "Lab 1",
+          dueDate: "2026-02-20T23:59:00.000Z",
+          priority: "high",
+          completed: false
+        }
+      ],
+      recentJournals: []
+    });
+
+    const result = buildSystemPrompt("TestUser", contextWindow);
+    expect(result).toContain("Upcoming Deadlines:");
+    expect(result).toContain("DAT520: Lab 1");
+  });
+});

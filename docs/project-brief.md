@@ -255,7 +255,7 @@ Features are built in priority order. The orchestrator reads this section to dec
 | ⬜ todo | `pull-to-refresh-gesture` | frontend-engineer | Add pull-to-refresh gesture to all list views (journal, schedule, deadlines) using touch event handlers for familiar iPhone UX pattern. |
 | | | | |
 | | **— Phase 2: Conversational AI & Data Integrations —** | | |
-| ⬜ todo | `gemini-client` | backend-engineer | Add Gemini API client module (`apps/server/src/gemini.ts`) with typed request/response, context window builder, rate limiting (15 RPM free tier), and error handling. Store API key as `GEMINI_API_KEY` env var. |
+| ✅ done | `gemini-client` | backend-engineer | Add Gemini API client module (`apps/server/src/gemini.ts`) with typed request/response, context window builder, rate limiting (15 RPM free tier), and error handling. Store API key as `GEMINI_API_KEY` env var. |
 | ⬜ todo | `chat-api` | backend-engineer | Add POST /api/chat (send message) and GET /api/chat/history (paginated) endpoints. Each request builds a context window from schedule, deadlines, recent journals, Canvas data, and user state, then calls Gemini. Persist chat history in store. |
 | ⬜ todo | `chat-ui` | frontend-engineer | Build a full-screen chat interface as the app's primary view. Message bubbles, streaming response display, quick-action chips ("What's next?", "How's my week?"), and input with send button. Mobile-optimized with keyboard handling. |
 | ⬜ todo | `canvas-sync-api` | backend-engineer | Add Canvas LMS integration: config for `CANVAS_API_TOKEN` + `CANVAS_BASE_URL`, sync service that fetches courses, assignments (with due dates, submission status, points), modules, and announcements. Store in RuntimeStore. Sync every 30 min via cron. |

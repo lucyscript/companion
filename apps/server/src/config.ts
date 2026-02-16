@@ -10,7 +10,8 @@ const schema = z.object({
   AXIS_VAPID_PUBLIC_KEY: z.string().optional(),
   AXIS_VAPID_PRIVATE_KEY: z.string().optional(),
   AXIS_VAPID_SUBJECT: z.string().default("mailto:companion@example.com"),
-  AXIS_FALLBACK_EMAIL: z.string().email().default("user@example.com")
+  AXIS_FALLBACK_EMAIL: z.string().email().default("user@example.com"),
+  GEMINI_API_KEY: z.string().optional()
 });
 
 export const config = schema.parse(process.env);

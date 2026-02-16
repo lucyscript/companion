@@ -1,0 +1,240 @@
+import { GoogleGenerativeAI, GenerativeModel, GenerateContentResult } from "@google/generative-ai";
+import { config } from "./config.js";
+import { Deadline, JournalEntry, LectureEvent, UserContext } from "./types.js";
+
+export interface GeminiMessage {
+  role: "user" | "model";
+  parts: Array<{ text: string }>;
+}
+
+export interface GeminiChatRequest {
+  messages: GeminiMessage[];
+  systemInstruction?: string;
+}
+
+export interface GeminiChatResponse {
+  text: string;
+  finishReason?: string;
+  usageMetadata?: {
+    promptTokenCount: number;
+    candidatesTokenCount: number;
+    totalTokenCount: number;
+  };
+}
+
+export interface ContextWindow {
+  todaySchedule: LectureEvent[];
+  upcomingDeadlines: Deadline[];
+  recentJournals: JournalEntry[];
+  userState?: UserContext;
+  customContext?: string;
+}
+
+export class GeminiError extends Error {
+  constructor(
+    message: string,
+    public readonly statusCode?: number,
+    public readonly cause?: unknown
+  ) {
+    super(message);
+    this.name = "GeminiError";
+  }
+}
+
+export class RateLimitError extends GeminiError {
+  constructor(message = "Gemini API rate limit exceeded (15 RPM free tier)") {
+    super(message, 429);
+    this.name = "RateLimitError";
+  }
+}
+
+class RateLimiter {
+  private requestTimestamps: number[] = [];
+  private readonly maxRequestsPerMinute: number;
+  private readonly windowMs: number = 60000;
+
+  constructor(maxRequestsPerMinute = 15) {
+    this.maxRequestsPerMinute = maxRequestsPerMinute;
+  }
+
+  async waitForSlot(): Promise<void> {
+    const now = Date.now();
+    this.requestTimestamps = this.requestTimestamps.filter((ts) => now - ts < this.windowMs);
+
+    if (this.requestTimestamps.length >= this.maxRequestsPerMinute) {
+      const oldestTimestamp = this.requestTimestamps[0]!;
+      const timeToWait = this.windowMs - (now - oldestTimestamp) + 100;
+
+      if (timeToWait > 0) {
+        await new Promise((resolve) => setTimeout(resolve, timeToWait));
+      }
+
+      return this.waitForSlot();
+    }
+
+    this.requestTimestamps.push(now);
+  }
+
+  getRequestCount(): number {
+    const now = Date.now();
+    this.requestTimestamps = this.requestTimestamps.filter((ts) => now - ts < this.windowMs);
+    return this.requestTimestamps.length;
+  }
+
+  reset(): void {
+    this.requestTimestamps = [];
+  }
+}
+
+export class GeminiClient {
+  private client: GoogleGenerativeAI | null = null;
+  private model: GenerativeModel | null = null;
+  private rateLimiter: RateLimiter;
+  private readonly modelName = "gemini-2.0-flash";
+
+  constructor(apiKey?: string, maxRequestsPerMinute = 15) {
+    const key = apiKey ?? config.GEMINI_API_KEY;
+
+    if (key) {
+      this.client = new GoogleGenerativeAI(key);
+      this.model = this.client.getGenerativeModel({ model: this.modelName });
+    }
+
+    this.rateLimiter = new RateLimiter(maxRequestsPerMinute);
+  }
+
+  isConfigured(): boolean {
+    return this.client !== null && this.model !== null;
+  }
+
+  async generateChatResponse(request: GeminiChatRequest): Promise<GeminiChatResponse> {
+    if (!this.isConfigured()) {
+      throw new GeminiError("Gemini API key not configured. Set GEMINI_API_KEY environment variable.");
+    }
+
+    await this.rateLimiter.waitForSlot();
+
+    try {
+      const chat = this.model!.startChat({
+        history: request.messages.slice(0, -1),
+        systemInstruction: request.systemInstruction
+      });
+
+      const lastMessage = request.messages[request.messages.length - 1];
+      if (!lastMessage || lastMessage.role !== "user") {
+        throw new GeminiError("Last message must be from user");
+      }
+
+      const result: GenerateContentResult = await chat.sendMessage(lastMessage.parts[0]?.text ?? "");
+      const response = result.response;
+      const text = response.text();
+
+      return {
+        text,
+        finishReason: response.candidates?.[0]?.finishReason,
+        usageMetadata: response.usageMetadata
+          ? {
+              promptTokenCount: response.usageMetadata.promptTokenCount,
+              candidatesTokenCount: response.usageMetadata.candidatesTokenCount,
+              totalTokenCount: response.usageMetadata.totalTokenCount
+            }
+          : undefined
+      };
+    } catch (error) {
+      if (error instanceof Error) {
+        const errorMessage = error.message.toLowerCase();
+
+        if (errorMessage.includes("rate") || errorMessage.includes("quota") || errorMessage.includes("429")) {
+          throw new RateLimitError();
+        }
+
+        if (errorMessage.includes("api key") || errorMessage.includes("401") || errorMessage.includes("403")) {
+          throw new GeminiError("Invalid Gemini API key", 401, error);
+        }
+
+        throw new GeminiError(`Gemini API error: ${error.message}`, undefined, error);
+      }
+
+      throw new GeminiError("Unknown Gemini API error", undefined, error);
+    }
+  }
+
+  getRateLimitStatus(): { requestCount: number; limit: number } {
+    return {
+      requestCount: this.rateLimiter.getRequestCount(),
+      limit: 15
+    };
+  }
+
+  resetRateLimiter(): void {
+    this.rateLimiter.reset();
+  }
+}
+
+export function buildContextWindow(context: ContextWindow): string {
+  const parts: string[] = [];
+
+  if (context.todaySchedule.length > 0) {
+    parts.push("**Today's Schedule:**");
+    context.todaySchedule.forEach((event) => {
+      const startTime = new Date(event.startTime).toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+      parts.push(`- ${startTime}: ${event.title} (${event.durationMinutes} min)`);
+    });
+  }
+
+  if (context.upcomingDeadlines.length > 0) {
+    parts.push("\n**Upcoming Deadlines:**");
+    context.upcomingDeadlines.forEach((deadline) => {
+      const dueDate = new Date(deadline.dueDate).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric"
+      });
+      const status = deadline.completed ? "✅" : "⬜";
+      parts.push(`- ${status} ${deadline.course}: ${deadline.task} (Due ${dueDate}, Priority: ${deadline.priority})`);
+    });
+  }
+
+  if (context.recentJournals.length > 0) {
+    parts.push("\n**Recent Journal Entries:**");
+    context.recentJournals.forEach((entry) => {
+      const date = new Date(entry.timestamp).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric"
+      });
+      const preview = entry.content.slice(0, 100);
+      parts.push(`- ${date}: ${preview}${entry.content.length > 100 ? "..." : ""}`);
+    });
+  }
+
+  if (context.userState) {
+    parts.push(
+      `\n**User State:** Energy: ${context.userState.energyLevel}, Stress: ${context.userState.stressLevel}, Mode: ${context.userState.mode}`
+    );
+  }
+
+  if (context.customContext) {
+    parts.push(`\n${context.customContext}`);
+  }
+
+  return parts.join("\n");
+}
+
+export function buildSystemPrompt(userName: string, contextWindow: string): string {
+  return `You are Companion, a personal AI assistant for ${userName}, a university student at UiS (University of Stavanger). You have access to their full academic context including schedule, deadlines, and journal entries.
+
+${contextWindow}
+
+Your role is to be encouraging, conversational, and proactive. Help ${userName} plan their day, reflect on progress, work through problems, and stay on top of deadlines. Keep responses concise and friendly.`;
+}
+
+let defaultClient: GeminiClient | null = null;
+
+export function getGeminiClient(): GeminiClient {
+  if (!defaultClient) {
+    defaultClient = new GeminiClient();
+  }
+  return defaultClient;
+}
