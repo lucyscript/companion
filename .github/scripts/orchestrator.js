@@ -434,12 +434,16 @@ async function main() {
   console.log(`\n🔄 Active agents: ${activeAgents}/${MAX_CONCURRENT_AGENTS} (${availableSlots} slot(s) available)`);
 
   // Check for recent rate limits — back off if agents are being throttled
-  if (availableSlots > 0) {
+  // Skip this check on manual dispatch (user explicitly wants to run)
+  const isManualDispatch = process.env.TRIGGER_EVENT === 'workflow_dispatch';
+  if (availableSlots > 0 && !isManualDispatch) {
     const rateLimited = await isRateLimited();
     if (rateLimited) {
       console.log('\n⏸  Backing off — Copilot hit rate limits recently. Will retry next scheduled run.');
       return;
     }
+  } else if (isManualDispatch) {
+    console.log('  Manual dispatch — skipping rate-limit check');
   }
 
   // PRIORITY: Reassign existing unassigned issues FIRST (they've been waiting longer)

@@ -69,4 +69,5 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
           RECURSIVE: ${{ github.event.inputs.recursive || 'true' }}
+          TRIGGER_EVENT: ${{ github.event_name }}
         run: node .github/scripts/orchestrator.js
