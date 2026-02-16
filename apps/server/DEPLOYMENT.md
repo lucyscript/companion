@@ -66,12 +66,21 @@ Copy this URL — you'll need it for the frontend configuration.
 
 ### 5. Update Frontend Configuration
 
-1. In your `.env` (local) or GitHub Secrets (for GitHub Pages deploy):
-   ```bash
-   VITE_API_BASE_URL=https://your-railway-app.up.railway.app
-   ```
+1. In GitHub repository settings → Secrets and variables → Actions:
+   - Add a new repository secret:
+     - Name: `VITE_API_BASE_URL`
+     - Value: `https://your-railway-app.up.railway.app` (your Railway deployment URL)
 
-2. Update the GitHub Pages deployment workflow (`.github/workflows/deploy.yml`) to include this environment variable in the build step.
+2. The GitHub Pages deployment workflow (`.github/workflows/deploy.yml`) is already configured to use this secret during build.
+
+3. After setting the secret, trigger a new deployment:
+   - Push any change to `apps/web/` on the `main` branch, OR
+   - Go to Actions → "Deploy to GitHub Pages" → "Run workflow"
+
+4. Verify the frontend now connects to the production API:
+   - Open the deployed GitHub Pages site
+   - Open browser DevTools → Network tab
+   - Navigate the app and check that API calls go to your Railway URL (not `/api/...` relative paths)
 
 ### 6. Verify Deployment
 
