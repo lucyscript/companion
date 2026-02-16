@@ -9,6 +9,7 @@ import { OrchestratorRuntime } from "./orchestrator.js";
 import { EmailDigestService } from "./email-digest.js";
 import { getVapidPublicKey, hasStaticVapidKeys, sendPushNotification } from "./push.js";
 import { sendChatMessage, GeminiError, RateLimitError } from "./chat.js";
+import { getGeminiClient } from "./gemini.js";
 import { RuntimeStore } from "./store.js";
 import { fetchTPSchedule, diffScheduleEvents } from "./tp-sync.js";
 import { TPSyncService } from "./tp-sync-service.js";
@@ -1168,6 +1169,24 @@ app.post("/api/canvas/sync", async (req, res) => {
 
   const result = await canvasSyncService.sync(parsed.data);
   return res.json(result);
+});
+
+app.get("/api/gemini/status", (_req, res) => {
+  const geminiClient = getGeminiClient();
+  const isConfigured = geminiClient.isConfigured();
+  const rateLimitStatus = geminiClient.getRateLimitStatus();
+  const chatHistory = store.getChatHistory({ page: 1, pageSize: 1 });
+  const lastRequestAt = chatHistory.messages.length > 0 
+    ? chatHistory.messages[0]?.timestamp ?? null
+    : null;
+
+  return res.json({
+    apiConfigured: isConfigured,
+    model: isConfigured ? "gemini-2.0-flash" : "unknown",
+    rateLimitRemaining: rateLimitStatus.limit - rateLimitStatus.requestCount,
+    lastRequestAt,
+    error: isConfigured ? undefined : "Gemini API key not configured"
+  });
 });
 
 async function fetchCalendarIcs(url: string): Promise<string | null> {
