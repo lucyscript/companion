@@ -71,9 +71,13 @@ export class XClient {
     // For OAuth 1.0a, we need all 4 credentials
     return (
       this.apiKey !== null &&
+      this.apiKey !== "" &&
       this.apiKeySecret !== null &&
+      this.apiKeySecret !== "" &&
       this.accessToken !== null &&
-      this.accessTokenSecret !== null
+      this.accessToken !== "" &&
+      this.accessTokenSecret !== null &&
+      this.accessTokenSecret !== ""
     );
   }
 
