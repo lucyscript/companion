@@ -25,7 +25,7 @@ const [OWNER, REPO_NAME] = REPO.split('/');
 const DRY_RUN = process.env.DRY_RUN === 'true';
 const API = 'https://api.github.com';
 const CAN_ASSIGN_AGENTS = Boolean(AGENT_PAT);
-const MAX_ISSUES_PER_RUN = 2;
+const MAX_ISSUES_PER_RUN = 1;
 const LOW_TODO_THRESHOLD = 2; // When <= this many todos remain, generate ideas
 
 // ── Copilot coding agent config ─────────────────────────────────────
