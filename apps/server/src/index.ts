@@ -1219,6 +1219,18 @@ app.get("/api/auth/gmail", (_req, res) => {
 });
 
 app.get("/api/auth/gmail/callback", async (req, res) => {
+  // Check for OAuth error from Google
+  const error = typeof req.query.error === "string" ? req.query.error : null;
+  if (error) {
+    const errorDescription = typeof req.query.error_description === "string" 
+      ? req.query.error_description 
+      : error;
+    return res.status(400).json({ 
+      error: "OAuth authorization failed", 
+      details: errorDescription 
+    });
+  }
+
   const code = typeof req.query.code === "string" ? req.query.code : null;
 
   if (!code) {

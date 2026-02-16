@@ -3754,6 +3754,11 @@ export class RuntimeStore {
       return null;
     }
 
+    // Log warning if required fields are missing
+    if (!row.email || !row.connectedAt) {
+      console.warn("[store] Gmail tokens missing email or connectedAt fields");
+    }
+
     return {
       refreshToken: row.refreshToken,
       email: row.email || "unknown",
