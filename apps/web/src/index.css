@@ -2283,3 +2283,48 @@ button:disabled {
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
+
+/* Chat Tab Layout */
+.chat-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100%;
+}
+
+.chat-context-cards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  padding: 0 4px;
+}
+
+@media (min-width: 768px) {
+  .chat-context-cards {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.context-card {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.context-card h3 {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.context-card p {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+}
