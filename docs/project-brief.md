@@ -317,7 +317,7 @@ Features are built in priority order. The orchestrator reads this section to dec
 | ⬜ todo | `chat-as-journal` | backend-engineer | Allow chat messages to be saved as journal entries. When the user reflects on their day in chat, the AI can offer to save the summary as a journal entry. Add "Save to journal" action in chat. |
 | ✅ done | `app-layout-redesign` | frontend-engineer | Redesign app layout: make chat the primary/home view with a bottom tab bar for Chat, Schedule, Journal, and Settings. Move dashboard tiles into the chat view as contextual cards. |
 | ✅ done | `onboarding-v2` | frontend-engineer | Update onboarding flow to collect Canvas token and TP credentials, with explanations of what data is synced and privacy assurances. Include "skip for now" option for each integration. |
-| ⬜ todo | `integration-status-dashboard` | frontend-engineer | Build a settings/integrations page showing Canvas sync status, TP sync status, Gemini API status, with last-synced times, error states, and manual refresh buttons. |
+| ✅ done | `integration-status-dashboard` | frontend-engineer | Build a settings/integrations page showing Canvas sync status, TP sync status, Gemini API status, with last-synced times, error states, and manual refresh buttons. |
 | | | | |
 | | **— Phase 3: Social Media Summary & Content Digest —** | | |
 | ✅ done | `youtube-sync-api` | backend-engineer | Add YouTube Data API v3 client: fetch subscribed channels' recent uploads, video metadata (title, description, duration, stats). Config: `YOUTUBE_API_KEY` env var. Sync every 6 hours. Quota-aware (10K units/day). |
