@@ -17,6 +17,7 @@ import { CanvasSyncService } from "./canvas-sync.js";
 import { GitHubCourseSyncService } from "./github-course-sync.js";
 import { YouTubeSyncService } from "./youtube-sync.js";
 import { XSyncService } from "./x-sync.js";
+import { SocialMediaSummarizer } from "./social-media-summarizer.js";
 import { Notification, NotificationPreferencesPatch } from "./types.js";
 
 const app = express();
@@ -1203,6 +1204,30 @@ app.get("/api/gemini/status", (_req, res) => {
     lastRequestAt,
     error: isConfigured ? undefined : "Gemini API key not configured"
   });
+});
+
+app.post("/api/social-media/digest", async (req, res) => {
+  const geminiClient = getGeminiClient();
+  
+  if (!geminiClient.isConfigured()) {
+    return res.status(503).json({ 
+      error: "Gemini API not configured. Set GEMINI_API_KEY environment variable." 
+    });
+  }
+
+  try {
+    const options = req.body;
+    const youtubeData = store.getYouTubeData();
+    const xData = store.getXData();
+
+    const summarizer = new SocialMediaSummarizer(geminiClient);
+    const digest = await summarizer.generateDigest(youtubeData, xData, options);
+
+    return res.json(digest);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    return res.status(500).json({ error: `Failed to generate digest: ${errorMessage}` });
+  }
 });
 
 async function fetchCalendarIcs(url: string): Promise<string | null> {
