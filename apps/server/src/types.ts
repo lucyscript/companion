@@ -537,3 +537,21 @@ export interface XData {
   }>;
   lastSyncedAt: string | null;
 }
+
+export interface GmailMessage {
+  id: string;
+  threadId: string;
+  subject: string;
+  from: string;
+  snippet: string;
+  timestamp: string;
+  isUnread: boolean;
+  labels: string[];
+}
+
+export interface GmailSummary {
+  unreadCount: number;
+  importantSenders: Array<{ email: string; count: number }>;
+  actionableItems: Array<{ subject: string; from: string; snippet: string }>;
+  lastSyncedAt: string;
+}

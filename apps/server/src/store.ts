@@ -390,7 +390,9 @@ export class RuntimeStore {
         id INTEGER PRIMARY KEY CHECK (id = 1),
         refreshToken TEXT,
         email TEXT,
-        connectedAt TEXT
+        connectedAt TEXT,
+        messages TEXT NOT NULL DEFAULT '[]',
+        lastSyncedAt TEXT
       );
     `);
 
@@ -405,6 +407,18 @@ export class RuntimeStore {
     const hasCanvasAssignmentId = deadlineColumns.some((col) => col.name === "canvasAssignmentId");
     if (!hasCanvasAssignmentId) {
       this.db.prepare("ALTER TABLE deadlines ADD COLUMN canvasAssignmentId INTEGER").run();
+    }
+
+    // Add messages and lastSyncedAt columns to gmail_data if they don't exist
+    const gmailColumns = this.db.prepare("PRAGMA table_info(gmail_data)").all() as Array<{ name: string }>;
+    const hasMessagesColumn = gmailColumns.some((col) => col.name === "messages");
+    const hasLastSyncedAtColumn = gmailColumns.some((col) => col.name === "lastSyncedAt");
+    
+    if (!hasMessagesColumn) {
+      this.db.prepare("ALTER TABLE gmail_data ADD COLUMN messages TEXT NOT NULL DEFAULT '[]'").run();
+    }
+    if (!hasLastSyncedAtColumn) {
+      this.db.prepare("ALTER TABLE gmail_data ADD COLUMN lastSyncedAt TEXT").run();
     }
   }
 
@@ -3763,6 +3777,123 @@ export class RuntimeStore {
       refreshToken: row.refreshToken,
       email: row.email || "unknown",
       connectedAt: row.connectedAt || new Date().toISOString()
+    };
+  }
+
+  /**
+   * Set Gmail messages
+   */
+  setGmailMessages(messages: import("./types.js").GmailMessage[]): void {
+    const stmt = this.db.prepare(`
+      UPDATE gmail_data
+      SET messages = ?, lastSyncedAt = ?
+      WHERE id = 1
+    `);
+
+    stmt.run(
+      JSON.stringify(messages),
+      new Date().toISOString()
+    );
+  }
+
+  /**
+   * Get Gmail messages
+   */
+  getGmailMessages(): import("./types.js").GmailMessage[] {
+    const stmt = this.db.prepare(`
+      SELECT messages
+      FROM gmail_data WHERE id = 1
+    `);
+
+    const row = stmt.get() as {
+      messages: string;
+    } | undefined;
+
+    if (!row) {
+      return [];
+    }
+
+    return JSON.parse(row.messages);
+  }
+
+  /**
+   * Get Gmail summary for context window
+   */
+  getGmailSummary(): import("./types.js").GmailSummary | null {
+    const messages = this.getGmailMessages();
+    
+    if (messages.length === 0) {
+      return null;
+    }
+
+    const stmt = this.db.prepare(`
+      SELECT lastSyncedAt FROM gmail_data WHERE id = 1
+    `);
+    const row = stmt.get() as { lastSyncedAt: string | null } | undefined;
+
+    // Count unread messages
+    const unreadMessages = messages.filter((m) => m.isUnread);
+    const unreadCount = unreadMessages.length;
+
+    // Important senders (from university, Canvas, GitHub)
+    const importantDomains = [
+      "stavanger.instructure.com",
+      "uis.no",
+      "github.com",
+      "noreply@github.com"
+    ];
+
+    const senderCounts = new Map<string, number>();
+    unreadMessages.forEach((msg) => {
+      const emailMatch = msg.from.match(/<([^>]+)>/) || [null, msg.from];
+      const email = emailMatch[1] || msg.from;
+      
+      if (importantDomains.some((domain) => email.toLowerCase().includes(domain))) {
+        senderCounts.set(email, (senderCounts.get(email) || 0) + 1);
+      }
+    });
+
+    const importantSenders = Array.from(senderCounts.entries())
+      .map(([email, count]) => ({ email, count }))
+      .sort((a, b) => b.count - a.count);
+
+    // Actionable items (Canvas, deadlines, assignments, etc.)
+    const actionableKeywords = [
+      "canvas",
+      "assignment",
+      "deadline",
+      "due",
+      "reminder",
+      "professor",
+      "instructor",
+      "exam",
+      "quiz",
+      "submission",
+      "grade",
+      "feedback"
+    ];
+
+    const actionableItems = unreadMessages
+      .filter((msg) => {
+        const searchText = `${msg.subject} ${msg.snippet}`.toLowerCase();
+        return actionableKeywords.some((keyword) => searchText.includes(keyword));
+      })
+      .map((msg) => {
+        const emailMatch = msg.from.match(/<([^>]+)>/) || [null, msg.from];
+        const from = emailMatch[1] || msg.from;
+        return {
+          subject: msg.subject,
+          from,
+          snippet: msg.snippet
+        };
+      })
+      .slice(0, 5); // Limit to 5 actionable items
+
+    return {
+      unreadCount,
+      importantSenders,
+      actionableItems,
+      lastSyncedAt: row?.lastSyncedAt || new Date().toISOString()
     };
   }
 }

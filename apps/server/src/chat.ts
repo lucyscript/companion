@@ -131,6 +131,35 @@ function buildSocialMediaContextSummary(store: RuntimeStore, now: Date = new Dat
   return parts.join("\n");
 }
 
+function buildEmailContextSummary(store: RuntimeStore): string {
+  const summary = store.getGmailSummary();
+  
+  if (!summary || summary.unreadCount === 0) {
+    return "";
+  }
+
+  const parts: string[] = [];
+  parts.push(`**Email Summary:** ${summary.unreadCount} unread message${summary.unreadCount === 1 ? "" : "s"}`);
+
+  // Important senders
+  if (summary.importantSenders.length > 0) {
+    const topSenders = summary.importantSenders.slice(0, 3);
+    const senderList = topSenders.map((s) => `${s.email} (${s.count})`).join(", ");
+    parts.push(`- Important senders: ${senderList}`);
+  }
+
+  // Actionable items
+  if (summary.actionableItems.length > 0) {
+    parts.push("- Actionable items:");
+    summary.actionableItems.slice(0, 3).forEach((item) => {
+      const subjectPreview = item.subject.length > 50 ? item.subject.slice(0, 50) + "..." : item.subject;
+      parts.push(`  • ${subjectPreview} from ${item.from}`);
+    });
+  }
+
+  return parts.join("\n");
+}
+
 export function buildChatContext(store: RuntimeStore, now: Date = new Date(), historyLimit = 10): ChatContextResult {
   const todaySchedule = store
     .getScheduleEvents()
@@ -152,13 +181,14 @@ export function buildChatContext(store: RuntimeStore, now: Date = new Date(), hi
   const userState: UserContext = store.getUserContext();
   const canvasContext = buildCanvasContextSummary(store, now);
   const socialMediaContext = buildSocialMediaContextSummary(store, now);
+  const emailContext = buildEmailContextSummary(store);
 
   const contextWindow = buildContextWindow({
     todaySchedule,
     upcomingDeadlines,
     recentJournals,
     userState,
-    customContext: `${canvasContext}\n\n${socialMediaContext}`
+    customContext: `${canvasContext}\n\n${socialMediaContext}${emailContext ? `\n\n${emailContext}` : ""}`
   });
 
   const history = store.getRecentChatMessages(historyLimit);
