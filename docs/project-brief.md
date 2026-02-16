@@ -99,7 +99,7 @@ Features are built in priority order. The orchestrator reads this section to dec
 | ✅ done | `journal-tags-ui` | frontend-engineer | Add tag input with autocomplete to journal form, tag pills on entries, and tag filtering to search UI backed by journal tags API. |
 | ✅ done | `pwa-install-prompt` | frontend-engineer | Add "Add to Home Screen" prompt detection and custom install UI for iPhone Safari to improve first-time PWA installation experience. |
 | ✅ done | `deadline-smart-suggestions` | backend-engineer | Add GET /api/deadlines/suggestions endpoint that analyzes schedule gaps and recommends optimal work time blocks for upcoming deadlines. |
-| ⬜ todo | `quick-capture-widget` | frontend-engineer | Build a floating quick-capture button that persists across views for instant journal/deadline entry without navigating away from current context. |
+| ✅ done | `quick-capture-widget` | frontend-engineer | Build a floating quick-capture button that persists across views for instant journal/deadline entry without navigating away from current context. |
 | ✅ done | `notification-interaction-history` | backend-engineer | Track notification tap/dismiss actions with timestamps to improve smart timing algorithm and measure notification effectiveness. |
 | ✅ done | `energy-mood-trends` | backend-engineer | Add GET /api/trends endpoint that analyzes historical context updates to identify energy/stress patterns by time of day and day of week for better nudge timing. |
 | ✅ done | `recurring-schedule-events` | backend-engineer | Add recurrence rules (daily/weekly/monthly) to schedule API so users can define repeating lectures once instead of creating each instance manually. |

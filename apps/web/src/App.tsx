@@ -15,6 +15,7 @@ import { SummaryTiles } from "./components/SummaryTiles";
 import { WeeklyReviewView } from "./components/WeeklyReviewView";
 import { AppearanceSettings } from "./components/AppearanceSettings";
 import { HabitsGoalsView } from "./components/HabitsGoalsView";
+import { FloatingQuickCapture } from "./components/FloatingQuickCapture";
 import { useDashboard } from "./hooks/useDashboard";
 import { enablePushNotifications, isPushEnabled, supportsPushNotifications } from "./lib/push";
 import { setupSyncListeners } from "./lib/sync";
@@ -122,6 +123,7 @@ export default function App(): JSX.Element {
   return (
     <main className="app-shell">
       <InstallPrompt />
+      <FloatingQuickCapture onUpdated={refresh} />
       <header className="hero">
         <div>
           <p className="eyebrow">Companion</p>
