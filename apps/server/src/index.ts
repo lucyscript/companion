@@ -13,6 +13,7 @@ import { RuntimeStore } from "./store.js";
 import { fetchTPSchedule, diffScheduleEvents } from "./tp-sync.js";
 import { TPSyncService } from "./tp-sync-service.js";
 import { Notification, NotificationPreferencesPatch } from "./types.js";
+import { COURSE_REPOS, GitHubCourseSyncService } from "./github-course-sync.js";
 
 const app = express();
 const store = new RuntimeStore();
@@ -20,11 +21,13 @@ const runtime = new OrchestratorRuntime(store);
 const syncService = new BackgroundSyncService(store);
 const digestService = new EmailDigestService(store);
 const tpSyncService = new TPSyncService(store);
+const githubSyncService = new GitHubCourseSyncService(store);
 
 runtime.start();
 syncService.start();
 digestService.start();
 tpSyncService.start();
+githubSyncService.start();
 
 app.use(cors());
 app.use(express.json());
@@ -1101,6 +1104,33 @@ app.delete("/api/sync/cleanup", (_req, res) => {
   return res.json({ deleted });
 });
 
+app.post("/api/sync/github", async (_req, res) => {
+  const startedAt = new Date().toISOString();
+  const result = await githubSyncService.sync();
+  const repos = COURSE_REPOS.map((repo) => `${repo.owner}/${repo.repo}`);
+
+  if (!result.success) {
+    return res.status(500).json({
+      status: "error",
+      repos,
+      startedAt,
+      deadlinesFound: result.deadlinesFound,
+      deadlinesCreated: result.deadlinesCreated,
+      deadlinesUpdated: result.deadlinesUpdated,
+      error: result.error
+    });
+  }
+
+  return res.json({
+    status: "completed",
+    repos,
+    startedAt,
+    deadlinesFound: result.deadlinesFound,
+    deadlinesCreated: result.deadlinesCreated,
+    deadlinesUpdated: result.deadlinesUpdated
+  });
+});
+
 app.post("/api/sync/tp", async (_req, res) => {
   try {
     const tpEvents = await fetchTPSchedule();
@@ -1151,6 +1181,7 @@ const shutdown = (): void => {
   syncService.stop();
   digestService.stop();
   tpSyncService.stop();
+  githubSyncService.stop();
   server.close(() => {
     process.exit(0);
   });

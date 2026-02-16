@@ -71,6 +71,7 @@ describe("config", () => {
       process.env.AXIS_VAPID_PRIVATE_KEY = "private-key";
       process.env.AXIS_VAPID_SUBJECT = "mailto:bob@example.com";
       process.env.AXIS_FALLBACK_EMAIL = "bob@example.com";
+      process.env.COURSE_GITHUB_PAT = "ghp_123";
 
       const { config } = await import("./config.js");
 
@@ -81,6 +82,7 @@ describe("config", () => {
       expect(config.AXIS_VAPID_PRIVATE_KEY).toBe("private-key");
       expect(config.AXIS_VAPID_SUBJECT).toBe("mailto:bob@example.com");
       expect(config.AXIS_FALLBACK_EMAIL).toBe("bob@example.com");
+      expect(config.COURSE_GITHUB_PAT).toBe("ghp_123");
     });
   });
 
