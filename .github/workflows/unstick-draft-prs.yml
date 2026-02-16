@@ -347,19 +347,37 @@ jobs:
                   (!runtime.done && !runtime.active && staleMins >= MIN_RUNTIME_STALL_MINUTES);
 
                 if (runtime.done || earlyRuntimeStalled) {
-                  // Agent finished or stalled but produced no code — close PR and free the issue
-                  core.warning(`  Agent produced 0 files (runtime done=${runtime.done}, stalled=${earlyRuntimeStalled}) — closing PR`);
+                  // Check if agent intentionally finished with 0 changes
+                  // (e.g., verified feature already exists). If the agent marked the PR
+                  // as ready for review (not draft) and runtime completed normally,
+                  // it considers the work done — close the issue as completed, not for retry.
+                  const agentConsideredDone = !pr.draft && runtime.done && !earlyRuntimeStalled;
 
-                  await github.rest.issues.createComment({
-                    owner, repo,
-                    issue_number: pr.number,
-                    body: [
-                      '🛑 **Agent session ended with no code changes.**',
-                      '',
-                      'The agent runtime finished but produced 0 file changes (likely crashed or hit rate limits).',
-                      'Closing this PR and freeing the linked issue for a fresh agent attempt.',
-                    ].join('\n'),
-                  });
+                  if (agentConsideredDone) {
+                    core.info(`  Agent marked PR ready with 0 file changes — work already done`);
+                    await github.rest.issues.createComment({
+                      owner, repo,
+                      issue_number: pr.number,
+                      body: [
+                        '✅ **Agent verified: no code changes needed.**',
+                        '',
+                        'The agent completed its session and marked this PR ready for review with 0 file changes.',
+                        'This typically means the feature was already implemented. Closing PR and issue as completed.',
+                      ].join('\n'),
+                    });
+                  } else {
+                    core.warning(`  Agent produced 0 files (runtime done=${runtime.done}, stalled=${earlyRuntimeStalled}) — closing PR`);
+                    await github.rest.issues.createComment({
+                      owner, repo,
+                      issue_number: pr.number,
+                      body: [
+                        '🛑 **Agent session ended with no code changes.**',
+                        '',
+                        'The agent runtime finished but produced 0 file changes (likely crashed or hit rate limits).',
+                        'Closing this PR and freeing the linked issue for a fresh agent attempt.',
+                      ].join('\n'),
+                    });
+                  }
 
                   await github.rest.pulls.update({
                     owner, repo,
@@ -368,30 +386,46 @@ jobs:
                   });
                   core.info(`  Closed empty PR #${pr.number}`);
 
-                  // Find linked issue and clear assignees
+                  // Find linked issue
                   const issueNumber = extractLinkedIssue(pr.body);
                   if (issueNumber) {
-                    try {
-                      const { data: issue } = await github.rest.issues.get({ owner, repo, issue_number: issueNumber });
-                      const currentAssignees = issue.assignees.map(a => a.login);
-                      if (currentAssignees.length > 0) {
-                        await github.rest.issues.removeAssignees({
+                    if (agentConsideredDone) {
+                      // Agent said work is done — close issue as completed
+                      try {
+                        await github.rest.issues.update({
                           owner, repo,
                           issue_number: issueNumber,
-                          assignees: currentAssignees,
+                          state: 'closed',
+                          state_reason: 'completed',
                         });
+                        core.info(`  ✓ Closed linked issue #${issueNumber} as completed (no changes needed)`);
+                      } catch (err) {
+                        core.warning(`  Could not close issue #${issueNumber}: ${err.message}`);
                       }
-                    } catch (err) {
-                      core.warning(`  Could not remove assignees from issue #${issueNumber}: ${err.message}`);
-                    }
+                    } else {
+                      // Agent failed — free issue for retry
+                      try {
+                        const { data: issue } = await github.rest.issues.get({ owner, repo, issue_number: issueNumber });
+                        const currentAssignees = issue.assignees.map(a => a.login);
+                        if (currentAssignees.length > 0) {
+                          await github.rest.issues.removeAssignees({
+                            owner, repo,
+                            issue_number: issueNumber,
+                            assignees: currentAssignees,
+                          });
+                        }
+                      } catch (err) {
+                        core.warning(`  Could not remove assignees from issue #${issueNumber}: ${err.message}`);
+                      }
 
-                    await github.rest.issues.createComment({
-                      owner, repo,
-                      issue_number: issueNumber,
-                      body: `PR #${pr.number} closed — agent produced no code changes. Issue is now unassigned and ready for a fresh agent dispatch.`,
-                    });
-                    core.info(`  Cleared assignees on issue #${issueNumber}`);
-                    needsReassign = true;
+                      await github.rest.issues.createComment({
+                        owner, repo,
+                        issue_number: issueNumber,
+                        body: `PR #${pr.number} closed — agent produced no code changes. Issue is now unassigned and ready for a fresh agent dispatch.`,
+                      });
+                      core.info(`  Cleared assignees on issue #${issueNumber}`);
+                      needsReassign = true;
+                    }
                   }
 
                   continue;
