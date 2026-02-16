@@ -2,12 +2,12 @@ name: Unstick Agent Draft PRs
 
 # Processes agent draft PRs: detect done → rebase/resolve conflicts → mark ready → merge.
 # Triggers:
-#   - Cron every 3 min (GitHub may delay; not guaranteed)
+#   - Cron every 5 min (GitHub may skip; self-dispatch compensates)
 #   - On push to main (catches post-merge immediately)
 #   - Manual dispatch
 on:
   schedule:
-    - cron: '*/3 * * * *'
+    - cron: '*/5 * * * *'
   push:
     branches: [main]
   workflow_dispatch:
@@ -38,6 +38,7 @@ jobs:
           token: ${{ secrets.PAT_COLLAB_TWO || secrets.AGENT_PAT_COLLAB || secrets.AGENT_PAT || secrets.GITHUB_TOKEN }}
 
       - name: Process all agent draft PRs
+        id: process
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.PAT_COLLAB_TWO || secrets.AGENT_PAT_COLLAB || secrets.AGENT_PAT || secrets.GITHUB_TOKEN }}
@@ -45,6 +46,9 @@ jobs:
             const { execSync } = require('child_process');
             const owner = context.repo.owner;
             const repo = context.repo.repo;
+
+            // Track whether we need to re-run (pending PRs that couldn't be processed)
+            let needsRetry = false;
 
             // All known AI coding agent bot logins
             const AGENT_BOTS = new Set([
@@ -342,6 +346,7 @@ jobs:
               // Skip very recently updated drafts while agent is likely still working
               if (pr.draft && staleMins < MIN_STALE_MINUTES && !runtime.done) {
                 core.info(`  Skipping: updated ${staleMins}m ago and runtime not done`);
+                needsRetry = true;
                 continue;
               }
 
@@ -387,6 +392,7 @@ jobs:
               // Only proceed if runtime is done, stalled, or already marked done
               if (!runtime.done && !runtimeStalled && !alreadyMarkedDone) {
                 core.info(`  Runtime not done, not stalled — skipping`);
+                needsRetry = true;
                 continue;
               }
 
@@ -570,9 +576,30 @@ jobs:
                 }
               } else if (!pr.draft && prDetail.mergeable === null) {
                 core.info(`  Mergeability still pending — will retry next run`);
+                needsRetry = true;
               }
 
               core.info(`  ✓ PR #${pr.number} processed`);
             }
 
             core.info(`\nDone. Processed ${agentPRs.length} agent PRs.`);
+            core.setOutput('needs_retry', needsRetry ? 'true' : 'false');
+            core.info(`Needs retry: ${needsRetry}`);
+
+      - name: Self-dispatch retry if work remains
+        if: steps.process.outputs.needs_retry == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.PAT_COLLAB_TWO || secrets.AGENT_PAT_COLLAB || secrets.AGENT_PAT || secrets.GITHUB_TOKEN }}
+          script: |
+            // Wait 3 minutes then re-dispatch to avoid relying on unreliable cron
+            const delayMs = 3 * 60 * 1000;
+            core.info(`Waiting ${delayMs/1000}s before self-dispatch...`);
+            await new Promise(r => setTimeout(r, delayMs));
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'unstick-draft-prs.yml',
+              ref: 'main',
+            });
+            core.info('Self-dispatched unstick workflow for retry');
