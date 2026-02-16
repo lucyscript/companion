@@ -187,7 +187,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps): JSX.Element
               onChange={(event) => setTpSemester(event.target.value)}
               placeholder="26v"
             />
-            <small className="muted">Format: YYs (e.g., 26v for Spring 2026)</small>
+            <small className="muted">Format: YY[v|h] (e.g., 26v for Spring 2026, 26h for Fall 2026)</small>
           </label>
 
           <label>
