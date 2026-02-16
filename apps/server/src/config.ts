@@ -15,7 +15,9 @@ const schema = z.object({
   YOUTUBE_API_KEY: z.string().optional(),
   CANVAS_API_TOKEN: z.string().optional(),
   CANVAS_BASE_URL: z.string().default("https://stavanger.instructure.com"),
-  COURSE_GITHUB_PAT: z.string().optional()
+  COURSE_GITHUB_PAT: z.string().optional(),
+  TWITCH_CLIENT_ID: z.string().optional(),
+  TWITCH_CLIENT_SECRET: z.string().optional()
 });
 
 export const config = schema.parse(process.env);

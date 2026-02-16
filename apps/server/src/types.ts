@@ -497,3 +497,34 @@ export interface CanvasData {
   announcements: CanvasAnnouncement[];
   lastSyncedAt: string | null;
 }
+
+// Twitch types
+export interface TwitchStream {
+  id: string;
+  userId: string;
+  userLogin: string;
+  userName: string;
+  gameId: string;
+  gameName: string;
+  type: "live";
+  title: string;
+  viewerCount: number;
+  startedAt: string;
+  language: string;
+  thumbnailUrl: string;
+  tags: string[];
+  isMature: boolean;
+}
+
+export interface TwitchChannel {
+  id: string;
+  login: string;
+  displayName: string;
+  isFavorite: boolean;
+}
+
+export interface TwitchData {
+  favoriteChannels: TwitchChannel[];
+  liveStreams: TwitchStream[];
+  lastCheckedAt: string | null;
+}

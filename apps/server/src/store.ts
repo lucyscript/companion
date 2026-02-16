@@ -372,6 +372,13 @@ export class RuntimeStore {
         announcements TEXT NOT NULL DEFAULT '[]',
         lastSyncedAt TEXT
       );
+
+      CREATE TABLE IF NOT EXISTS twitch_data (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        favoriteChannels TEXT NOT NULL DEFAULT '[]',
+        liveStreams TEXT NOT NULL DEFAULT '[]',
+        lastCheckedAt TEXT
+      );
     `);
 
     const journalColumns = this.db.prepare("PRAGMA table_info(journal_entries)").all() as Array<{ name: string }>;
@@ -3616,6 +3623,49 @@ export class RuntimeStore {
       modules: JSON.parse(row.modules),
       announcements: JSON.parse(row.announcements),
       lastSyncedAt: row.lastSyncedAt
+    };
+  }
+
+  /**
+   * Set Twitch data
+   */
+  setTwitchData(data: import("./types.js").TwitchData): void {
+    const stmt = this.db.prepare(`
+      INSERT OR REPLACE INTO twitch_data (
+        id, favoriteChannels, liveStreams, lastCheckedAt
+      ) VALUES (1, ?, ?, ?)
+    `);
+
+    stmt.run(
+      JSON.stringify(data.favoriteChannels),
+      JSON.stringify(data.liveStreams),
+      data.lastCheckedAt
+    );
+  }
+
+  /**
+   * Get Twitch data
+   */
+  getTwitchData(): import("./types.js").TwitchData | null {
+    const stmt = this.db.prepare(`
+      SELECT favoriteChannels, liveStreams, lastCheckedAt
+      FROM twitch_data WHERE id = 1
+    `);
+
+    const row = stmt.get() as {
+      favoriteChannels: string;
+      liveStreams: string;
+      lastCheckedAt: string | null;
+    } | undefined;
+
+    if (!row) {
+      return null;
+    }
+
+    return {
+      favoriteChannels: JSON.parse(row.favoriteChannels),
+      liveStreams: JSON.parse(row.liveStreams),
+      lastCheckedAt: row.lastCheckedAt
     };
   }
 }
