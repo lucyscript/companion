@@ -56,8 +56,52 @@ export class OrchestratorRuntime {
   }
 
   private handleEvent(event: AgentEvent): void {
+    if (event.eventType === "assignment.deadline") {
+      const payload = event.payload as {
+        course?: string;
+        task?: string;
+        dueDate?: string;
+        submitted?: boolean;
+        hoursLeft?: number;
+        assignments?: Array<{
+          course?: string;
+          task?: string;
+          dueDate?: string;
+          submitted?: boolean;
+          hoursLeft?: number;
+        }>;
+      };
+
+      const assignments =
+        Array.isArray(payload?.assignments) && payload.assignments.length > 0
+          ? payload.assignments
+          : [payload];
+
+      for (const assignment of assignments) {
+        const priority =
+          typeof assignment.hoursLeft === "number"
+            ? assignment.hoursLeft <= 12
+              ? "critical"
+              : assignment.hoursLeft <= 24
+                ? "high"
+                : "medium"
+            : event.priority;
+
+        this.store.syncDeadlineFromAssignment({
+          course: assignment.course ?? payload?.course,
+          task: assignment.task ?? payload?.task,
+          dueDate: assignment.dueDate ?? payload?.dueDate,
+          priority,
+          submitted: assignment.submitted ?? payload?.submitted ?? false
+        });
+      }
+    }
+
     this.store.recordEvent(event);
     const context = this.store.getUserContext();
+    if (event.eventType === "assignment.deadline" && (event.payload as { submitted?: boolean } | undefined)?.submitted) {
+      return;
+    }
     const nudge = buildContextAwareNudge(event, context);
 
     if (nudge) {

@@ -326,6 +326,52 @@ export class RuntimeStore {
     return next;
   }
 
+  syncDeadlineFromAssignment(assignment: {
+    course?: string;
+    task?: string;
+    dueDate?: string;
+    priority?: Deadline["priority"];
+    submitted?: boolean;
+  }): Deadline {
+    const course = assignment.course?.trim() ?? "General";
+    const task = assignment.task?.trim() ?? "Assignment";
+    const dueDate = assignment.dueDate ?? nowIso();
+    const priority = assignment.priority ?? "medium";
+    const completed = assignment.submitted ?? false;
+
+    const existing = this.deadlines.find(
+      (deadline) =>
+        deadline.course.toLowerCase() === course.toLowerCase() &&
+        deadline.task.toLowerCase() === task.toLowerCase()
+    );
+
+    if (existing) {
+      const updated: Deadline = {
+        ...existing,
+        course,
+        task,
+        dueDate,
+        priority,
+        completed: existing.completed || completed
+      };
+
+      this.deadlines = this.deadlines.map((deadline) => (deadline.id === existing.id ? updated : deadline));
+      return updated;
+    }
+
+    const deadline: Deadline = {
+      id: makeId("deadline"),
+      course,
+      task,
+      dueDate,
+      priority,
+      completed
+    };
+
+    this.deadlines = [deadline, ...this.deadlines].slice(0, this.maxDeadlines);
+    return deadline;
+  }
+
   deleteDeadline(id: string): boolean {
     const before = this.deadlines.length;
     this.deadlines = this.deadlines.filter((deadline) => deadline.id !== id);

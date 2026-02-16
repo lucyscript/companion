@@ -118,6 +118,42 @@ describe("RuntimeStore - Schedule and Deadlines", () => {
     });
   });
 
+  describe("canvas assignment sync", () => {
+    it("upserts Canvas assignments into deadlines and respects manual entries", () => {
+      store.createDeadline({
+        course: "Algorithms",
+        task: "Problem Set 4",
+        dueDate: "2026-02-18T12:00:00.000Z",
+        priority: "medium",
+        completed: false
+      });
+
+      const updated = store.syncDeadlineFromAssignment({
+        course: "Algorithms",
+        task: "Problem Set 4",
+        dueDate: "2026-02-20T10:00:00.000Z",
+        priority: "high",
+        submitted: true
+      });
+
+      expect(store.getDeadlines()).toHaveLength(1);
+      expect(updated.completed).toBe(true);
+      expect(updated.dueDate).toBe("2026-02-20T10:00:00.000Z");
+
+      const added = store.syncDeadlineFromAssignment({
+        course: "AI Ethics",
+        task: "Reading Reflection",
+        dueDate: "2026-02-17T09:00:00.000Z",
+        priority: "medium",
+        submitted: false
+      });
+
+      expect(store.getDeadlines()).toHaveLength(2);
+      expect(added.course).toBe("AI Ethics");
+      expect(added.completed).toBe(false);
+    });
+  });
+
   describe("push subscriptions", () => {
     it("upserts and removes push subscriptions", () => {
       const subscription = {
