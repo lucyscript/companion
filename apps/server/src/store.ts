@@ -3807,6 +3807,14 @@ export class RuntimeStore {
    * Update Canvas sync status
    */
   updateCanvasSyncStatus(update: Partial<Omit<CanvasSyncStatus, "coursesCount" | "assignmentsCount" | "modulesCount" | "announcementsCount">>): void {
+    // Initialize if not exists
+    const exists = this.db.prepare("SELECT id FROM canvas_sync_status WHERE id = 1").get();
+    if (!exists) {
+      this.db
+        .prepare("INSERT INTO canvas_sync_status (id, syncing) VALUES (1, 0)")
+        .run();
+    }
+
     const fields: string[] = [];
     const values: unknown[] = [];
 

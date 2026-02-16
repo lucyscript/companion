@@ -227,6 +227,8 @@ export class CanvasSyncService {
       message: announcement.message,
       postedAt: announcement.posted_at,
       author: announcement.author
+        ? { displayName: announcement.author.display_name }
+        : undefined
     }));
   }
 
