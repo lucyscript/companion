@@ -400,6 +400,21 @@ Response:
 }
 ```
 
+### GET `/api/gmail/status`
+
+Check if Gmail is connected and get connection details.
+
+Response:
+
+```json
+{
+  "connected": true,
+  "email": "user@gmail.com",
+  "connectedAt": "2026-02-14T15:00:00.000Z",
+  "lastSyncedAt": "2026-02-14T14:30:00.000Z"
+}
+```
+
 ### GET `/api/gmail/summary?hours=24`
 
 AI-summarized mailbox digest (subjects + snippets, not full bodies).
