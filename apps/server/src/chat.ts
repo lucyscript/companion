@@ -24,8 +24,40 @@ function isSameDay(dateA: Date, dateB: Date): boolean {
   );
 }
 
-function buildCanvasContextSummary(): string {
-  return "Canvas data: no synced courses yet. Connect Canvas to enrich responses with assignments, modules, and announcements.";
+function buildCanvasContextSummary(store: RuntimeStore, now: Date = new Date()): string {
+  const canvasData = store.getCanvasData();
+  
+  if (!canvasData || canvasData.announcements.length === 0) {
+    return "Canvas data: no synced courses yet. Connect Canvas to enrich responses with assignments, modules, and announcements.";
+  }
+
+  const recentAnnouncements = canvasData.announcements
+    .filter((ann) => {
+      const postedAt = new Date(ann.posted_at);
+      if (Number.isNaN(postedAt.getTime())) {
+        return false;
+      }
+      const daysSincePosted = (now.getTime() - postedAt.getTime()) / (1000 * 60 * 60 * 24);
+      return daysSincePosted <= 7;
+    })
+    .sort((a, b) => new Date(b.posted_at).getTime() - new Date(a.posted_at).getTime())
+    .slice(0, 5);
+
+  if (recentAnnouncements.length === 0) {
+    return "Canvas: No recent announcements (last 7 days).";
+  }
+
+  const parts = ["**Canvas Announcements (last 7 days):**"];
+  recentAnnouncements.forEach((ann) => {
+    const postedDate = new Date(ann.posted_at).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric"
+    });
+    const preview = ann.message.replace(/<[^>]*>/g, "").slice(0, 80);
+    parts.push(`- ${ann.title} (${postedDate}): ${preview}${ann.message.length > 80 ? "..." : ""}`);
+  });
+
+  return parts.join("\n");
 }
 
 export function buildChatContext(store: RuntimeStore, now: Date = new Date(), historyLimit = 10): ChatContextResult {
@@ -47,7 +79,7 @@ export function buildChatContext(store: RuntimeStore, now: Date = new Date(), hi
 
   const recentJournals = store.getJournalEntries(3);
   const userState: UserContext = store.getUserContext();
-  const canvasContext = buildCanvasContextSummary();
+  const canvasContext = buildCanvasContextSummary(store, now);
 
   const contextWindow = buildContextWindow({
     todaySchedule,

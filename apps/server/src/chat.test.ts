@@ -62,4 +62,46 @@ describe("chat service", () => {
     expect(history.messages[0].role).toBe("assistant");
     expect(history.messages[1].role).toBe("user");
   });
+
+  it("includes Canvas announcements in context when available", async () => {
+    const now = new Date("2026-02-16T09:00:00.000Z");
+
+    store.setCanvasData({
+      courses: [],
+      assignments: [],
+      modules: [],
+      announcements: [
+        {
+          id: 1,
+          title: "Important Course Update",
+          message: "<p>Please review the updated syllabus and assignment schedule for this semester.</p>",
+          posted_at: "2026-02-15T10:00:00.000Z",
+          author: { display_name: "Professor Smith" },
+          context_code: "course_123"
+        },
+        {
+          id: 2,
+          title: "Lab Session Reminder",
+          message: "<p>Remember to bring your laptop to the lab session tomorrow.</p>",
+          posted_at: "2026-02-14T12:00:00.000Z",
+          author: { display_name: "TA Johnson" },
+          context_code: "course_123"
+        }
+      ],
+      lastSyncedAt: "2026-02-16T08:00:00.000Z"
+    });
+
+    const result = await sendChatMessage(store, "What's new?", {
+      geminiClient: fakeGemini,
+      now
+    });
+
+    expect(generateChatResponse).toHaveBeenCalled();
+    const contextWindow = result.assistantMessage.metadata?.contextWindow;
+    expect(contextWindow).toContain("Canvas Announcements");
+    expect(contextWindow).toContain("Important Course Update");
+    expect(contextWindow).toContain("Lab Session Reminder");
+    expect(contextWindow).toContain("Feb 15");
+    expect(contextWindow).toContain("Feb 14");
+  });
 });
