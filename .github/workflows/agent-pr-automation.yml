@@ -12,7 +12,7 @@ permissions:
 jobs:
   auto-rebase:
     if: contains(github.event.pull_request.labels.*.name, 'agent-task')
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout PR branch
         uses: actions/checkout@v4
@@ -61,7 +61,7 @@ jobs:
         (github.event.action == 'labeled' && github.event.label.name == 'agent-work-done') ||
         github.event.action == 'synchronize'
       )
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     needs: auto-rebase
     steps:
       - name: Merge PR directly

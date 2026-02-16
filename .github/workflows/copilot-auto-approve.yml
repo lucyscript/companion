@@ -24,7 +24,7 @@ jobs:
       github.event.pull_request.user.login == 'Codex' ||
       github.event.pull_request.user.login == 'openai-code-agent[bot]' ||
       github.event.pull_request.user.login == 'chatgpt-codex-connector[bot]'
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
       - name: Approve pending workflow runs
         uses: actions/github-script@v7
