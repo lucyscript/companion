@@ -281,3 +281,27 @@ export interface CanvasSyncResult {
   announcementsCount: number;
   error?: string;
 }
+
+export interface TPStatus {
+  lastSyncedAt: string | null;
+  eventsCount: number;
+  isSyncing: boolean;
+  error?: string;
+}
+
+export interface TPSyncResult {
+  success: boolean;
+  eventsProcessed: number;
+  lecturesCreated: number;
+  lecturesUpdated: number;
+  lecturesDeleted: number;
+  error?: string;
+}
+
+export interface GeminiStatus {
+  apiConfigured: boolean;
+  model: string;
+  rateLimitRemaining: number;
+  lastRequestAt: string | null;
+  error?: string;
+}
