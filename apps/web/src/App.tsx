@@ -9,6 +9,7 @@ import { SettingsView } from "./components/SettingsView";
 import { HabitsGoalsView } from "./components/HabitsGoalsView";
 import { FloatingQuickCapture } from "./components/FloatingQuickCapture";
 import { SyncStatusBadge } from "./components/SyncStatusBadge";
+import { AnalyticsDashboard } from "./components/AnalyticsDashboard";
 import { TabBar, TabId } from "./components/TabBar";
 import { useDashboard } from "./hooks/useDashboard";
 import { enablePushNotifications, isPushEnabled, supportsPushNotifications } from "./lib/push";
@@ -188,6 +189,9 @@ export default function App(): JSX.Element {
                 <HabitsGoalsView />
                 <FocusTimer onUpdated={refresh} />
               </div>
+            )}
+            {activeTab === "analytics" && (
+              <AnalyticsDashboard />
             )}
             {activeTab === "settings" && (
               <SettingsView

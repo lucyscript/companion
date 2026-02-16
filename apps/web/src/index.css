@@ -2508,3 +2508,49 @@ label small.muted {
   color: var(--muted);
   font-weight: normal;
 }
+
+/* Analytics Dashboard */
+.analytics-container {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.analytics-title {
+  font-size: 1.8rem;
+  font-weight: 600;
+  margin: 0 0 24px 0;
+  color: var(--text);
+}
+
+.analytics-grid {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 768px) {
+  .analytics-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.analytics-card {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.analytics-card h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0 0 16px 0;
+  color: var(--text);
+}
+
+.chart-container {
+  height: 250px;
+  position: relative;
+}
