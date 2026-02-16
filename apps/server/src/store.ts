@@ -16,6 +16,8 @@ import {
   JournalSyncPayload,
   LectureEvent,
   Notification,
+  EmailDigest,
+  EmailDigestReason,
   NotificationPreferences,
   NotificationPreferencesPatch,
   NotificationInteraction,
@@ -62,6 +64,7 @@ export class RuntimeStore {
   private readonly maxCheckInsPerItem = 400;
   private readonly maxPushSubscriptions = 50;
   private readonly maxPushFailures = 100;
+  private readonly maxEmailDigests = 50;
   private readonly maxLocations = 1000;
   private readonly maxLocationHistory = 5000;
   private notificationListeners: Array<(notification: Notification) => void> = [];
@@ -93,6 +96,19 @@ export class RuntimeStore {
         message TEXT NOT NULL,
         priority TEXT NOT NULL,
         timestamp TEXT NOT NULL,
+        insertOrder INTEGER NOT NULL DEFAULT (unixepoch('subsec') * 1000000)
+      );
+
+      CREATE TABLE IF NOT EXISTS email_digests (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        recipient TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        body TEXT NOT NULL,
+        timeframeStart TEXT NOT NULL,
+        timeframeEnd TEXT NOT NULL,
+        generatedAt TEXT NOT NULL,
         insertOrder INTEGER NOT NULL DEFAULT (unixepoch('subsec') * 1000000)
       );
 
@@ -2131,6 +2147,107 @@ export class RuntimeStore {
       droppedSubscriptions: metricsRow.droppedSubscriptions,
       totalRetries: metricsRow.totalRetries,
       recentFailures
+    };
+  }
+
+  recordEmailDigest(entry: Omit<EmailDigest, "id" | "generatedAt"> & { generatedAt?: string }): EmailDigest {
+    const digest: EmailDigest = {
+      ...entry,
+      id: makeId("email-digest"),
+      generatedAt: entry.generatedAt ?? nowIso()
+    };
+
+    this.db
+      .prepare(
+        `INSERT INTO email_digests (id, type, reason, recipient, subject, body, timeframeStart, timeframeEnd, generatedAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        digest.id,
+        digest.type,
+        digest.reason,
+        digest.recipient,
+        digest.subject,
+        digest.body,
+        digest.timeframeStart,
+        digest.timeframeEnd,
+        digest.generatedAt
+      );
+
+    const count = (this.db.prepare("SELECT COUNT(*) as count FROM email_digests").get() as { count: number }).count;
+    if (count > this.maxEmailDigests) {
+      this.db
+        .prepare(
+          `DELETE FROM email_digests WHERE id IN (
+            SELECT id FROM email_digests ORDER BY insertOrder ASC LIMIT ?
+          )`
+        )
+        .run(count - this.maxEmailDigests);
+    }
+
+    return digest;
+  }
+
+  getEmailDigests(limit: number = this.maxEmailDigests): EmailDigest[] {
+    const rows = this.db
+      .prepare("SELECT * FROM email_digests ORDER BY insertOrder DESC LIMIT ?")
+      .all(limit) as Array<{
+      id: string;
+      type: EmailDigest["type"];
+      reason: EmailDigestReason;
+      recipient: string;
+      subject: string;
+      body: string;
+      timeframeStart: string;
+      timeframeEnd: string;
+      generatedAt: string;
+    }>;
+
+    return rows.map((row) => ({
+      id: row.id,
+      type: row.type,
+      reason: row.reason,
+      recipient: row.recipient,
+      subject: row.subject,
+      body: row.body,
+      timeframeStart: row.timeframeStart,
+      timeframeEnd: row.timeframeEnd,
+      generatedAt: row.generatedAt
+    }));
+  }
+
+  getLastEmailDigest(type?: EmailDigest["type"]): EmailDigest | null {
+    const query = type
+      ? "SELECT * FROM email_digests WHERE type = ? ORDER BY insertOrder DESC LIMIT 1"
+      : "SELECT * FROM email_digests ORDER BY insertOrder DESC LIMIT 1";
+    const row = type ? this.db.prepare(query).get(type) : this.db.prepare(query).get();
+
+    if (!row) {
+      return null;
+    }
+
+    const digestRow = row as {
+      id: string;
+      type: EmailDigest["type"];
+      reason: EmailDigestReason;
+      recipient: string;
+      subject: string;
+      body: string;
+      timeframeStart: string;
+      timeframeEnd: string;
+      generatedAt: string;
+    };
+
+    return {
+      id: digestRow.id,
+      type: digestRow.type,
+      reason: digestRow.reason,
+      recipient: digestRow.recipient,
+      subject: digestRow.subject,
+      body: digestRow.body,
+      timeframeStart: digestRow.timeframeStart,
+      timeframeEnd: digestRow.timeframeEnd,
+      generatedAt: digestRow.generatedAt
     };
   }
 

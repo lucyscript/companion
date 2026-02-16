@@ -29,6 +29,22 @@ export interface Notification {
   url?: string;
 }
 
+export type EmailDigestType = "daily" | "weekly";
+
+export type EmailDigestReason = "push-failures" | "inactivity";
+
+export interface EmailDigest {
+  id: string;
+  type: EmailDigestType;
+  reason: EmailDigestReason;
+  recipient: string;
+  subject: string;
+  body: string;
+  timeframeStart: string;
+  timeframeEnd: string;
+  generatedAt: string;
+}
+
 export interface ScheduledNotification {
   id: string;
   notification: Omit<Notification, "id" | "timestamp">;

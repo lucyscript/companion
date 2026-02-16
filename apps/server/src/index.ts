@@ -6,6 +6,7 @@ import { buildCalendarImportPreview, parseICS } from "./calendar-import.js";
 import { config } from "./config.js";
 import { generateDeadlineSuggestions } from "./deadline-suggestions.js";
 import { OrchestratorRuntime } from "./orchestrator.js";
+import { EmailDigestService } from "./email-digest.js";
 import { getVapidPublicKey, hasStaticVapidKeys, sendPushNotification } from "./push.js";
 import { RuntimeStore } from "./store.js";
 import { Notification, NotificationPreferencesPatch } from "./types.js";
@@ -14,9 +15,11 @@ const app = express();
 const store = new RuntimeStore();
 const runtime = new OrchestratorRuntime(store);
 const syncService = new BackgroundSyncService(store);
+const digestService = new EmailDigestService(store);
 
 runtime.start();
 syncService.start();
+digestService.start();
 
 app.use(cors());
 app.use(express.json());
@@ -1062,6 +1065,7 @@ const server = app.listen(config.PORT, () => {
 const shutdown = (): void => {
   runtime.stop();
   syncService.stop();
+  digestService.stop();
   server.close(() => {
     process.exit(0);
   });

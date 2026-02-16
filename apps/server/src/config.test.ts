@@ -31,6 +31,12 @@ describe("config", () => {
       expect(config.AXIS_USER_NAME).toBe("friend");
     });
 
+    it("should use default AXIS_FALLBACK_EMAIL when not provided", async () => {
+      delete process.env.AXIS_FALLBACK_EMAIL;
+      const { config } = await import("./config.js");
+      expect(config.AXIS_FALLBACK_EMAIL).toBe("user@example.com");
+    });
+
     it("should use default AXIS_VAPID_SUBJECT when not provided", async () => {
       delete process.env.AXIS_VAPID_SUBJECT;
       const { config } = await import("./config.js");
@@ -64,6 +70,7 @@ describe("config", () => {
       process.env.AXIS_VAPID_PUBLIC_KEY = "public-key";
       process.env.AXIS_VAPID_PRIVATE_KEY = "private-key";
       process.env.AXIS_VAPID_SUBJECT = "mailto:bob@example.com";
+      process.env.AXIS_FALLBACK_EMAIL = "bob@example.com";
 
       const { config } = await import("./config.js");
 
@@ -73,6 +80,7 @@ describe("config", () => {
       expect(config.AXIS_VAPID_PUBLIC_KEY).toBe("public-key");
       expect(config.AXIS_VAPID_PRIVATE_KEY).toBe("private-key");
       expect(config.AXIS_VAPID_SUBJECT).toBe("mailto:bob@example.com");
+      expect(config.AXIS_FALLBACK_EMAIL).toBe("bob@example.com");
     });
   });
 
