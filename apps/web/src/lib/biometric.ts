@@ -198,10 +198,7 @@ export async function authenticateBiometric(
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
-  let binary = "";
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
+  const binary = String.fromCharCode(...bytes);
   return window.btoa(binary);
 }
 

@@ -45,7 +45,7 @@ export function BiometricGate({ credential, onAuthenticated, onSkip }: Biometric
     <div className="biometric-gate">
       <div className="biometric-gate-content">
         <div className="biometric-icon">
-          {/* Face ID icon (simplified) */}
+          {/* Face ID icon: stylized face with eyes and mouth representing biometric authentication */}
           <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
             <circle cx="32" cy="32" r="30" stroke="currentColor" strokeWidth="2" />
             <circle cx="22" cy="26" r="3" fill="currentColor" />
