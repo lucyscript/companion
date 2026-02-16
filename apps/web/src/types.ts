@@ -205,3 +205,26 @@ export interface NotificationInteraction {
   actionType?: string;
   timeToInteractionMs?: number;
 }
+
+export type SyncOperationType = "journal" | "deadline" | "context";
+
+export type SyncOperationStatus = "pending" | "processing" | "completed" | "failed";
+
+export interface ServerSyncQueueItem {
+  id: string;
+  operationType: SyncOperationType;
+  payload: Record<string, unknown>;
+  status: SyncOperationStatus;
+  attempts: number;
+  lastAttemptAt: string | null;
+  createdAt: string;
+  completedAt: string | null;
+  error: string | null;
+}
+
+export interface SyncQueueStatus {
+  pending: number;
+  processing: number;
+  failed: number;
+  recentItems: ServerSyncQueueItem[];
+}

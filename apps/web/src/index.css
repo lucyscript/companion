@@ -1863,3 +1863,138 @@ button:disabled {
     grid-template-columns: 1fr 1fr;
   }
 }
+
+/* Sync Status Badge */
+.sync-status-badge {
+  position: fixed;
+  bottom: max(100px, calc(100px + env(safe-area-inset-bottom)));
+  right: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  padding: 10px 14px;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  font-size: 0.75rem;
+  z-index: 100;
+  max-width: 200px;
+}
+
+.sync-status-badge.sync-status-offline {
+  border-color: var(--warn-border-strong);
+  background: var(--warn-surface);
+}
+
+.sync-status-badge.sync-status-warning {
+  border-color: var(--danger-border-strong);
+  background: var(--danger-surface);
+}
+
+.sync-status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.sync-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.sync-status-dot.online {
+  background: var(--ok);
+  box-shadow: 0 0 0 2px var(--ok-border);
+  animation: pulse-online 2s infinite;
+}
+
+.sync-status-dot.offline {
+  background: var(--warn);
+  box-shadow: 0 0 0 2px var(--warn-border);
+}
+
+@keyframes pulse-online {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+.sync-status-text {
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.sync-status-queue,
+.sync-status-failed,
+.sync-status-processing {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
+}
+
+.sync-status-failed {
+  border-color: var(--danger-border);
+  background: var(--danger-surface);
+}
+
+.sync-status-processing {
+  border-color: var(--accent-border);
+  background: var(--accent-surface);
+}
+
+.sync-status-count {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.sync-status-label {
+  color: var(--muted);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.sync-status-spinner {
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--accent);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.sync-status-timestamp {
+  color: var(--muted);
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .sync-status-badge {
+    right: 10px;
+    bottom: max(90px, calc(90px + env(safe-area-inset-bottom)));
+    padding: 8px 10px;
+    font-size: 0.7rem;
+  }
+}
+

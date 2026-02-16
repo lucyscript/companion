@@ -12,7 +12,8 @@ import {
   NotificationInteraction,
   NotificationPreferences,
   UserContext,
-  WeeklySummary
+  WeeklySummary,
+  SyncQueueStatus
 } from "../types";
 import {
   JournalQueueItem,
@@ -488,19 +489,19 @@ export async function processSyncQueue(): Promise<{ processed: number; failed: n
 }
 
 export async function getSyncQueueStatus(): Promise<{
-  status: { pending: number; processing: number; completed: number; failed: number };
+  status: SyncQueueStatus;
   isProcessing: boolean;
 }> {
   try {
-    return await jsonOrThrow("/api/sync/status");
+    return await jsonOrThrow<{ status: SyncQueueStatus; isProcessing: boolean }>("/api/sync/status");
   } catch {
     const queue = loadSyncQueue();
     return {
       status: {
         pending: queue.length,
         processing: 0,
-        completed: 0,
-        failed: 0
+        failed: 0,
+        recentItems: []
       },
       isProcessing: false
     };

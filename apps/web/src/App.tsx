@@ -16,6 +16,7 @@ import { WeeklyReviewView } from "./components/WeeklyReviewView";
 import { AppearanceSettings } from "./components/AppearanceSettings";
 import { HabitsGoalsView } from "./components/HabitsGoalsView";
 import { FloatingQuickCapture } from "./components/FloatingQuickCapture";
+import { SyncStatusBadge } from "./components/SyncStatusBadge";
 import { useDashboard } from "./hooks/useDashboard";
 import { enablePushNotifications, isPushEnabled, supportsPushNotifications } from "./lib/push";
 import { setupSyncListeners } from "./lib/sync";
@@ -145,6 +146,7 @@ export default function App(): JSX.Element {
     <main className="app-shell">
       <InstallPrompt />
       <FloatingQuickCapture onUpdated={refresh} />
+      <SyncStatusBadge />
       <header className="hero">
         <div>
           <p className="eyebrow">Companion</p>
