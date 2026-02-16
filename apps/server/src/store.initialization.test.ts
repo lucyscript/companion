@@ -16,7 +16,7 @@ describe("RuntimeStore - Initialization", () => {
   it("should initialize with correct default state", () => {
     const snapshot = store.getSnapshot();
 
-    expect(snapshot.agentStates).toHaveLength(4);
+    expect(snapshot.agentStates).toHaveLength(5);
     expect(snapshot.events).toHaveLength(0);
     expect(snapshot.notifications).toHaveLength(0);
   });

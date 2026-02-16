@@ -2,7 +2,8 @@ export type AgentName =
   | "notes"
   | "lecture-plan"
   | "assignment-tracker"
-  | "orchestrator";
+  | "orchestrator"
+  | "canvas-sync";
 
 export type Priority = "low" | "medium" | "high" | "critical";
 

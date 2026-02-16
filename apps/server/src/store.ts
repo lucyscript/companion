@@ -23,7 +23,8 @@ const agentNames: AgentName[] = [
   "notes",
   "lecture-plan",
   "assignment-tracker",
-  "orchestrator"
+  "orchestrator",
+  "canvas-sync"
 ];
 
 export class RuntimeStore {
@@ -73,7 +74,8 @@ export class RuntimeStore {
       notes: true,
       "lecture-plan": true,
       "assignment-tracker": true,
-      orchestrator: true
+      orchestrator: true,
+      "canvas-sync": true
     }
   };
 

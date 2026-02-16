@@ -3,7 +3,7 @@ import { CanvasSyncService } from "../canvas-sync.js";
 import { RuntimeStore } from "../store.js";
 
 export class CanvasSyncAgent extends BaseAgent {
-  readonly name = "orchestrator" as const;
+  readonly name = "canvas-sync" as const;
   readonly intervalMs = 30 * 60 * 1000; // 30 minutes
 
   constructor(
