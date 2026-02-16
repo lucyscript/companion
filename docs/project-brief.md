@@ -35,9 +35,8 @@ The key difference from a generic chatbot: Companion has **context**. It knows y
 ### Social Media Summary (NEW — Content Digest)
 - **YouTube digest** — Fetches recent uploads from subscribed channels via YouTube Data API v3, summarizes video titles/descriptions using Gemini
 - **X (Twitter) feed summary** — Pulls timeline/list tweets via X API v2, uses Gemini to create an AI newsletter-style digest of trending topics and key threads
-- **Twitch live alerts** — Checks followed channels' live status (Twitch API), notifies when favorites go live
 - **AI-powered summarization** — Gemini condenses hours of social media into a 2-minute read, grouped by topic (AI news, tech, entertainment)
-- **Platforms**: YouTube, X (Twitter), Twitch
+- **Platforms**: YouTube, X (Twitter)
 
 ### Existing Features (Already Built)
 1. **Push Notifications** — Web Push via VAPID keys to iPhone
@@ -73,7 +72,7 @@ The key difference from a generic chatbot: Companion has **context**. It knows y
 │  │ Client  │ │  Sync    │ │ iCal Sync │ │  Sync  │ │
 │  └────┬────┘ └────┬─────┘ └─────┬─────┘ └───┬────┘ │
 │  ┌─────────────────────────────────────────────┐    │
-│  │  Social Media: YouTube │ X (Twitter) │ Twitch│    │
+│  │  Social Media: YouTube │ X (Twitter)         │    │
 │  └─────────────────────────────────────────────┘    │
 │       │           │             │            │       │
 │  ┌────┴───────────┴─────────────┴────────────┴──┐   │
@@ -96,7 +95,7 @@ The key difference from a generic chatbot: Companion has **context**. It knows y
 - **Backend**: Node + TypeScript (`apps/server`) — API server with agent runtime
 - **LLM**: Google Gemini API (free tier) — conversational AI with academic context
 - **Data**: RuntimeStore (SQLite-backed) — schedule, deadlines, journals, canvas data, chat history
-- **Integrations**: Canvas REST API (token auth) + TP EduCloud iCal feed (public, no auth) + Course GitHub orgs (PAT auth) + YouTube Data API v3 + X API v2 + Twitch API
+- **Integrations**: Canvas REST API (token auth) + TP EduCloud iCal feed (public, no auth) + Course GitHub orgs (PAT auth) + YouTube Data API v3 + X API v2
 - **Notifications**: Web Push API (VAPID keys) for proactive nudges
 
 ## Deployment Status
@@ -213,14 +212,6 @@ This is more powerful (the AI decides what data it needs) but requires more impl
 - **Sync interval**: Every 4 hours (Free tier: 100 reads/month, Basic tier: 10K reads/month)
 - **Rate limits**: Respect X API rate limits, cache aggressively
 
-### Twitch API
-- **Auth**: TBD (client credentials or user token) — Twitch Developer Console
-- **Endpoints used**:
-  - `GET /helix/streams/followed` — live streams from followed channels
-  - `GET /helix/users/follows` — followed channels list
-- **Usage**: Check if followed streamers are live, send push notification
-- **Sync interval**: Every 15 minutes (lightweight polling)
-
 ### Gmail API (OAuth 2.0)
 - **Auth**: OAuth 2.0 with `GMAIL_CLIENT_ID` and `GMAIL_CLIENT_SECRET` env vars. User authorizes via OAuth consent flow, refresh token stored securely.
 - **Scopes**: `gmail.readonly` (read-only access to inbox)
@@ -241,7 +232,7 @@ This is more powerful (the AI decides what data it needs) but requires more impl
 5. **Canvas Sync Agent** (NEW) — Periodically fetches courses, assignments, modules, announcements from Canvas API
 6. **TP Sync Agent** (NEW) — Fetches lecture schedule from TP EduCloud iCal feed
 7. **Chat Agent** (NEW) — Manages conversation flow, builds context window for Gemini, handles proactive message triggers
-8. **Social Media Agent** (NEW) — Fetches content from YouTube, X, and Twitch APIs, uses Gemini to generate digestible summaries, and delivers as a daily/on-demand feed
+8. **Social Media Agent** (NEW) — Fetches content from YouTube and X APIs, uses Gemini to generate digestible summaries, and delivers as a daily/on-demand feed
 
 ## Success Criteria
 
@@ -331,9 +322,8 @@ Features are built in priority order. The orchestrator reads this section to dec
 | | **— Phase 3: Social Media Summary & Content Digest —** | | |
 | ✅ done | `youtube-sync-api` | backend-engineer | Add YouTube Data API v3 client: fetch subscribed channels' recent uploads, video metadata (title, description, duration, stats). Config: `YOUTUBE_API_KEY` env var. Sync every 6 hours. Quota-aware (10K units/day). |
 | ⬜ todo | `x-feed-sync-api` | backend-engineer | Add X/Twitter API v2 client: fetch home timeline and recent tweets from followed accounts using OAuth 1.0a. Config: `X_API_KEY`, `X_API_KEY_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_TOKEN_SECRET`, `X_BEARER_TOKEN` env vars. Sync every 4 hours. |
-| ⬜ todo | `twitch-live-checker` | backend-engineer | Add Twitch API client: check followed channels' live status, send push notification when favorites go live. Poll every 15 minutes. |
-| ⬜ todo | `social-media-summarizer` | backend-engineer | Build Gemini-powered summarization pipeline: takes raw YouTube/X/Twitch data, generates AI newsletter-style digest grouped by topic (AI news, tech, entertainment). Configurable summary length and focus areas. |
-| ⬜ todo | `social-media-digest-ui` | frontend-engineer | Build Social Media Summary view: card-based digest with YouTube video thumbnails, X thread summaries, Twitch live alerts. Filter by platform, refresh on demand. Tab in bottom nav. |
+| ⬜ todo | `social-media-summarizer` | backend-engineer | Build Gemini-powered summarization pipeline: takes raw YouTube/X data, generates AI newsletter-style digest grouped by topic (AI news, tech, entertainment). Configurable summary length and focus areas. |
+| ⬜ todo | `social-media-digest-ui` | frontend-engineer | Build Social Media Summary view: card-based digest with YouTube video thumbnails and X thread summaries. Filter by platform, refresh on demand. Tab in bottom nav. |
 | ⬜ todo | `social-media-chat-integration` | backend-engineer | Integrate social media context into Gemini chat: "What did I miss on X?" or "Any new AI videos?" queries pull from cached social media data and generate contextual summaries. |
 | | | | |
 | | **— Phase 4: Production Deployment & Gmail —** | | |
