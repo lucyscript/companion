@@ -1196,9 +1196,16 @@ app.get("/api/social/digest", async (req, res) => {
     const platforms = typeof req.query.platforms === "string" 
       ? req.query.platforms.split(",") 
       : ["youtube"];
-    const hours = typeof req.query.hours === "string" 
-      ? parseInt(req.query.hours, 10) 
-      : 24;
+    
+    // Parse and validate hours parameter
+    let hours = 24;
+    if (typeof req.query.hours === "string") {
+      const parsedHours = parseInt(req.query.hours, 10);
+      if (!isNaN(parsedHours) && parsedHours > 0 && parsedHours <= 720) { // Max 30 days
+        hours = parsedHours;
+      }
+    }
+    
     const summaryLength = typeof req.query.summaryLength === "string"
       && ["brief", "standard", "detailed"].includes(req.query.summaryLength)
       ? (req.query.summaryLength as "brief" | "standard" | "detailed")

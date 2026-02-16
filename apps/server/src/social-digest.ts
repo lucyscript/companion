@@ -36,6 +36,16 @@ export interface SocialDigest {
 
 export class SocialDigestService {
   private readonly geminiClient: GeminiClient;
+  
+  // Topic categorization keywords - extensible configuration
+  private readonly TOPIC_KEYWORDS: Record<string, string[]> = {
+    "AI news": ["ai", "llm", "gpt", "gemini", "claude", "openai", "anthropic", "machine learning", "ml", "neural"],
+    "tech": ["programming", "code", "software", "javascript", "python", "react", "rust", "go", "development", "api"],
+    "entertainment": ["gaming", "game", "music", "movie", "tv", "show", "stream", "twitch"]
+  };
+  
+  // Maximum items to show per section in fallback summary
+  private readonly MAX_ITEMS_PER_SECTION = 5;
 
   constructor(geminiClient: GeminiClient) {
     this.geminiClient = geminiClient;
@@ -114,18 +124,11 @@ export class SocialDigestService {
     // Add "Other" category for uncategorized content
     sections.push({ topic: "Other", items: [] });
 
-    // Simple keyword-based categorization
-    const topicKeywords: Record<string, string[]> = {
-      "AI news": ["ai", "llm", "gpt", "gemini", "claude", "openai", "anthropic", "machine learning", "ml", "neural"],
-      "tech": ["programming", "code", "software", "javascript", "python", "react", "rust", "go", "development", "api"],
-      "entertainment": ["gaming", "game", "music", "movie", "tv", "show", "stream", "twitch"]
-    };
-
     for (const item of items) {
       const titleLower = item.title.toLowerCase();
       let categorized = false;
 
-      for (const [topic, keywords] of Object.entries(topicKeywords)) {
+      for (const [topic, keywords] of Object.entries(this.TOPIC_KEYWORDS)) {
         if (keywords.some((keyword) => titleLower.includes(keyword))) {
           const section = sections.find((s) => s.topic === topic);
           if (section) {
@@ -219,11 +222,11 @@ Format the output as a readable digest with topic headers (use ## markdown heade
 
     for (const section of sections) {
       summary += `### ${section.topic}\n`;
-      for (const item of section.items.slice(0, 5)) {
+      for (const item of section.items.slice(0, this.MAX_ITEMS_PER_SECTION)) {
         summary += `- **${item.title}** by ${item.author ?? "Unknown"}\n`;
       }
-      if (section.items.length > 5) {
-        summary += `- ... and ${section.items.length - 5} more\n`;
+      if (section.items.length > this.MAX_ITEMS_PER_SECTION) {
+        summary += `- ... and ${section.items.length - this.MAX_ITEMS_PER_SECTION} more\n`;
       }
       summary += "\n";
     }

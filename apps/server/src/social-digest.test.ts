@@ -8,9 +8,12 @@ describe("SocialDigestService", () => {
   let mockGeminiClient: GeminiClient;
 
   beforeEach(() => {
+    // Create a more complete mock of GeminiClient
     mockGeminiClient = {
       isConfigured: vi.fn().mockReturnValue(false),
-      generateChatResponse: vi.fn()
+      generateChatResponse: vi.fn(),
+      getRateLimitStatus: vi.fn().mockReturnValue({ requestCount: 0, limit: 15 }),
+      resetRateLimiter: vi.fn()
     } as unknown as GeminiClient;
     
     service = new SocialDigestService(mockGeminiClient);
