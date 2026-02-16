@@ -30,6 +30,11 @@ permissions:
   contents: read
   issues: write
 
+# Only one orchestrator run at a time — cancel duplicate triggers from batch issue closes
+concurrency:
+  group: orchestrator
+  cancel-in-progress: true
+
 jobs:
   orchestrate:
     runs-on: ubuntu-latest
