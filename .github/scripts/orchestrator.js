@@ -114,6 +114,7 @@ function parseRoadmap() {
 function buildIssueBody(feature) {
   return `## Context
 Read \`docs/project-brief.md\` first — this is the Companion app.
+Read \`.github/copilot-instructions.md\` for collaboration rules.
 
 ## Scope
 **${feature.description}**
@@ -121,6 +122,14 @@ Read \`docs/project-brief.md\` first — this is the Companion app.
 Feature ID: \`${feature.id}\`
 
 Implement this feature following the project brief. Use existing patterns in the codebase.
+
+## Token budget — IMPORTANT
+Your session has a hard per-task token limit. To avoid crashing mid-task:
+- **Do NOT start Playwright or GitHub MCP servers** unless this task explicitly requires browser testing or external repo access. Most tasks don't need them.
+- **Keep changes focused**: 1-3 files changed, < 200 lines of new code.
+- **Prefer creating new files** over heavily modifying \`store.ts\`, \`index.ts\`, or \`App.tsx\`.
+- **If the task feels too large**: implement the core piece, commit, and note remaining work in the PR description.
+- **Commit early** if you've made good progress — a partial PR is better than a crashed session.
 
 ## Deliverable
 - Working implementation of the feature described above

@@ -29,6 +29,14 @@ You are the **documentation writer** for Companion — a personal AI companion P
 - Structure with clear headings.
 - **Always read `docs/project-brief.md` first** to understand what's in scope.
 
+## Token budget — READ THIS
+
+Your session has a hard per-task token limit. To avoid crashing mid-task:
+- **Do NOT start MCP servers** (Playwright, GitHub) — docs tasks never need them.
+- **Read only the files you're documenting.** Don't explore the entire codebase.
+- **Focus on one doc file per task.** Don't try to update all docs at once.
+- **Commit early if running long.** Partial doc updates are better than a crashed session.
+
 ## Updating the project brief
 
 `docs/project-brief.md` is the source of truth and you are its primary maintainer:

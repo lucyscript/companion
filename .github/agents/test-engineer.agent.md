@@ -30,6 +30,15 @@ You are the **test engineer** for Companion — a personal AI companion PWA.
 - Run tests before committing to verify they pass.
 - **Read `docs/project-brief.md`** to understand what features exist and are in scope.
 
+## Token budget — READ THIS
+
+Your session has a hard per-task token limit. To avoid crashing mid-task:
+- **Do NOT start Playwright MCP server** unless writing E2E tests. Unit/integration tests don't need it.
+- **Do NOT start GitHub MCP server** — everything you need is in the workspace.
+- **Focus on one test file per task.** Don't try to add tests for an entire module — test one source file.
+- **Don't read files you won't test.** Read only the source file you're testing and its direct dependencies.
+- **Commit early if running long.** Partial test coverage is better than zero.
+
 ## Updating the project brief
 
 After completing test work, update `docs/project-brief.md`:

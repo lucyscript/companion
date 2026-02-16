@@ -45,6 +45,16 @@ You are the **frontend engineer** for Companion — a personal AI companion PWA 
 - Test visual changes with `npx vite build` before committing.
 - Do NOT add features outside the project brief. Keep the app concise.
 
+## Token budget — READ THIS
+
+Your session has a hard per-task token limit. To avoid crashing mid-task:
+- **Do NOT start the Playwright MCP server** unless the task explicitly requires E2E testing or visual verification. Most frontend tasks just need file reads and writes.
+- **Do NOT start the GitHub MCP server** — everything you need is in the workspace.
+- **Focus on 1-3 files.** If a task needs many component changes, do the most important one first.
+- **Don't explore broadly.** Read `App.tsx` and the component you're working on. Skip browsing unrelated files.
+- **Commit early if running long.** A partial PR with a working component is better than a crashed session.
+- **Create new component files** instead of heavily editing `App.tsx` (also reduces merge conflicts with other agents).
+
 ## Updating the project brief
 
 After completing a feature, update `docs/project-brief.md`:

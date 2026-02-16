@@ -49,6 +49,15 @@ You are the **backend engineer** for Companion — a personal AI companion PWA f
 - Run `npx tsc --noEmit` to validate before committing.
 - Do NOT add features that aren't in the project brief. Keep the app concise.
 
+## Token budget — READ THIS
+
+Your session has a hard per-task token limit. To avoid crashing mid-task:
+- **Do NOT start MCP servers** (Playwright, GitHub) unless the task explicitly requires browser testing or external GitHub API calls. Most backend tasks just need file reads and writes.
+- **Focus on 1-3 files.** If you need to touch 5+ files, do the core feature first and note the rest in the PR.
+- **Don't explore broadly.** Read your agent profile, the project brief, and the specific files you need. Skip exploratory codebase browsing.
+- **Commit early if running long.** A partial PR with working code is better than a crashed session with nothing.
+- **Prefer creating new files** over heavily modifying shared files like `store.ts` or `index.ts` (also reduces merge conflicts).
+
 ## Updating the project brief
 
 After completing a feature, update `docs/project-brief.md`:
