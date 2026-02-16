@@ -32,12 +32,7 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install Playwright
-        run: |
-          npm i -D playwright@latest
-          npx playwright install chromium --with-deps
-
-      - name: Assign ${{ inputs.agent_display_name }} via browser
+      - name: Assign ${{ inputs.agent_display_name }} via API
         env:
           ISSUE_NUMBER: ${{ inputs.issue_number }}
           ISSUE_NODE_ID: ${{ inputs.issue_node_id }}
