@@ -245,6 +245,133 @@ Response:
     "model": "gemini-2.0-flash",
     "requestsToday": 42,
     "dailyLimit": 1500
+  },
+  "youtube": {
+    "lastSyncAt": "2026-02-14T12:00:00.000Z",
+    "status": "ok",
+    "videosTracked": 24,
+    "quotaUsedToday": 350,
+    "quotaLimit": 10000
+  },
+  "x": {
+    "lastSyncAt": "2026-02-14T10:00:00.000Z",
+    "status": "ok",
+    "tweetsProcessed": 85
+  },
+  "twitch": {
+    "lastSyncAt": "2026-02-14T14:45:00.000Z",
+    "status": "ok",
+    "followedChannels": 12,
+    "currentlyLive": 1
   }
+}
+```
+
+---
+
+## Phase 3: Social Media Summary & Content Digest
+
+### GET `/api/social/digest?platforms=youtube,x,twitch&hours=24`
+
+AI-generated social media summary.
+
+Response:
+
+```json
+{
+  "generatedAt": "2026-02-14T15:00:00.000Z",
+  "period": { "from": "2026-02-13T15:00:00.000Z", "to": "2026-02-14T15:00:00.000Z" },
+  "digest": "## AI & Tech Highlights\n- OpenAI released GPT-5 turbo with...\n- Google announced Gemini 2.5...\n\n## YouTube\n- Fireship: \"GPT-5 in 100 seconds\" (12min)...\n\n## Twitch\n- ThePrimeagen is live now: \"Reviewing Go 1.24\"",
+  "sections": [
+    {
+      "platform": "youtube",
+      "items": [
+        {
+          "type": "video",
+          "channelName": "Fireship",
+          "title": "GPT-5 in 100 seconds",
+          "videoId": "abc123",
+          "publishedAt": "2026-02-14T10:00:00.000Z",
+          "duration": "PT12M30S",
+          "thumbnailUrl": "https://i.ytimg.com/vi/abc123/mqdefault.jpg",
+          "summary": "Covers the new GPT-5 turbo model features..."
+        }
+      ]
+    },
+    {
+      "platform": "x",
+      "items": [
+        {
+          "type": "tweet_thread",
+          "authorHandle": "@kaborneai",
+          "content": "Major announcement: Anthropic released Claude 4...",
+          "tweetId": "1234567890",
+          "publishedAt": "2026-02-14T08:30:00.000Z",
+          "engagement": { "likes": 4500, "retweets": 1200 },
+          "summary": "Thread discussing Claude 4 capabilities and benchmarks"
+        }
+      ]
+    },
+    {
+      "platform": "twitch",
+      "items": [
+        {
+          "type": "live_stream",
+          "channelName": "ThePrimeagen",
+          "title": "Reviewing Go 1.24 features",
+          "isLive": true,
+          "viewerCount": 8500,
+          "startedAt": "2026-02-14T14:00:00.000Z"
+        }
+      ]
+    }
+  ]
+}
+```
+
+### POST `/api/social/sync`
+
+Trigger manual social media sync for all or specific platforms.
+
+Request:
+
+```json
+{
+  "platforms": ["youtube", "x", "twitch"]
+}
+```
+
+Response:
+
+```json
+{
+  "status": "syncing",
+  "platforms": {
+    "youtube": { "status": "started", "quotaRemaining": 9650 },
+    "x": { "status": "started", "readsRemaining": 58 },
+    "twitch": { "status": "started" }
+  },
+  "startedAt": "2026-02-14T15:00:00.000Z"
+}
+```
+
+### GET `/api/social/twitch/live`
+
+Currently live followed Twitch channels.
+
+Response:
+
+```json
+{
+  "live": [
+    {
+      "channelName": "ThePrimeagen",
+      "title": "Reviewing Go 1.24 features",
+      "gameName": "Science & Technology",
+      "viewerCount": 8500,
+      "startedAt": "2026-02-14T14:00:00.000Z",
+      "thumbnailUrl": "https://static-cdn.jtvnw.net/previews-ttv/live..."
+    }
+  ]
 }
 ```
