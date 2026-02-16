@@ -1141,6 +1141,15 @@ app.post("/api/sync/tp", async (_req, res) => {
   }
 });
 
+app.get("/api/tp/status", (_req, res) => {
+  const events = store.getScheduleEvents();
+  return res.json({
+    lastSyncedAt: events.length > 0 ? new Date().toISOString() : null,
+    eventsCount: events.length,
+    isSyncing: tpSyncService.isCurrentlySyncing()
+  });
+});
+
 app.get("/api/canvas/status", (_req, res) => {
   const canvasData = store.getCanvasData();
   return res.json({
