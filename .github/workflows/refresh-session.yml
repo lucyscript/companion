@@ -31,7 +31,7 @@ jobs:
       - name: Update secret if cookie changed
         if: steps.session.outputs.cookie_changed == 'true'
         env:
-          GH_TOKEN: ${{ secrets.AGENT_PAT_COLLAB || secrets.AGENT_PAT }}
+          GH_TOKEN: ${{ secrets.PAT_COLLAB_TWO || secrets.AGENT_PAT_COLLAB || secrets.AGENT_PAT }}
         run: |
           echo "${{ steps.session.outputs.cookie_value }}" | gh secret set GH_SESSION_COOKIE
           echo "✓ Secret updated with refreshed cookie"
@@ -52,7 +52,7 @@ jobs:
       - name: Update collab secret if cookie changed
         if: always() && steps.session_collab.outputs.cookie_changed == 'true'
         env:
-          GH_TOKEN: ${{ secrets.AGENT_PAT_COLLAB || secrets.AGENT_PAT }}
+          GH_TOKEN: ${{ secrets.PAT_COLLAB_TWO || secrets.AGENT_PAT_COLLAB || secrets.AGENT_PAT }}
         run: |
           echo "${{ steps.session_collab.outputs.cookie_value }}" | gh secret set GH_SESSION_COOKIE_COLLAB
           echo "✓ Collab secret updated with refreshed cookie"
@@ -77,7 +77,7 @@ jobs:
       - name: Create issue on session expiry
         if: failure()
         env:
-          GH_TOKEN: ${{ secrets.AGENT_PAT_COLLAB || secrets.AGENT_PAT }}
+          GH_TOKEN: ${{ secrets.PAT_COLLAB_TWO || secrets.AGENT_PAT_COLLAB || secrets.AGENT_PAT }}
         run: |
           # Only create if no open refresh issue exists
           EXISTING=$(gh issue list -R ${{ github.repository }} --label "session-refresh" --state open --json number -q '.[0].number')

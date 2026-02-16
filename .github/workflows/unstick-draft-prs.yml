@@ -22,19 +22,20 @@ jobs:
   unstick:
     runs-on: self-hosted
     env:
-      AGENT_PAT: ${{ secrets.AGENT_PAT_COLLAB || secrets.AGENT_PAT }}
-      AGENT_PAT_COLLAB: ${{ secrets.AGENT_PAT_COLLAB }}
+      PAT_COLLAB_TWO: ${{ secrets.PAT_COLLAB_TWO }}
+      AGENT_PAT: ${{ secrets.PAT_COLLAB_TWO || secrets.AGENT_PAT_COLLAB || secrets.AGENT_PAT }}
+      AGENT_PAT_COLLAB: ${{ secrets.PAT_COLLAB_TWO || secrets.AGENT_PAT_COLLAB }}
     steps:
       - name: Checkout repo (needed for rebase operations)
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.AGENT_PAT_COLLAB || secrets.AGENT_PAT || secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.PAT_COLLAB_TWO || secrets.AGENT_PAT_COLLAB || secrets.AGENT_PAT || secrets.GITHUB_TOKEN }}
 
       - name: Process all agent draft PRs
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.AGENT_PAT_COLLAB || secrets.AGENT_PAT || secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.PAT_COLLAB_TWO || secrets.AGENT_PAT_COLLAB || secrets.AGENT_PAT || secrets.GITHUB_TOKEN }}
           script: |
             const { execSync } = require('child_process');
             const owner = context.repo.owner;
@@ -177,7 +178,7 @@ jobs:
 
             // Assign an agent to fix merge conflicts on a PR
             async function assignAgentToFixConflicts(pr, issueNumber) {
-              const token = process.env.AGENT_PAT_COLLAB || process.env.AGENT_PAT || process.env.GITHUB_TOKEN;
+              const token = process.env.PAT_COLLAB_TWO || process.env.AGENT_PAT_COLLAB || process.env.AGENT_PAT || process.env.GITHUB_TOKEN;
 
               await github.rest.issues.createComment({
                 owner, repo,

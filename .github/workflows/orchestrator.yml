@@ -60,7 +60,7 @@ jobs:
           #   metadata(read), actions(rw), contents(rw), issues(rw), pull-requests(rw)
           #   Store as AGENT_PAT repository secret.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          AGENT_PAT: ${{ secrets.AGENT_PAT_COLLAB || secrets.AGENT_PAT }}
+          AGENT_PAT: ${{ secrets.PAT_COLLAB_TWO || secrets.AGENT_PAT_COLLAB || secrets.AGENT_PAT }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
           RECURSIVE: ${{ github.event.inputs.recursive || 'true' }}
