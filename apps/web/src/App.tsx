@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { AgentStatusList } from "./components/AgentStatusList";
+import { CalendarImport } from "./components/CalendarImport";
 import { ContextControls } from "./components/ContextControls";
 import { DeadlineList } from "./components/DeadlineList";
 import { JournalView } from "./components/JournalView";
@@ -10,8 +11,15 @@ import { ScheduleView } from "./components/ScheduleView";
 import { SummaryTiles } from "./components/SummaryTiles";
 import { useDashboard } from "./hooks/useDashboard";
 import { enablePushNotifications, isPushEnabled, supportsPushNotifications } from "./lib/push";
-import { loadOnboardingProfile, saveOnboardingProfile } from "./lib/storage";
-import { OnboardingProfile } from "./types";
+import {
+  loadDeadlines,
+  loadOnboardingProfile,
+  loadSchedule,
+  saveDeadlines,
+  saveOnboardingProfile,
+  saveSchedule
+} from "./lib/storage";
+import { Deadline, LectureEvent, OnboardingProfile } from "./types";
 
 type PushState = "checking" | "ready" | "enabled" | "unsupported" | "denied" | "error";
 
@@ -20,6 +28,8 @@ export default function App(): JSX.Element {
   const [pushState, setPushState] = useState<PushState>("checking");
   const [pushMessage, setPushMessage] = useState("");
   const [profile, setProfile] = useState<OnboardingProfile | null>(loadOnboardingProfile());
+  const [schedule, setSchedule] = useState<LectureEvent[]>(() => loadSchedule());
+  const [deadlines, setDeadlines] = useState<Deadline[]>(() => loadDeadlines());
 
   useEffect(() => {
     let disposed = false;
@@ -63,6 +73,34 @@ export default function App(): JSX.Element {
   const handleOnboardingComplete = (nextProfile: OnboardingProfile): void => {
     saveOnboardingProfile(nextProfile);
     setProfile(nextProfile);
+  };
+
+  const handleToggleDeadline = (id: string): void => {
+    setDeadlines((prev) => {
+      const updated = prev.map((deadline) =>
+        deadline.id === id ? { ...deadline, completed: !deadline.completed } : deadline
+      );
+      saveDeadlines(updated);
+      return updated;
+    });
+  };
+
+  const handleImportApplied = (lectures: LectureEvent[], importedDeadlines: Deadline[]): void => {
+    if (lectures.length > 0) {
+      setSchedule((prev) => {
+        const next = [...prev, ...lectures];
+        saveSchedule(next);
+        return next;
+      });
+    }
+
+    if (importedDeadlines.length > 0) {
+      setDeadlines((prev) => {
+        const next = [...prev, ...importedDeadlines];
+        saveDeadlines(next);
+        return next;
+      });
+    }
   };
 
   const pushButtonLabel =
@@ -114,9 +152,10 @@ export default function App(): JSX.Element {
           />
           <JournalView />
           <div className="grid-two">
-            <ScheduleView />
-            <DeadlineList />
+            <ScheduleView schedule={schedule} />
+            <DeadlineList deadlines={deadlines} onToggleComplete={handleToggleDeadline} />
           </div>
+          <CalendarImport onApply={handleImportApplied} />
           <div className="grid-two">
             <AgentStatusList states={data.agentStates} />
             <NotificationFeed notifications={data.notifications} />

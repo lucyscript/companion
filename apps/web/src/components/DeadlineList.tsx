@@ -1,9 +1,11 @@
-import { useState } from "react";
 import { Deadline } from "../types";
-import { loadDeadlines, saveDeadlines } from "../lib/storage";
 
-export function DeadlineList(): JSX.Element {
-  const [deadlines, setDeadlines] = useState<Deadline[]>(() => loadDeadlines());
+interface DeadlineListProps {
+  deadlines: Deadline[];
+  onToggleComplete: (id: string) => void;
+}
+
+export function DeadlineList({ deadlines, onToggleComplete }: DeadlineListProps): JSX.Element {
 
   const formatTimeRemaining = (dueDate: string): string => {
     const due = new Date(dueDate).getTime();
@@ -43,14 +45,6 @@ export function DeadlineList(): JSX.Element {
     return "";
   };
 
-  const toggleComplete = (id: string): void => {
-    const updated = deadlines.map(d => 
-      d.id === id ? { ...d, completed: !d.completed } : d
-    );
-    setDeadlines(updated);
-    saveDeadlines(updated);
-  };
-
   const sortedDeadlines = [...deadlines].sort((a, b) => {
     if (a.completed !== b.completed) return a.completed ? 1 : -1;
     return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
@@ -76,7 +70,7 @@ export function DeadlineList(): JSX.Element {
                 <input
                   type="checkbox"
                   checked={deadline.completed}
-                  onChange={() => toggleComplete(deadline.id)}
+                  onChange={() => onToggleComplete(deadline.id)}
                   className="deadline-checkbox"
                 />
                 <div className="deadline-content">
