@@ -2,41 +2,139 @@
 
 ## What It Is
 
-A personal AI companion app that knows about your life and proactively helps you stay on track. It runs as a mobile-friendly PWA on your iPhone, sends push notifications, and adapts dynamically to your schedule, goals, and habits.
+A personal AI companion that knows your entire academic life and talks to you throughout the day. It pulls your lecture schedule from **TP EduCloud**, your assignments and grades from **Canvas LMS**, and uses **Google Gemini** to have natural conversations about your day — planning, reflecting, problem-solving, or just chatting. It runs as a mobile-first PWA on your iPhone with push notifications.
 
 ## Core Experience
 
-You tell Companion about yourself — your lecture schedule, assignments, exams, habits, goals. It remembers everything and nudges you throughout the day:
+Companion is like a knowledgeable friend who has read your entire syllabus. You open it and talk:
 
-- **Morning**: "You have Algorithms at 10am, then a 2hr gap — good time for Problem Set 4."
-- **Midday**: "How's the focus session going? You said you'd finish the report by 3pm."
-- **Evening**: "Ready to journal? Here's what you did today..."
+- **Morning**: "What's my day look like?" → "You've got DAT520 Distributed Systems at 10:15, then nothing until DAT560 at 14:15. That's a 3-hour gap — want to work on the DAT600 thesis proposal? It's due in 9 days."
+- **Between classes**: "Summarize what I need to prep for DAT560" → pulls your Canvas modules, recent announcements, upcoming quiz.
+- **Working**: "I'm stuck on the MapReduce assignment" → discusses the problem with you, references lecture notes from Canvas, suggests approaches.
+- **Evening**: "How was today?" → reflects on what you accomplished, what's coming tomorrow, suggests priorities.
+- **Proactive nudge** (push notification): "Heads up — DAT520 assignment 3 is due in 48 hours and you haven't submitted yet."
 
-You can journal to it anytime (voice or text). It tracks what you're doing, what you should be doing, and gently nudges you. It's encouraging, not nagging.
+The key difference from a generic chatbot: Companion has **context**. It knows your exact schedule, every deadline, your grades, your journal history, and your energy patterns. Every response is grounded in your real data.
 
 ## Key Features
 
-1. **Push Notifications (iPhone)** — Nudges, reminders, check-ins based on your schedule and context. Uses web push via the PWA.
-2. **Dynamic Schedule Awareness** — Feed it your lecture plan, assignment deadlines, exam dates. It incorporates them and notifies you.
-3. **Journaling** — Quick text entries anytime. Evening reflection prompts. The app remembers and references past entries.
-4. **Context Tracking** — Update your stress/energy/mode. The app adapts its tone and suggestions.
-5. **Assignment & Deadline Tracking** — Knows what's due, reminds you with increasing urgency.
-6. **Lecture Plan Integration** — Upload or paste your schedule. It builds around it.
-7. **Extensible via APIs** — You can connect external data sources (e.g., food tracking from your "food" repo) in the future.
+### Conversational AI (NEW — Core Feature)
+- **Chat interface** — Natural conversation with an AI that knows your academic context
+- **Gemini integration** — Google Gemini API (free tier: 15 RPM, 1M tokens/day) as the LLM backend
+- **Context-aware responses** — Every LLM call includes relevant schedule, deadlines, recent journal entries, and Canvas data as context
+- **Conversation memory** — Chat history persisted so the AI remembers previous conversations
+- **Proactive messages** — The AI initiates conversations based on triggers (upcoming deadline, schedule gap, missed habit)
+
+### Data Integrations (NEW — Automated Sync)
+- **Canvas LMS sync** — Pulls courses, assignments, deadlines, announcements, grades, and modules from `stavanger.instructure.com` via Canvas REST API with a personal access token
+- **TP EduCloud sync** — Pulls lecture schedule from UiS TP (DAT520, DAT560, DAT600) via REST API (`tp.educloud.no/uis/ws/`) with API key auth
+- **Course GitHub sync** — Pulls lab assignments, deadlines, and descriptions from course GitHub organizations (`dat520-2026`, `dat560-2026`) via GitHub API
+- **Auto-refresh** — Background jobs sync Canvas every ~30 min, TP weekly, and GitHub daily (schedules rarely change mid-semester)
+
+### Existing Features (Already Built)
+1. **Push Notifications** — Web Push via VAPID keys to iPhone
+2. **Journaling** — Quick text/voice entries, tags, photo attachments, search
+3. **Schedule & Deadline Tracking** — With smart suggestions for work blocks
+4. **Context Tracking** — Stress/energy/mode affects notification tone
+5. **Habits & Goals** — Streaks, check-ins, grace periods
+6. **Weekly Review** — Auto-generated summary of your week
+7. **Focus Timer** — Pomodoro-style sessions
+8. **Dark Mode, Offline Support, Background Sync**
 
 ## What It Is NOT
 
+- Not a generic AI chatbot — it's deeply integrated with YOUR academic data
 - Not an App Store app — it's a personal PWA for your phone
-- Not a social media aggregator (removed from scope)
-- Not a video editor (removed from scope)
+- Not a study tool / flashcard app — it's a companion that helps you manage your time
 - Agents should not add features "just because" — keep it concise and purposeful
 
 ## Architecture
 
+```
+┌─────────────────────────────────────────────────────┐
+│                    iPhone PWA                         │
+│  ┌──────────┐ ┌──────────┐ ┌──────────────────────┐ │
+│  │ Chat UI  │ │Dashboard │ │ Journal/Schedule/etc  │ │
+│  └────┬─────┘ └────┬─────┘ └──────────┬───────────┘ │
+│       └─────────────┴─────────────────┘              │
+│                     │ REST API                        │
+├─────────────────────┼───────────────────────────────┤
+│              Node.js Server                          │
+│  ┌─────────┐ ┌──────────┐ ┌───────────┐ ┌────────┐ │
+│  │ Gemini  │ │  Canvas  │ │TP EduCloud│ │ GitHub │ │
+│  │ Client  │ │  Sync    │ │ REST API  │ │  Sync  │ │
+│  └────┬────┘ └────┬─────┘ └─────┬─────┘ └───┬────┘ │
+│       │           │             │            │       │
+│  ┌────┴───────────┴─────────────┴────────────┴──┐   │
+│  │         RuntimeStore (SQLite)             │       │
+│  │  schedule │ deadlines │ canvas │ chat     │       │
+│  └───────────────────────────────────────────┘       │
+│       │                                              │
+│  ┌────┴─────────────────────────┐                   │
+│  │  Orchestrator + Agent Runtime │                   │
+│  │  nudge-engine │ smart-timing  │                   │
+│  └──────────────────────────────┘                   │
+└─────────────────────────────────────────────────────┘
+         │                    ▲
+         │ Web Push           │ Gemini API
+         ▼                    │ Canvas API
+      iPhone               External    TP API / GitHub API
+```
+
 - **Frontend**: React + Vite PWA (`apps/web`) — mobile-first, installable on iPhone home screen
 - **Backend**: Node + TypeScript (`apps/server`) — API server with agent runtime
-- **Data**: In-memory store (RuntimeStore) — can evolve to persistent storage later
-- **Notifications**: Web Push API (VAPID keys) for iPhone push notifications
+- **LLM**: Google Gemini API (free tier) — conversational AI with academic context
+- **Data**: RuntimeStore (SQLite-backed) — schedule, deadlines, journals, canvas data, chat history
+- **Integrations**: Canvas REST API (token auth) + TP EduCloud REST API (API key auth) + Course GitHub orgs (PAT auth)
+- **Notifications**: Web Push API (VAPID keys) for proactive nudges
+
+## Data Sources
+
+### Canvas LMS (`stavanger.instructure.com`)
+- **Auth**: Personal access token (generated in Canvas Settings → New Access Token)
+- **Endpoints used**:
+  - `GET /api/v1/courses` — enrolled courses
+  - `GET /api/v1/courses/:id/assignments` — assignments with due dates, points, submission status
+  - `GET /api/v1/courses/:id/modules` — course modules and items
+  - `GET /api/v1/courses/:id/discussion_topics` — announcements
+  - `GET /api/v1/users/self/upcoming_events` — upcoming calendar events
+  - `GET /api/v1/users/self/todo` — user's todo list from Canvas
+- **Store as**: `CANVAS_API_TOKEN` secret + `CANVAS_BASE_URL` config
+- **Sync interval**: Every 30 minutes (cron job on server)
+
+### TP EduCloud (UiS Schedule)
+- **Base URL**: `https://tp.educloud.no/uis/ws/1.4/`
+- **Auth**: API key (`TP_API_KEY` env var) — all endpoints require `ApiKeyAuth` header
+- **OpenAPI spec**: `https://tp.educloud.no/uis/ws/openapi.json` (OpenAPI 3.0.1, v1.4)
+- **Key endpoints**:
+  - `GET /ws/1.4/studtime.php?id[]=DAT520-1&id[]=DAT560-1&id[]=DAT600-1&sem=26v` — lecture schedule
+  - `GET /ws/1.4/course.php?id=DAT520&sem=26v` — course info
+- **Event schema**: `id`, `dtstart`, `dtend`, `summary`, `weekday`, `weeknr`, `courseid`, `teaching-title`, `staffs[]`, `room[]`, `title`, `curr` (pensum)
+- **Sync interval**: Weekly (schedule doesn't change often mid-semester)
+- **Fallback**: Manual ICS import if API is unavailable
+
+### Course GitHub Organizations
+- **Organizations**: `dat520-2026` (Distributed Systems), `dat560-2026` (Generative AI)
+- **Auth**: Personal access token (`COURSE_GITHUB_PAT` env var) for `lucyscript` account — needed for private repos
+- **Key repos**:
+  - `dat520-2026/assignments` — Lab descriptions with deadlines (Go, 8 labs, graded via QuickFeed)
+  - `dat520-2026/lucyscript-labs` — Personal lab submission repo
+  - `dat520-2026/defnotai` — Group project repo (labs 3-8)
+  - `dat560-2026/info` — Course info, schedule, slides, assignments, exercises
+  - `dat560-2026/assigment1-vae-lucyscript` — Assignment 1 (VAE, GitHub Classroom)
+  - `dat560-2026/assigment2-llm-lucyscript` — Assignment 2 (LLM, GitHub Classroom)
+- **Data extracted**: Lab READMEs contain structured deadline tables (`| Deadline: | **Jan 15, 2026 23:59** |`), expected effort, grading policy, submission type
+- **Known deadlines from GitHub**:
+  - DAT520: Lab1 Jan 15, Lab2 Jan 22, Lab3 Feb 12, Lab4 Mar 5 (labs 5-8 TBD)
+  - DAT560: Assignment 1 Jan 28, Assignment 2 Feb 18, Assignment 3 Mar 18, Project+Report Apr 24
+- **Sync interval**: Daily (new labs may be pushed at any time)
+- **Course website**: `https://dat520.github.io/#/` — public docs built from `dat520-2026/info` repo
+
+### Google Gemini API
+- **Model**: `gemini-2.0-flash` (free tier: 15 RPM, 1M TPD, 1500 RPD)
+- **Auth**: API key stored as `GEMINI_API_KEY` secret
+- **Usage**: Chat responses, proactive nudge generation, weekly review narration, deadline coaching
+- **System prompt**: Includes user's schedule, upcoming deadlines, recent journal entries, energy/stress state
 
 ## Agent Modules (Server-Side)
 
@@ -44,19 +142,18 @@ You can journal to it anytime (voice or text). It tracks what you're doing, what
 2. **Lecture Plan Agent** — Manages class schedule, generates time-aware reminders
 3. **Assignment Tracker Agent** — Tracks deadlines, sends escalating reminders
 4. **Orchestrator Agent** — Coordinates all agents, generates daily summaries, manages notification priority
-
-### Removed from Scope
-- ~~Food Tracking Agent~~ (handled by separate "food" repo for now)
-- ~~Social Media Highlights Agent~~ (not needed)
-- ~~Video Editor Agent~~ (not needed)
+5. **Canvas Sync Agent** (NEW) — Periodically fetches courses, assignments, modules, announcements from Canvas API
+6. **TP Sync Agent** (NEW) — Fetches lecture schedule from TP EduCloud REST API
+7. **Chat Agent** (NEW) — Manages conversation flow, builds context window for Gemini, handles proactive message triggers
 
 ## Success Criteria
 
-- Push notifications actually arrive on your iPhone
-- No missed assignment deadlines or lecture reminders
-- Journaling feels quick and natural
-- App adapts to your schedule without manual babysitting
-- Autonomous operation after initial setup
+- You can open the app and **ask it anything about your academic life** and get a useful, contextual answer
+- Canvas assignments and deadlines **auto-populate** without manual entry
+- Lecture schedule **stays in sync** with TP EduCloud
+- Push notifications feel like a **helpful friend**, not a todo-list robot
+- Journaling and chatting feel like the same natural interaction
+- The app works offline and syncs when back online
 
 ## Roadmap
 
@@ -117,3 +214,20 @@ Features are built in priority order. The orchestrator reads this section to dec
 | ⬜ todo | `haptic-feedback-system` | frontend-engineer | Integrate Vibration API for tactile feedback on task completions, timer events, and critical notifications to make interactions feel native on iPhone. |
 | ⬜ todo | `sync-status-indicator` | frontend-engineer | Add persistent sync status badge showing online/offline state, pending queue count, and last sync timestamp so users know when data is safely persisted. |
 | ⬜ todo | `pull-to-refresh-gesture` | frontend-engineer | Add pull-to-refresh gesture to all list views (journal, schedule, deadlines) using touch event handlers for familiar iPhone UX pattern. |
+| | | | |
+| | **— Phase 2: Conversational AI & Data Integrations —** | | |
+| ⬜ todo | `gemini-client` | backend-engineer | Add Gemini API client module (`apps/server/src/gemini.ts`) with typed request/response, context window builder, rate limiting (15 RPM free tier), and error handling. Store API key as `GEMINI_API_KEY` env var. |
+| ⬜ todo | `chat-api` | backend-engineer | Add POST /api/chat (send message) and GET /api/chat/history (paginated) endpoints. Each request builds a context window from schedule, deadlines, recent journals, Canvas data, and user state, then calls Gemini. Persist chat history in store. |
+| ⬜ todo | `chat-ui` | frontend-engineer | Build a full-screen chat interface as the app's primary view. Message bubbles, streaming response display, quick-action chips ("What's next?", "How's my week?"), and input with send button. Mobile-optimized with keyboard handling. |
+| ⬜ todo | `canvas-sync-api` | backend-engineer | Add Canvas LMS integration: config for `CANVAS_API_TOKEN` + `CANVAS_BASE_URL`, sync service that fetches courses, assignments (with due dates, submission status, points), modules, and announcements. Store in RuntimeStore. Sync every 30 min via cron. |
+| ⬜ todo | `canvas-deadlines-bridge` | backend-engineer | Bridge Canvas assignments into the existing deadline system — auto-create/update deadlines from Canvas assignments, detect new assignments, mark completed when submitted. Avoid duplicating manually-created deadlines. |
+| ⬜ todo | `tp-schedule-api` | backend-engineer | Add TP EduCloud REST API client (`apps/server/src/tp-client.ts`): fetch lecture schedule from `tp.educloud.no/uis/ws/1.4/studtime.php` with API key auth, parse event schema (dtstart, dtend, room, staff, courseid), convert to LectureEvent records. Config: `TP_API_KEY` env var. |
+| ⬜ todo | `tp-schedule-sync` | backend-engineer | Add weekly cron job that runs TP API client, diffs against existing schedule, and upserts changes. Include manual trigger via API endpoint POST /api/sync/tp. |
+| ⬜ todo | `github-course-sync` | backend-engineer | Add GitHub course sync service: fetch lab READMEs from `dat520-2026/assignments` and `dat560-2026/info` repos via GitHub API, parse deadline tables from markdown, auto-create/update deadlines. Config: `COURSE_GITHUB_PAT` env var. Sync daily. |
+| ⬜ todo | `canvas-sync-ui` | frontend-engineer | Add Canvas connection settings in the app: token input, base URL, sync status indicator, last-synced timestamp, manual sync trigger button, and list of synced courses. |
+| ⬜ todo | `chat-context-builder` | backend-engineer | Build intelligent context window for Gemini calls: include today's schedule, upcoming deadlines (next 7 days), recent journal entries (last 3), current energy/stress state, Canvas announcements, and conversation history. Stay within token limits. |
+| ⬜ todo | `proactive-chat-triggers` | backend-engineer | Generate proactive AI messages based on triggers: morning briefing (8am), schedule gap detected, deadline approaching (<48h), post-lecture check-in, evening reflection prompt. Queue as push notifications with "tap to chat" action. |
+| ⬜ todo | `chat-as-journal` | backend-engineer | Allow chat messages to be saved as journal entries. When the user reflects on their day in chat, the AI can offer to save the summary as a journal entry. Add "Save to journal" action in chat. |
+| ⬜ todo | `app-layout-redesign` | frontend-engineer | Redesign app layout: make chat the primary/home view with a bottom tab bar for Chat, Schedule, Journal, and Settings. Move dashboard tiles into the chat view as contextual cards. |
+| ⬜ todo | `onboarding-v2` | frontend-engineer | Update onboarding flow to collect Canvas token and TP credentials, with explanations of what data is synced and privacy assurances. Include "skip for now" option for each integration. |
+| ⬜ todo | `integration-status-dashboard` | frontend-engineer | Build a settings/integrations page showing Canvas sync status, TP sync status, Gemini API status, with last-synced times, error states, and manual refresh buttons. |

@@ -2,6 +2,14 @@
 
 This repository is managed through an **agent-orchestrated workflow** where GitHub Copilot, Claude, and Codex collaborate recursively.
 
+## Product Context
+Companion is a **personal AI companion for a university student at UiS (University of Stavanger)**. It integrates with:
+- **Canvas LMS** (`stavanger.instructure.com`) — courses, assignments, deadlines, grades, announcements
+- **TP EduCloud** — lecture schedule (DAT520, DAT560, DAT600)
+- **Google Gemini** — conversational AI that knows the user's full academic context
+
+The app is a **mobile-first PWA** that the user talks to throughout the day. The chat interface is the primary view. Every AI response is grounded in real data (schedule, deadlines, Canvas, journal history).
+
 ## Objective
 Keep work moving asynchronously by assigning small, verifiable tasks to agents and tracking outcomes in issues/PRs. The system is self-sustaining: agents complete features, update the roadmap, and the orchestrator creates new issues automatically.
 
@@ -31,6 +39,39 @@ The system operates in a continuous loop:
 7. Loop repeats on next cron cycle or push to main
 
 **This means every agent PR should update `docs/project-brief.md`** to mark its feature done and optionally propose new work.
+
+## Key technical details for Phase 2
+
+### Gemini Integration
+- Use `@google/generative-ai` npm package
+- Model: `gemini-2.0-flash` (free tier: 15 RPM, 1M tokens/day)
+- API key stored as `GEMINI_API_KEY` environment variable
+- Every chat request builds a context window with: today's schedule, upcoming deadlines, recent journal entries, Canvas data, user state
+- Keep system prompt concise — the AI should be encouraging, conversational, and proactive
+
+### Canvas LMS Integration
+- Base URL: `https://stavanger.instructure.com`
+- Auth: Bearer token from `CANVAS_API_TOKEN` env var
+- Key endpoints: `/api/v1/courses`, `/api/v1/courses/:id/assignments`, `/api/v1/courses/:id/modules`, `/api/v1/users/self/todo`
+- Sync runs as a background cron job every 30 minutes
+- Canvas assignments bridge into existing deadline system (avoid duplicates)
+
+### TP EduCloud Integration
+- REST API at `https://tp.educloud.no/uis/ws/1.4/` (OpenAPI 3.0.1)
+- Auth: API key from `TP_API_KEY` env var (all endpoints require `ApiKeyAuth`)
+- Key endpoint: `GET /ws/1.4/studtime.php?id[]=DAT520-1&sem=26v` for lecture schedule
+- Event schema: `dtstart`, `dtend`, `summary`, `room[]`, `staffs[]`, `courseid`, `weeknr`
+- Syncs weekly since semester schedule rarely changes
+- Falls back to manual ICS import if API is unavailable
+
+### Course GitHub Organizations
+- Course orgs: `dat520-2026` (Distributed Systems, Go), `dat560-2026` (Generative AI, Python)
+- Auth: Personal access token from `COURSE_GITHUB_PAT` env var (for private repos)
+- Lab assignments in repos: `dat520-2026/assignments` (labs 1-8), `dat560-2026/info` (assignments, exercises, slides)
+- Student work repos: `dat520-2026/lucyscript-labs`, `dat520-2026/defnotai` (group), `dat560-2026/assigment1-vae-lucyscript`, `dat560-2026/assigment2-llm-lucyscript`
+- Deadlines are in lab README markdown tables — parse with regex
+- Sync daily to catch newly pushed labs
+- QuickFeed platform (`uis.itest.run`) handles automated grading
 
 ## Task decomposition rules
 - Prefer tasks that can be completed in one PR.
