@@ -41,7 +41,15 @@ function formatCachedLabel(cachedAt: string | null): string {
     return "Cached snapshot time unavailable";
   }
 
-  return `Cached ${timestamp.toLocaleString()}`;
+  return `Cached ${timestamp.toLocaleString(undefined, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false
+  })}`;
 }
 
 interface DayTimelineSegment {
@@ -273,10 +281,10 @@ export function ScheduleView({ focusLectureId }: ScheduleViewProps): JSX.Element
 
   const formatTime = (isoString: string): string => {
     const date = new Date(isoString);
-    return date.toLocaleTimeString(undefined, { 
-      hour: "numeric", 
+    return date.toLocaleTimeString(undefined, {
+      hour: "2-digit",
       minute: "2-digit",
-      hour12: true 
+      hour12: false
     });
   };
 
@@ -383,8 +391,8 @@ export function ScheduleView({ focusLectureId }: ScheduleViewProps): JSX.Element
               >
                 <div className="day-timeline-item-meta">
                   <span>
-                    {segment.start.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", hour12: true })} -{" "}
-                    {segment.end.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", hour12: true })}
+                    {segment.start.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false })} -{" "}
+                    {segment.end.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false })}
                   </span>
                   <span>{formatDuration(minutesBetween(segment.start, segment.end))}</span>
                 </div>
@@ -406,7 +414,7 @@ export function ScheduleView({ focusLectureId }: ScheduleViewProps): JSX.Element
             <div className="day-timeline-deadline-chips">
               {todayDeadlineMarkers.map((deadline) => (
                 <span key={deadline.id} className="day-timeline-deadline-chip">
-                  {deadline.course}: {deadline.task} ({new Date(deadline.dueDate).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", hour12: true })})
+                  {deadline.course}: {deadline.task} ({new Date(deadline.dueDate).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false })})
                 </span>
               ))}
             </div>

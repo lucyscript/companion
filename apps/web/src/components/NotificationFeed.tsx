@@ -15,7 +15,7 @@ export function NotificationFeed({ notifications }: NotificationFeedProps): JSX.
           <li key={item.id} className={`feed-item priority-${item.priority}`}>
             <div className="feed-title-row">
               <strong>{item.title}</strong>
-              <span>{new Date(item.timestamp).toLocaleTimeString()}</span>
+              <span>{new Date(item.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}</span>
             </div>
             <p>{item.message}</p>
           </li>
