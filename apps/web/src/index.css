@@ -3185,14 +3185,14 @@ body.keyboard-open .chat-input-container {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: var(--keyboard-gap, 0px);
+  bottom: 0;
   z-index: 5;
   padding: 1px 0 0;
   background: rgba(7, 14, 20, 0.96);
 }
 
 body.keyboard-open .chat-messages {
-  padding: max(34px, calc(34px + env(safe-area-inset-top))) 0 calc(50px + var(--keyboard-gap, 0px));
+  padding: max(34px, calc(34px + env(safe-area-inset-top))) 0 50px;
   background: #091019;
 }
 
