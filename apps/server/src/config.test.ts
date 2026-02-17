@@ -50,6 +50,14 @@ describe("config", () => {
       expect(config.INTEGRATION_WINDOW_PAST_DAYS).toBe(30);
       expect(config.INTEGRATION_WINDOW_FUTURE_DAYS).toBe(180);
     });
+
+    it("should use default digest window hours", async () => {
+      delete process.env.NOTIFICATION_DIGEST_MORNING_HOUR;
+      delete process.env.NOTIFICATION_DIGEST_EVENING_HOUR;
+      const { config } = await import("./config.js");
+      expect(config.NOTIFICATION_DIGEST_MORNING_HOUR).toBe(8);
+      expect(config.NOTIFICATION_DIGEST_EVENING_HOUR).toBe(18);
+    });
   });
 
   describe("custom values", () => {
@@ -81,6 +89,8 @@ describe("config", () => {
       process.env.AXIS_FALLBACK_EMAIL = "bob@example.com";
       process.env.INTEGRATION_WINDOW_PAST_DAYS = "14";
       process.env.INTEGRATION_WINDOW_FUTURE_DAYS = "120";
+      process.env.NOTIFICATION_DIGEST_MORNING_HOUR = "7";
+      process.env.NOTIFICATION_DIGEST_EVENING_HOUR = "19";
 
       const { config } = await import("./config.js");
 
@@ -93,6 +103,8 @@ describe("config", () => {
       expect(config.AXIS_FALLBACK_EMAIL).toBe("bob@example.com");
       expect(config.INTEGRATION_WINDOW_PAST_DAYS).toBe(14);
       expect(config.INTEGRATION_WINDOW_FUTURE_DAYS).toBe(120);
+      expect(config.NOTIFICATION_DIGEST_MORNING_HOUR).toBe(7);
+      expect(config.NOTIFICATION_DIGEST_EVENING_HOUR).toBe(19);
     });
   });
 
