@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChatTab } from "./components/ChatTab";
+import { LoginView } from "./components/LoginView";
 import { ScheduleTab } from "./components/ScheduleTab";
 import { InstallPrompt } from "./components/InstallPrompt";
 import { OnboardingFlow } from "./components/OnboardingFlow";
@@ -9,19 +10,54 @@ import { AnalyticsDashboard } from "./components/AnalyticsDashboard";
 import { NutritionView } from "./components/NutritionView";
 import { TabBar, TabId } from "./components/TabBar";
 import { useDashboard } from "./hooks/useDashboard";
+import { getAuthMe, getAuthStatus, login, logout } from "./lib/api";
 import { enablePushNotifications, isPushEnabled, supportsPushNotifications } from "./lib/push";
 import { setupSyncListeners } from "./lib/sync";
 import { applyTheme } from "./lib/theme";
-import { loadOnboardingProfile, saveOnboardingProfile } from "./lib/storage";
+import {
+  clearAuthToken,
+  clearCompanionSessionData,
+  loadAuthToken,
+  loadOnboardingProfile,
+  saveOnboardingProfile
+} from "./lib/storage";
 import { hapticCriticalAlert } from "./lib/haptics";
 import { parseDeepLink } from "./lib/deepLink";
 import { OnboardingProfile } from "./types";
 
 type PushState = "checking" | "ready" | "enabled" | "unsupported" | "denied" | "error";
+type AuthState = "checking" | "required-login" | "ready";
+
+function parseApiErrorMessage(error: unknown, fallback: string): string {
+  if (!(error instanceof Error)) {
+    return fallback;
+  }
+
+  const raw = error.message?.trim();
+  if (!raw) {
+    return fallback;
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as { error?: string };
+    if (parsed.error && parsed.error.trim().length > 0) {
+      return parsed.error.trim();
+    }
+  } catch {
+    return raw;
+  }
+
+  return raw;
+}
 
 export default function App(): JSX.Element {
   const initialDeepLink = parseDeepLink(typeof window === "undefined" ? "" : window.location.search);
-  const { data, loading, error } = useDashboard();
+  const [authState, setAuthState] = useState<AuthState>("checking");
+  const [authRequired, setAuthRequired] = useState(false);
+  const [authUserEmail, setAuthUserEmail] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authSubmitting, setAuthSubmitting] = useState(false);
+  const { data, loading, error } = useDashboard(authState === "ready");
   const [pushState, setPushState] = useState<PushState>("checking");
   const [pushMessage, setPushMessage] = useState("");
   const [profile, setProfile] = useState<OnboardingProfile | null>(loadOnboardingProfile());
@@ -31,6 +67,63 @@ export default function App(): JSX.Element {
   const [focusLectureId, setFocusLectureId] = useState<string | null>(initialDeepLink.lectureId);
   const [settingsSection, setSettingsSection] = useState<string | null>(initialDeepLink.section);
   const seenCriticalNotifications = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    let disposed = false;
+
+    const initializeAuth = async (): Promise<void> => {
+      setAuthState("checking");
+      setAuthError(null);
+
+      try {
+        const status = await getAuthStatus();
+        if (disposed) {
+          return;
+        }
+
+        setAuthRequired(status.required);
+        if (!status.required) {
+          setAuthState("ready");
+          return;
+        }
+
+        if (!loadAuthToken()) {
+          setAuthState("required-login");
+          return;
+        }
+
+        const me = await getAuthMe();
+        if (disposed) {
+          return;
+        }
+
+        setAuthUserEmail(me.user.email);
+        setAuthState("ready");
+      } catch (error) {
+        if (disposed) {
+          return;
+        }
+
+        clearAuthToken();
+        setAuthUserEmail(null);
+        const message = parseApiErrorMessage(error, "");
+        if (message.includes("404")) {
+          // Backward-compatible fallback for older server versions without auth endpoints.
+          setAuthRequired(false);
+          setAuthState("ready");
+          return;
+        }
+
+        setAuthState("required-login");
+      }
+    };
+
+    void initializeAuth();
+
+    return () => {
+      disposed = true;
+    };
+  }, []);
 
   useEffect(() => {
     applyTheme("dark");
@@ -242,6 +335,54 @@ export default function App(): JSX.Element {
   const pushButtonDisabled =
     pushState === "checking" || pushState === "enabled" || pushState === "unsupported";
 
+  const handleLogin = async (email: string, password: string): Promise<void> => {
+    setAuthSubmitting(true);
+    setAuthError(null);
+    try {
+      const session = await login(email, password);
+      setAuthUserEmail(session.user.email);
+      setAuthState("ready");
+    } catch (error) {
+      setAuthError(parseApiErrorMessage(error, "Sign in failed"));
+    } finally {
+      setAuthSubmitting(false);
+    }
+  };
+
+  const handleLogout = async (): Promise<void> => {
+    setAuthSubmitting(true);
+    try {
+      await logout();
+    } catch {
+      // Local session clear still guarantees sign-out even when network is unavailable.
+    } finally {
+      clearCompanionSessionData({ keepTheme: true });
+      setProfile(null);
+      setAuthUserEmail(null);
+      setAuthError(null);
+      setAuthState(authRequired ? "required-login" : "ready");
+      setAuthSubmitting(false);
+    }
+  };
+
+  if (authState === "checking") {
+    return (
+      <main className="app-shell">
+        <section className="panel auth-panel">
+          <p>Checking authentication...</p>
+        </section>
+      </main>
+    );
+  }
+
+  if (authState === "required-login") {
+    return (
+      <main className="app-shell">
+        <LoginView loading={authSubmitting} error={authError} onLogin={handleLogin} />
+      </main>
+    );
+  }
+
   if (!profile) {
     return (
       <main className="app-shell">
@@ -255,12 +396,20 @@ export default function App(): JSX.Element {
       <InstallPrompt />
 
       {/* Push setup messaging stays in Settings to avoid squashing chat layout */}
-      {activeTab === "settings" && pushState !== "enabled" && (
+      {activeTab === "settings" && (
         <header className="hero-compact">
+          {authRequired && authUserEmail && <p className="muted auth-session-label">Signed in as {authUserEmail}</p>}
           <div className="hero-actions">
-            <button type="button" onClick={() => void handleEnablePush()} disabled={pushButtonDisabled}>
-              {pushButtonLabel}
-            </button>
+            {pushState !== "enabled" && (
+              <button type="button" onClick={() => void handleEnablePush()} disabled={pushButtonDisabled}>
+                {pushButtonLabel}
+              </button>
+            )}
+            {authRequired && (
+              <button type="button" onClick={() => void handleLogout()} disabled={authSubmitting}>
+                {authSubmitting ? "Signing out..." : "Sign out"}
+              </button>
+            )}
           </div>
         </header>
       )}

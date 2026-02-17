@@ -35,6 +35,12 @@ This file documents all environment variables required to run the Companion serv
   - Get key: https://ai.google.dev/
   - Free tier: 15 RPM, 1M tokens/day
 
+### Authentication
+- `AUTH_REQUIRED` (default: `true` in production, otherwise `false`) — Require login for all `/api/*` routes except health and auth bootstrap endpoints
+- `AUTH_ADMIN_EMAIL` (required when auth is enabled) — Admin login email
+- `AUTH_ADMIN_PASSWORD` (required when auth is enabled, min 8 chars) — Admin login password
+- `AUTH_SESSION_TTL_HOURS` (default: 720) — Session expiration window in hours
+
 ### Canvas LMS Integration
 - `CANVAS_API_TOKEN` (optional) — Canvas personal access token
 - `CANVAS_BASE_URL` (default: "https://stavanger.instructure.com") — Canvas instance URL
@@ -77,9 +83,10 @@ This file documents all environment variables required to run the Companion serv
 1. **Set required variables**: `TIMEZONE`, `USER_NAME`, `GEMINI_API_KEY`
 2. **Generate VAPID keys**: `npx web-push generate-vapid-keys`
 3. **Set VAPID keys**: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`
-4. **Optional integrations**: Set Canvas, GitHub, YouTube, X keys if needed
-5. **Set production port**: `PORT=8787` (or Railway's auto-assigned port)
-6. **Verify health check**: `curl http://<server-url>/api/health` should return `{"status":"ok"}`
+4. **Configure auth**: Set `AUTH_ADMIN_EMAIL` and `AUTH_ADMIN_PASSWORD` (and optionally `AUTH_REQUIRED=true`)
+5. **Optional integrations**: Set Canvas, GitHub, YouTube, X keys if needed
+6. **Set production port**: `PORT=8787` (or Railway's auto-assigned port)
+7. **Verify health check**: `curl http://<server-url>/api/health` should return `{"status":"ok"}`
 
 ## Example Production .env
 
@@ -108,6 +115,12 @@ VAPID_SUBJECT=mailto:companion@example.com
 
 # AI
 GEMINI_API_KEY=your-gemini-api-key
+
+# Auth
+AUTH_REQUIRED=true
+AUTH_ADMIN_EMAIL=lucy@example.com
+AUTH_ADMIN_PASSWORD=choose-a-long-random-password
+AUTH_SESSION_TTL_HOURS=720
 
 # Canvas LMS
 CANVAS_API_TOKEN=your-canvas-token

@@ -60,7 +60,11 @@ import {
   ChatHistoryPage,
   ChatActionType,
   ChatPendingAction,
-  GmailMessage
+  GmailMessage,
+  AuthRole,
+  AuthSession,
+  AuthUser,
+  AuthUserWithPassword
 } from "./types.js";
 import { isAssignmentOrExamDeadline } from "./deadline-eligibility.js";
 import { makeId, nowIso } from "./utils.js";
@@ -103,6 +107,7 @@ export class RuntimeStore {
   private readonly maxLocations = 1000;
   private readonly maxLocationHistory = 5000;
   private readonly maxIntegrationSyncAttempts = 5000;
+  private readonly maxAuthSessions = 2000;
   private notificationListeners: Array<(notification: Notification) => void> = [];
   private db: Database.Database;
 
@@ -156,6 +161,32 @@ export class RuntimeStore {
 
       CREATE INDEX IF NOT EXISTS idx_chat_pending_actions_expiresAt
         ON chat_pending_actions(expiresAt);
+
+      CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        email TEXT NOT NULL UNIQUE,
+        passwordHash TEXT NOT NULL,
+        role TEXT NOT NULL,
+        createdAt TEXT NOT NULL,
+        updatedAt TEXT NOT NULL,
+        insertOrder INTEGER NOT NULL DEFAULT (unixepoch('subsec') * 1000000)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+
+      CREATE TABLE IF NOT EXISTS auth_sessions (
+        id TEXT PRIMARY KEY,
+        userId TEXT NOT NULL,
+        tokenHash TEXT NOT NULL UNIQUE,
+        expiresAt TEXT NOT NULL,
+        createdAt TEXT NOT NULL,
+        lastSeenAt TEXT NOT NULL,
+        insertOrder INTEGER NOT NULL DEFAULT (unixepoch('subsec') * 1000000),
+        FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_auth_sessions_tokenHash ON auth_sessions(tokenHash);
+      CREATE INDEX IF NOT EXISTS idx_auth_sessions_expiresAt ON auth_sessions(expiresAt);
 
       CREATE TABLE IF NOT EXISTS email_digests (
         id TEXT PRIMARY KEY,
@@ -949,6 +980,180 @@ export class RuntimeStore {
   deletePendingChatAction(id: string): boolean {
     const result = this.db.prepare("DELETE FROM chat_pending_actions WHERE id = ?").run(id);
     return result.changes > 0;
+  }
+
+  private normalizeEmail(email: string): string {
+    return email.trim().toLowerCase();
+  }
+
+  private parseAuthRole(role: string): AuthRole {
+    return role === "admin" ? "admin" : "user";
+  }
+
+  createUser(input: { email: string; passwordHash: string; role: AuthRole }): AuthUser {
+    const email = this.normalizeEmail(input.email);
+    const createdAt = nowIso();
+    const id = makeId("user");
+
+    this.db
+      .prepare(
+        `INSERT INTO users (id, email, passwordHash, role, createdAt, updatedAt)
+         VALUES (?, ?, ?, ?, ?, ?)`
+      )
+      .run(id, email, input.passwordHash, input.role, createdAt, createdAt);
+
+    return {
+      id,
+      email,
+      role: input.role,
+      createdAt,
+      updatedAt: createdAt
+    };
+  }
+
+  upsertUserByEmail(input: { email: string; passwordHash: string; role: AuthRole }): AuthUser {
+    const existing = this.getUserByEmail(input.email);
+    if (!existing) {
+      return this.createUser(input);
+    }
+
+    const updatedAt = nowIso();
+    const email = this.normalizeEmail(input.email);
+    this.db
+      .prepare("UPDATE users SET email = ?, passwordHash = ?, role = ?, updatedAt = ? WHERE id = ?")
+      .run(email, input.passwordHash, input.role, updatedAt, existing.id);
+
+    return {
+      id: existing.id,
+      email,
+      role: input.role,
+      createdAt: existing.createdAt,
+      updatedAt
+    };
+  }
+
+  getUserByEmail(email: string): AuthUserWithPassword | null {
+    const normalizedEmail = this.normalizeEmail(email);
+    const row = this.db.prepare("SELECT * FROM users WHERE email = ?").get(normalizedEmail) as
+      | {
+          id: string;
+          email: string;
+          passwordHash: string;
+          role: string;
+          createdAt: string;
+          updatedAt: string;
+        }
+      | undefined;
+
+    if (!row) {
+      return null;
+    }
+
+    return {
+      id: row.id,
+      email: row.email,
+      passwordHash: row.passwordHash,
+      role: this.parseAuthRole(row.role),
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt
+    };
+  }
+
+  getUserById(id: string): AuthUser | null {
+    const row = this.db.prepare("SELECT id, email, role, createdAt, updatedAt FROM users WHERE id = ?").get(id) as
+      | {
+          id: string;
+          email: string;
+          role: string;
+          createdAt: string;
+          updatedAt: string;
+        }
+      | undefined;
+
+    if (!row) {
+      return null;
+    }
+
+    return {
+      id: row.id,
+      email: row.email,
+      role: this.parseAuthRole(row.role),
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt
+    };
+  }
+
+  createAuthSession(input: {
+    userId: string;
+    tokenHash: string;
+    expiresAt: string;
+  }): AuthSession {
+    const now = nowIso();
+    const session: AuthSession = {
+      id: makeId("session"),
+      userId: input.userId,
+      tokenHash: input.tokenHash,
+      expiresAt: input.expiresAt,
+      createdAt: now,
+      lastSeenAt: now
+    };
+
+    this.db
+      .prepare(
+        `INSERT INTO auth_sessions (id, userId, tokenHash, expiresAt, createdAt, lastSeenAt)
+         VALUES (?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        session.id,
+        session.userId,
+        session.tokenHash,
+        session.expiresAt,
+        session.createdAt,
+        session.lastSeenAt
+      );
+
+    this.trimAuthSessions();
+    return session;
+  }
+
+  getAuthSessionByTokenHash(tokenHash: string): AuthSession | null {
+    const row = this.db.prepare("SELECT * FROM auth_sessions WHERE tokenHash = ?").get(tokenHash) as
+      | {
+          id: string;
+          userId: string;
+          tokenHash: string;
+          expiresAt: string;
+          createdAt: string;
+          lastSeenAt: string;
+        }
+      | undefined;
+
+    if (!row) {
+      return null;
+    }
+
+    return {
+      id: row.id,
+      userId: row.userId,
+      tokenHash: row.tokenHash,
+      expiresAt: row.expiresAt,
+      createdAt: row.createdAt,
+      lastSeenAt: row.lastSeenAt
+    };
+  }
+
+  touchAuthSession(tokenHash: string, timestamp: string = nowIso()): void {
+    this.db.prepare("UPDATE auth_sessions SET lastSeenAt = ? WHERE tokenHash = ?").run(timestamp, tokenHash);
+  }
+
+  deleteAuthSessionByTokenHash(tokenHash: string): boolean {
+    const result = this.db.prepare("DELETE FROM auth_sessions WHERE tokenHash = ?").run(tokenHash);
+    return result.changes > 0;
+  }
+
+  deleteExpiredAuthSessions(reference: string = nowIso()): number {
+    const result = this.db.prepare("DELETE FROM auth_sessions WHERE expiresAt <= ?").run(reference);
+    return result.changes;
   }
 
   private recordContextHistory(context: UserContext, timestamp: string): void {
@@ -4259,6 +4464,23 @@ export class RuntimeStore {
         )`
       )
       .run(count - this.maxNutritionMealPlanBlocks);
+  }
+
+  private trimAuthSessions(): void {
+    this.deleteExpiredAuthSessions();
+
+    const count = (this.db.prepare("SELECT COUNT(*) as count FROM auth_sessions").get() as { count: number }).count;
+    if (count <= this.maxAuthSessions) {
+      return;
+    }
+
+    this.db
+      .prepare(
+        `DELETE FROM auth_sessions WHERE id IN (
+          SELECT id FROM auth_sessions ORDER BY insertOrder ASC LIMIT ?
+        )`
+      )
+      .run(count - this.maxAuthSessions);
   }
 
   private trimCheckIns(table: "habit_check_ins" | "goal_check_ins", column: "habitId" | "goalId", id: string): void {

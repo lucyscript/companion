@@ -24,6 +24,7 @@ import {
   SendChatMessageRequest,
   SendChatMessageResponse,
   GetChatHistoryResponse,
+  AuthUser,
   UserContext,
   WeeklySummary,
   SyncQueueStatus,
@@ -64,6 +65,9 @@ import {
   removeSyncQueueItem,
   saveCanvasSettings,
   saveCanvasStatus,
+  clearAuthToken,
+  loadAuthToken,
+  saveAuthToken,
   saveContext,
   saveDashboard,
   saveDeadlines,
@@ -77,21 +81,76 @@ import {
 } from "./storage";
 import { apiUrl } from "./config";
 
+export class UnauthorizedError extends Error {
+  constructor(message = "Unauthorized") {
+    super(message);
+    this.name = "UnauthorizedError";
+  }
+}
+
+export interface AuthStatusResponse {
+  required: boolean;
+}
+
+export interface AuthSessionResponse {
+  token: string;
+  expiresAt: string;
+  user: AuthUser;
+}
+
+export interface AuthMeResponse {
+  user: AuthUser;
+}
+
+function buildRequestHeaders(existing?: HeadersInit): HeadersInit {
+  const token = loadAuthToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json"
+  };
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  if (!existing) {
+    return headers;
+  }
+
+  return {
+    ...headers,
+    ...(Array.isArray(existing)
+      ? Object.fromEntries(existing)
+      : existing instanceof Headers
+        ? Object.fromEntries(existing.entries())
+        : existing)
+  };
+}
+
 async function jsonOrThrow<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
   const url = typeof input === "string" ? apiUrl(input) : input;
   const response = await fetch(url, {
-    headers: {
-      "Content-Type": "application/json"
-    },
-    ...init
+    ...init,
+    headers: buildRequestHeaders(init?.headers)
   });
 
   if (!response.ok) {
     const body = await response.text();
+    if (response.status === 401) {
+      throw new UnauthorizedError(body || "Unauthorized");
+    }
     throw new Error(body || `Request failed: ${response.status}`);
   }
 
-  return (await response.json()) as T;
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  const body = await response.text();
+  if (!body) {
+    return undefined as T;
+  }
+
+  return JSON.parse(body) as T;
 }
 
 function normalizeJournalEntry(entry: JournalEntry): JournalEntry {
@@ -115,6 +174,40 @@ function saveMergedJournalEntry(entry: JournalEntry): void {
   saveJournalEntries(
     Array.from(byClientId.values()).sort((a, b) => b.timestamp.localeCompare(a.timestamp))
   );
+}
+
+export async function getAuthStatus(): Promise<AuthStatusResponse> {
+  return await jsonOrThrow<AuthStatusResponse>("/api/auth/status", {
+    method: "GET"
+  });
+}
+
+export async function login(email: string, password: string): Promise<AuthSessionResponse> {
+  const session = await jsonOrThrow<AuthSessionResponse>("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify({
+      email,
+      password
+    })
+  });
+  saveAuthToken(session.token);
+  return session;
+}
+
+export async function getAuthMe(): Promise<AuthMeResponse> {
+  return await jsonOrThrow<AuthMeResponse>("/api/auth/me", {
+    method: "GET"
+  });
+}
+
+export async function logout(): Promise<void> {
+  try {
+    await jsonOrThrow<unknown>("/api/auth/logout", {
+      method: "POST"
+    });
+  } finally {
+    clearAuthToken();
+  }
 }
 
 export async function getDashboard(): Promise<DashboardSnapshot> {

@@ -417,6 +417,16 @@ export interface SendChatMessageResponse {
   citations?: ChatCitation[];
 }
 
+export type AuthRole = "admin" | "user";
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  role: AuthRole;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface GetChatHistoryResponse {
   history: {
     messages: ChatMessage[];
