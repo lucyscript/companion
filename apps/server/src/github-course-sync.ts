@@ -467,6 +467,53 @@ export class GitHubCourseSyncService {
     return score;
   }
 
+  private isDeadlineDocPath(path: string): boolean {
+    if (!/\.md$/i.test(path)) {
+      return false;
+    }
+
+    const normalized = path.toLowerCase();
+    if (EXCLUDED_DOC_PATHS.some((pattern) => pattern.test(normalized))) {
+      return false;
+    }
+    if (/(lecture[-_\s]?plan|lecture[-_\s]?notes)/i.test(normalized)) {
+      return false;
+    }
+
+    return (
+      normalized.endsWith("readme.md") ||
+      /(lab[-_\s]?plan|assignment|deadline|due|exam|project|oblig|innlevering|problem[-_\s]?set|pset)/i.test(
+        normalized
+      )
+    );
+  }
+
+  private rankDeadlineDocPath(path: string): number {
+    const normalized = path.toLowerCase();
+    let score = 0;
+    if (normalized.includes("lab-plan")) score += 12;
+    if (normalized.includes("assignment")) score += 10;
+    if (normalized.includes("deadline") || normalized.includes("due")) score += 9;
+    if (normalized.includes("exam")) score += 8;
+    if (normalized.includes("project")) score += 6;
+    if (normalized.endsWith("readme.md")) score += 2;
+    if (normalized.includes("schedule")) score -= 4;
+    return score;
+  }
+
+  private dedupeParsedDeadlines(deadlines: Array<Omit<Deadline, "id">>): Array<Omit<Deadline, "id">> {
+    const deduped = new Map<string, Omit<Deadline, "id">>();
+
+    deadlines.forEach((deadline) => {
+      const key = this.generateDeadlineKey(deadline.course, deadline.task);
+      if (!deduped.has(key)) {
+        deduped.set(key, deadline);
+      }
+    });
+
+    return Array.from(deduped.values());
+  }
+
   private buildCourseDocument(repo: CourseRepo, path: string, markdown: string, syncedAt: string): GitHubCourseDocument | null {
     const plainText = this.stripMarkdown(markdown);
     if (!plainText) {
@@ -541,8 +588,33 @@ export class GitHubCourseSyncService {
       for (const repo of COURSE_REPOS) {
         try {
           const readme = await this.client.getReadme(repo.owner, repo.repo);
-          const parsedDeadlines = this.parseDeadlines(readme, repo.courseCode);
-          deadlinesObserved += parsedDeadlines.length;
+          const deadlineSourcePaths = new Set<string>(["README.md"]);
+          try {
+            const files = await this.client.listRepositoryFiles(repo.owner, repo.repo);
+            files
+              .filter((path) => this.isDeadlineDocPath(path))
+              .sort((a, b) => this.rankDeadlineDocPath(b) - this.rankDeadlineDocPath(a))
+              .slice(0, 12)
+              .forEach((path) => deadlineSourcePaths.add(path));
+          } catch {
+            // Fall back to README-only parsing when tree API is unavailable.
+          }
+
+          const parsedDeadlines: Array<Omit<Deadline, "id">> = [];
+          for (const path of deadlineSourcePaths) {
+            try {
+              const markdown =
+                path.toLowerCase() === "readme.md"
+                  ? readme
+                  : await this.client.getFileContent(repo.owner, repo.repo, path);
+              parsedDeadlines.push(...this.parseDeadlines(markdown, repo.courseCode));
+            } catch {
+              // Continue with remaining files when one file cannot be fetched.
+            }
+          }
+
+          const dedupedDeadlines = this.dedupeParsedDeadlines(parsedDeadlines);
+          deadlinesObserved += dedupedDeadlines.length;
 
           // Get existing deadlines from this source
           const existingDeadlines = this.store.getDeadlines();
@@ -554,7 +626,7 @@ export class GitHubCourseSyncService {
           }
 
           // Create or update deadlines
-          for (const newDeadline of parsedDeadlines) {
+          for (const newDeadline of dedupedDeadlines) {
             const key = this.generateDeadlineKey(newDeadline.course, newDeadline.task);
             const existing = existingMap.get(key);
 
