@@ -15,6 +15,10 @@ export class CanvasClient {
     this.token = token ?? config.CANVAS_API_TOKEN;
   }
 
+  isConfigured(): boolean {
+    return Boolean(this.token);
+  }
+
   private async fetch<T>(endpoint: string): Promise<T> {
     if (!this.token) {
       throw new Error("Canvas API token not configured");

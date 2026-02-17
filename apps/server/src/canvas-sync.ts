@@ -23,6 +23,11 @@ export interface CanvasSyncOptions {
   futureDays?: number;
 }
 
+export interface CanvasSyncIfStaleOptions {
+  staleMs?: number;
+  minIntervalMs?: number;
+}
+
 function filterAnnouncementsByCourseScope(
   announcements: CanvasData["announcements"],
   courseIds?: number[]
@@ -50,6 +55,8 @@ export class CanvasSyncService {
   private retryTimeout: ReturnType<typeof setTimeout> | null = null;
   private autoSyncInProgress = false;
   private autoSyncIntervalMs = 30 * 60 * 1000;
+  private syncInFlight: Promise<CanvasSyncResult> | null = null;
+  private lastOnDemandSyncAt = 0;
   private readonly autoHealing = new SyncAutoHealingPolicy({
     integration: "canvas",
     baseBackoffMs: 30_000,
@@ -62,6 +69,16 @@ export class CanvasSyncService {
     this.store = store;
     this.client = client ?? new CanvasClient();
     this.deadlineBridge = new CanvasDeadlineBridge(store);
+  }
+
+  isConfigured(): boolean {
+    const candidate = this.client as unknown as { isConfigured?: () => boolean };
+    if (typeof candidate.isConfigured === "function") {
+      return candidate.isConfigured();
+    }
+
+    // Fallback for test doubles that do not provide this helper.
+    return true;
   }
 
   /**
@@ -97,69 +114,115 @@ export class CanvasSyncService {
     }
   }
 
+  private async runSync(options?: CanvasSyncOptions): Promise<CanvasSyncResult> {
+    const shouldUseOverrideClient = Boolean(options?.baseUrl || options?.token);
+
+    if (!shouldUseOverrideClient && this.syncInFlight) {
+      return this.syncInFlight;
+    }
+
+    const execute = async (): Promise<CanvasSyncResult> => {
+      const client = shouldUseOverrideClient ? new CanvasClient(options?.baseUrl, options?.token) : this.client;
+
+      try {
+        const courses = await client.getCourses();
+        const scopedCourses =
+          options?.courseIds && options.courseIds.length > 0
+            ? courses.filter((course) => options.courseIds?.includes(course.id))
+            : courses;
+
+        const scopedCourseIds = new Set(scopedCourses.map((course) => course.id));
+        const assignments = await client.getAllAssignments(scopedCourses);
+        const filteredAssignments = filterCanvasAssignmentsByDateWindow(assignments, {
+          pastDays: options?.pastDays,
+          futureDays: options?.futureDays
+        }).filter((assignment) => scopedCourseIds.has(assignment.course_id));
+        const modules = await client.getAllModules(scopedCourses);
+        const announcements = filterAnnouncementsByCourseScope(await client.getAnnouncements(), options?.courseIds);
+
+        const canvasData: CanvasData = {
+          courses: scopedCourses,
+          assignments: filteredAssignments,
+          modules,
+          announcements,
+          lastSyncedAt: new Date().toISOString()
+        };
+
+        this.store.setCanvasData(canvasData);
+
+        // Bridge Canvas assignments to deadlines
+        const deadlineBridge = this.deadlineBridge.syncAssignments(scopedCourses, filteredAssignments);
+
+        return {
+          success: true,
+          coursesCount: scopedCourses.length,
+          assignmentsCount: filteredAssignments.length,
+          modulesCount: modules.length,
+          announcementsCount: announcements.length,
+          deadlineBridge
+        };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Unknown error";
+
+        return {
+          success: false,
+          coursesCount: 0,
+          assignmentsCount: 0,
+          modulesCount: 0,
+          announcementsCount: 0,
+          error: errorMessage
+        };
+      } finally {
+        if (!shouldUseOverrideClient) {
+          this.syncInFlight = null;
+        }
+      }
+    };
+
+    if (shouldUseOverrideClient) {
+      return execute();
+    }
+
+    this.syncInFlight = execute();
+    return this.syncInFlight;
+  }
+
   /**
    * Perform a Canvas sync
    */
   async sync(options?: CanvasSyncOptions): Promise<CanvasSyncResult> {
-    const shouldUseOverrideClient = Boolean(options?.baseUrl || options?.token);
-    const client = shouldUseOverrideClient ? new CanvasClient(options?.baseUrl, options?.token) : this.client;
-
-    try {
-      const courses = await client.getCourses();
-      const scopedCourses =
-        options?.courseIds && options.courseIds.length > 0
-          ? courses.filter((course) => options.courseIds?.includes(course.id))
-          : courses;
-
-      const scopedCourseIds = new Set(scopedCourses.map((course) => course.id));
-      const assignments = await client.getAllAssignments(scopedCourses);
-      const filteredAssignments = filterCanvasAssignmentsByDateWindow(assignments, {
-        pastDays: options?.pastDays,
-        futureDays: options?.futureDays
-      }).filter((assignment) => scopedCourseIds.has(assignment.course_id));
-      const modules = await client.getAllModules(scopedCourses);
-      const announcements = filterAnnouncementsByCourseScope(await client.getAnnouncements(), options?.courseIds);
-
-      const canvasData: CanvasData = {
-        courses: scopedCourses,
-        assignments: filteredAssignments,
-        modules,
-        announcements,
-        lastSyncedAt: new Date().toISOString()
-      };
-
-      this.store.setCanvasData(canvasData);
-
-      // Bridge Canvas assignments to deadlines
-      const deadlineBridge = this.deadlineBridge.syncAssignments(scopedCourses, filteredAssignments);
-
-      return {
-        success: true,
-        coursesCount: scopedCourses.length,
-        assignmentsCount: filteredAssignments.length,
-        modulesCount: modules.length,
-        announcementsCount: announcements.length,
-        deadlineBridge
-      };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Unknown error";
-      
-      return {
-        success: false,
-        coursesCount: 0,
-        assignmentsCount: 0,
-        modulesCount: 0,
-        announcementsCount: 0,
-        error: errorMessage
-      };
-    }
+    return this.runSync(options);
   }
 
   /**
    * Manually trigger a sync
    */
-  async triggerSync(): Promise<CanvasSyncResult> {
-    return this.sync();
+  async triggerSync(options?: CanvasSyncOptions): Promise<CanvasSyncResult> {
+    return this.runSync(options);
+  }
+
+  async syncIfStale(options: CanvasSyncIfStaleOptions = {}): Promise<CanvasSyncResult | null> {
+    if (!this.isConfigured()) {
+      return null;
+    }
+
+    const staleMs = options.staleMs ?? this.autoSyncIntervalMs;
+    const minIntervalMs = options.minIntervalMs ?? Math.min(staleMs, 5 * 60 * 1000);
+    const now = Date.now();
+    const current = this.store.getCanvasData();
+    const lastSyncedAtMs = current?.lastSyncedAt ? Date.parse(current.lastSyncedAt) : Number.NaN;
+    const isStale = !Number.isFinite(lastSyncedAtMs) || now - lastSyncedAtMs >= staleMs;
+
+    if (!isStale) {
+      return null;
+    }
+
+    if (now - this.lastOnDemandSyncAt < minIntervalMs) {
+      return null;
+    }
+
+    this.lastOnDemandSyncAt = now;
+    return this.runSync();
   }
 
   getAutoHealingStatus(): SyncAutoHealingState {
@@ -200,7 +263,7 @@ export class CanvasSyncService {
 
     this.autoSyncInProgress = true;
     try {
-      const result = await this.sync();
+      const result = await this.runSync();
       if (result.success) {
         this.autoHealing.recordSuccess();
       } else {

@@ -125,6 +125,8 @@ const xSyncService = new XSyncService(store);
 const gmailOAuthService = new GmailOAuthService(store);
 const gmailSyncService = new GmailSyncService(store, gmailOAuthService);
 const syncFailureRecovery = new SyncFailureRecoveryTracker();
+const CANVAS_ON_DEMAND_SYNC_MIN_INTERVAL_MS = 5 * 60 * 1000;
+const CANVAS_ON_DEMAND_SYNC_STALE_MS = 25 * 60 * 1000;
 const GITHUB_ON_DEMAND_SYNC_MIN_INTERVAL_MS = 10 * 60 * 1000;
 const GITHUB_ON_DEMAND_SYNC_STALE_MS = 6 * 60 * 60 * 1000;
 let githubOnDemandSyncInFlight: Promise<void> | null = null;
@@ -300,6 +302,32 @@ youtubeSyncService.start();
 xSyncService.start();
 gmailSyncService.start();
 
+async function maybeAutoSyncCanvasData(): Promise<void> {
+  try {
+    const syncStartedAt = Date.now();
+    const result = await canvasSyncService.syncIfStale({
+      staleMs: CANVAS_ON_DEMAND_SYNC_STALE_MS,
+      minIntervalMs: CANVAS_ON_DEMAND_SYNC_MIN_INTERVAL_MS
+    });
+
+    if (!result) {
+      return;
+    }
+
+    if (result.success) {
+      syncFailureRecovery.recordSuccess("canvas");
+      recordIntegrationAttempt("canvas", syncStartedAt, true);
+      return;
+    }
+
+    const recoveryPrompt = syncFailureRecovery.recordFailure("canvas", result.error ?? "Canvas sync failed");
+    publishSyncRecoveryPrompt(recoveryPrompt);
+    recordIntegrationAttempt("canvas", syncStartedAt, false, result.error ?? "Canvas sync failed");
+  } catch {
+    // Keep reads resilient when Canvas is temporarily unavailable.
+  }
+}
+
 async function maybeAutoSyncGitHubDeadlines(): Promise<void> {
   if (!githubCourseSyncService.isConfigured()) {
     return;
@@ -462,6 +490,7 @@ app.post("/api/chat", async (req, res) => {
   }
 
   try {
+    await Promise.all([maybeAutoSyncCanvasData(), maybeAutoSyncGitHubDeadlines()]);
     const result = await sendChatMessage(store, parsed.data.message.trim(), {
       attachments: parsed.data.attachments
     });
@@ -1364,7 +1393,8 @@ app.post("/api/schedule", (req, res) => {
   return res.status(201).json({ lecture });
 });
 
-app.get("/api/schedule", (_req, res) => {
+app.get("/api/schedule", async (_req, res) => {
+  await maybeAutoSyncCanvasData();
   return res.json({ schedule: store.getScheduleEvents() });
 });
 
@@ -1416,6 +1446,7 @@ app.post("/api/deadlines", (req, res) => {
 });
 
 app.get("/api/deadlines", async (_req, res) => {
+  await maybeAutoSyncCanvasData();
   await maybeAutoSyncGitHubDeadlines();
   return res.json({ deadlines: store.getAcademicDeadlines() });
 });
@@ -1424,7 +1455,9 @@ app.get("/api/deadlines/duplicates", (_req, res) => {
   return res.json(buildDeadlineDedupResult(store.getAcademicDeadlines()));
 });
 
-app.get("/api/deadlines/suggestions", (_req, res) => {
+app.get("/api/deadlines/suggestions", async (_req, res) => {
+  await maybeAutoSyncCanvasData();
+  await maybeAutoSyncGitHubDeadlines();
   const deadlines = store.getAcademicDeadlines();
   const scheduleEvents = store.getScheduleEvents();
   const userContext = store.getUserContext();
@@ -2216,7 +2249,7 @@ app.post("/api/canvas/sync", async (req, res) => {
     return res.status(400).json({ error: "Invalid Canvas sync payload", issues: parsed.error.issues });
   }
 
-  const result = await canvasSyncService.sync({
+  const result = await canvasSyncService.triggerSync({
     baseUrl: parsed.data.baseUrl,
     token: parsed.data.token,
     courseIds: parsed.data.courseIds,

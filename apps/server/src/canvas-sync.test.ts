@@ -30,6 +30,14 @@ describe("Canvas Integration", () => {
       const client = new CanvasClient("https://test.instructure.com", undefined);
       await expect(client.getCourses()).rejects.toThrow("Canvas API token not configured");
     });
+
+    it("reports whether Canvas credentials are configured", () => {
+      const configuredClient = new CanvasClient("https://test.instructure.com", "token");
+      expect(configuredClient.isConfigured()).toBe(true);
+
+      const unconfiguredClient = new CanvasClient("https://test.instructure.com", undefined);
+      expect(unconfiguredClient.isConfigured()).toBe(false);
+    });
   });
 
   describe("CanvasSyncService", () => {
@@ -258,6 +266,66 @@ describe("Canvas Integration", () => {
       expect(urlString.startsWith("https://manual.canvas.test")).toBe(true);
       const headers = (firstInit?.headers as Record<string, string>) ?? {};
       expect(headers.Authorization).toBe("Bearer token-123");
+    });
+
+    it("syncIfStale performs on-demand refresh and enforces minimum interval", async () => {
+      const getCourses = vi.fn(async () => []);
+      const mockClient = {
+        isConfigured: () => true,
+        getCourses,
+        getAllAssignments: async () => [],
+        getAllModules: async () => [],
+        getAnnouncements: async () => []
+      } as unknown as CanvasClient;
+
+      const service = new CanvasSyncService(store, mockClient);
+      const first = await service.syncIfStale({ staleMs: 60_000, minIntervalMs: 60_000 });
+      expect(first?.success).toBe(true);
+      expect(getCourses).toHaveBeenCalledTimes(1);
+
+      // Make canvas data stale, but keep call within min interval so sync is throttled.
+      store.setCanvasData({
+        courses: [],
+        assignments: [],
+        modules: [],
+        announcements: [],
+        lastSyncedAt: "2026-01-01T00:00:00.000Z"
+      });
+
+      const second = await service.syncIfStale({ staleMs: 0, minIntervalMs: 60_000 });
+      expect(second).toBeNull();
+      expect(getCourses).toHaveBeenCalledTimes(1);
+    });
+
+    it("syncIfStale coalesces concurrent refresh callers into a single sync", async () => {
+      let resolveCourses: (value: Array<{ id: number; name: string; course_code: string; workflow_state: "available" }>) => void =
+        () => undefined;
+      const coursesPromise = new Promise<Array<{ id: number; name: string; course_code: string; workflow_state: "available" }>>(
+        (resolve) => {
+          resolveCourses = resolve;
+        }
+      );
+      const getCourses = vi.fn(() => coursesPromise);
+
+      const mockClient = {
+        isConfigured: () => true,
+        getCourses,
+        getAllAssignments: async () => [],
+        getAllModules: async () => [],
+        getAnnouncements: async () => []
+      } as unknown as CanvasClient;
+
+      const service = new CanvasSyncService(store, mockClient);
+      const firstSyncPromise = service.syncIfStale({ staleMs: 0, minIntervalMs: 0 });
+      const secondSyncPromise = service.syncIfStale({ staleMs: 0, minIntervalMs: 0 });
+
+      expect(getCourses).toHaveBeenCalledTimes(1);
+      resolveCourses([]);
+
+      const [first, second] = await Promise.all([firstSyncPromise, secondSyncPromise]);
+      expect(first?.success).toBe(true);
+      expect(second?.success).toBe(true);
+      expect(getCourses).toHaveBeenCalledTimes(1);
     });
   });
 
