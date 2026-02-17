@@ -7,7 +7,6 @@ import { SettingsView } from "./components/SettingsView";
 import { HabitsGoalsView } from "./components/HabitsGoalsView";
 import { AnalyticsDashboard } from "./components/AnalyticsDashboard";
 import { TabBar, TabId } from "./components/TabBar";
-import { SocialMediaView } from "./components/SocialMediaView";
 import { useDashboard } from "./hooks/useDashboard";
 import { enablePushNotifications, isPushEnabled, supportsPushNotifications } from "./lib/push";
 import { setupSyncListeners } from "./lib/sync";
@@ -282,9 +281,6 @@ export default function App(): JSX.Element {
                 focusDeadlineId={focusDeadlineId ?? undefined}
                 focusLectureId={focusLectureId ?? undefined}
               />
-            )}
-            {activeTab === "social" && (
-              <SocialMediaView />
             )}
             {activeTab === "habits" && (
               <div className="habits-tab-container habits-analytics-stack">

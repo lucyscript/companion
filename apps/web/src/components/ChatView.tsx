@@ -21,7 +21,7 @@ function latestAssistantMessage(messages: ChatMessage[]): ChatMessage | null {
 }
 
 interface CitationLinkTarget {
-  tab: "schedule" | "habits" | "social" | "settings";
+  tab: "schedule" | "habits" | "settings";
   deadlineId?: string;
   lectureId?: string;
   section?: string;
@@ -42,7 +42,7 @@ function toCitationTarget(citation: ChatCitation): CitationLinkTarget {
       return { tab: "settings", section: "integrations" };
     case "social-youtube":
     case "social-x":
-      return { tab: "social" };
+      return { tab: "settings", section: "integrations" };
     case "github-course-doc":
       return { tab: "settings", section: "integrations" };
     default:

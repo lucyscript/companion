@@ -1,4 +1,4 @@
-export type TabId = "chat" | "schedule" | "social" | "habits" | "settings";
+export type TabId = "chat" | "schedule" | "habits" | "settings";
 
 interface TabBarProps {
   activeTab: TabId;
@@ -9,7 +9,6 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps): JSX.Element {
   const tabs: Array<{ id: TabId; label: string; icon: string }> = [
     { id: "chat", label: "Chat", icon: "💬" },
     { id: "schedule", label: "Schedule", icon: "📅" },
-    { id: "social", label: "Social", icon: "📰" },
     { id: "habits", label: "Growth", icon: "✅" },
     { id: "settings", label: "Settings", icon: "⚙️" }
   ];
