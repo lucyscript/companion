@@ -10,6 +10,7 @@ import {
   getNutritionMealPlan,
   getNutritionMeals,
   getNutritionSummary,
+  upsertNutritionTargetProfile,
   updateNutritionCustomFood,
   updateNutritionMeal,
   upsertNutritionMealPlanBlock
@@ -19,6 +20,7 @@ import {
   NutritionDailySummary,
   NutritionMeal,
   NutritionMealPlanBlock,
+  NutritionTargetProfile,
   NutritionMealType
 } from "../types";
 import { hapticSuccess } from "../lib/haptics";
@@ -50,6 +52,16 @@ interface CustomFoodDraft {
   proteinGramsPerUnit: string;
   carbsGramsPerUnit: string;
   fatGramsPerUnit: string;
+}
+
+interface NutritionTargetDraft {
+  weightKg: string;
+  maintenanceCalories: string;
+  surplusCalories: string;
+  targetCalories: string;
+  targetProteinGrams: string;
+  targetCarbsGrams: string;
+  targetFatGrams: string;
 }
 
 function toDateKey(date: Date): string {
@@ -155,6 +167,143 @@ function withMealsSummary(
   };
 }
 
+function toNumberString(value: number | undefined): string {
+  return typeof value === "number" ? String(value) : "";
+}
+
+function toTargetDraft(profile: NutritionTargetProfile | null): NutritionTargetDraft {
+  if (!profile) {
+    return {
+      weightKg: "",
+      maintenanceCalories: "",
+      surplusCalories: "",
+      targetCalories: "",
+      targetProteinGrams: "",
+      targetCarbsGrams: "",
+      targetFatGrams: ""
+    };
+  }
+
+  return {
+    weightKg: toNumberString(profile.weightKg),
+    maintenanceCalories: toNumberString(profile.maintenanceCalories),
+    surplusCalories: toNumberString(profile.surplusCalories),
+    targetCalories: toNumberString(profile.targetCalories),
+    targetProteinGrams: toNumberString(profile.targetProteinGrams),
+    targetCarbsGrams: toNumberString(profile.targetCarbsGrams),
+    targetFatGrams: toNumberString(profile.targetFatGrams)
+  };
+}
+
+function parseOptionalNumber(value: string): number | null {
+  if (!value.trim()) {
+    return null;
+  }
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function deriveTargetsFromDraft(draft: NutritionTargetDraft): {
+  targetCalories: number;
+  targetProteinGrams: number;
+  targetCarbsGrams: number;
+  targetFatGrams: number;
+} | null {
+  const weightKg = parseOptionalNumber(draft.weightKg);
+  const maintenanceCalories = parseOptionalNumber(draft.maintenanceCalories);
+  const surplusCalories = parseOptionalNumber(draft.surplusCalories);
+
+  const hasBase = weightKg !== null && maintenanceCalories !== null && surplusCalories !== null;
+  let targetCalories: number | null = null;
+  let targetProteinGrams: number | null = null;
+  let targetCarbsGrams: number | null = null;
+  let targetFatGrams: number | null = null;
+
+  if (hasBase) {
+    const weightLb = weightKg * 2.2046226218;
+    targetCalories = roundToTenth(maintenanceCalories + surplusCalories);
+    targetProteinGrams = roundToTenth(weightLb * 0.8);
+    targetFatGrams = roundToTenth(weightLb * 0.4);
+    const remainingCalories = Math.max(0, targetCalories - targetProteinGrams * 4 - targetFatGrams * 9);
+    targetCarbsGrams = roundToTenth(remainingCalories / 4);
+  }
+
+  const overrideCalories = parseOptionalNumber(draft.targetCalories);
+  const overrideProtein = parseOptionalNumber(draft.targetProteinGrams);
+  const overrideCarbs = parseOptionalNumber(draft.targetCarbsGrams);
+  const overrideFat = parseOptionalNumber(draft.targetFatGrams);
+
+  if (overrideCalories !== null) targetCalories = roundToTenth(overrideCalories);
+  if (overrideProtein !== null) targetProteinGrams = roundToTenth(overrideProtein);
+  if (overrideCarbs !== null) targetCarbsGrams = roundToTenth(overrideCarbs);
+  if (overrideFat !== null) targetFatGrams = roundToTenth(overrideFat);
+
+  if (
+    targetCalories === null ||
+    targetProteinGrams === null ||
+    targetCarbsGrams === null ||
+    targetFatGrams === null
+  ) {
+    return null;
+  }
+
+  return {
+    targetCalories,
+    targetProteinGrams,
+    targetCarbsGrams,
+    targetFatGrams
+  };
+}
+
+function completeTargetsFromProfile(profile: NutritionTargetProfile | null): {
+  targetCalories: number;
+  targetProteinGrams: number;
+  targetCarbsGrams: number;
+  targetFatGrams: number;
+} | null {
+  if (
+    !profile ||
+    typeof profile.targetCalories !== "number" ||
+    typeof profile.targetProteinGrams !== "number" ||
+    typeof profile.targetCarbsGrams !== "number" ||
+    typeof profile.targetFatGrams !== "number"
+  ) {
+    return null;
+  }
+
+  return {
+    targetCalories: roundToTenth(profile.targetCalories),
+    targetProteinGrams: roundToTenth(profile.targetProteinGrams),
+    targetCarbsGrams: roundToTenth(profile.targetCarbsGrams),
+    targetFatGrams: roundToTenth(profile.targetFatGrams)
+  };
+}
+
+function formatMetric(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+function describeDelta(value: number, unit: string): string {
+  const rounded = roundToTenth(value);
+  if (Math.abs(rounded) < 0.1) {
+    return "On target";
+  }
+
+  if (rounded > 0) {
+    return `${formatMetric(rounded)}${unit} remaining`;
+  }
+
+  return `${formatMetric(Math.abs(rounded))}${unit} over`;
+}
+
+function deltaToneClass(value: number): string {
+  const rounded = roundToTenth(value);
+  if (Math.abs(rounded) < 0.1) {
+    return "nutrition-delta-neutral";
+  }
+  return rounded > 0 ? "nutrition-delta-positive" : "nutrition-delta-negative";
+}
+
 export function NutritionView(): JSX.Element {
   const todayKey = useMemo(() => toDateKey(new Date()), []);
   const [summary, setSummary] = useState<NutritionDailySummary | null>(null);
@@ -164,6 +313,9 @@ export function NutritionView(): JSX.Element {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [editingCustomFoodId, setEditingCustomFoodId] = useState<string | null>(null);
+  const [targetDraft, setTargetDraft] = useState<NutritionTargetDraft>(() => toTargetDraft(null));
+  const [targetDraftDirty, setTargetDraftDirty] = useState(false);
+  const [savingTargets, setSavingTargets] = useState(false);
 
   const [mealDraft, setMealDraft] = useState<MealDraft>({
     name: "",
@@ -194,6 +346,24 @@ export function NutritionView(): JSX.Element {
     fatGramsPerUnit: ""
   });
 
+  const derivedTargets = useMemo(() => deriveTargetsFromDraft(targetDraft), [targetDraft]);
+  const activeTargets = useMemo(
+    () => derivedTargets ?? completeTargetsFromProfile(summary?.targetProfile ?? null),
+    [derivedTargets, summary?.targetProfile]
+  );
+  const targetDeltas = useMemo(() => {
+    if (!summary || !activeTargets) {
+      return null;
+    }
+
+    return {
+      calories: roundToTenth(activeTargets.targetCalories - summary.totals.calories),
+      proteinGrams: roundToTenth(activeTargets.targetProteinGrams - summary.totals.proteinGrams),
+      carbsGrams: roundToTenth(activeTargets.targetCarbsGrams - summary.totals.carbsGrams),
+      fatGrams: roundToTenth(activeTargets.targetFatGrams - summary.totals.fatGrams)
+    };
+  }, [summary, activeTargets]);
+
   const refresh = async (): Promise<void> => {
     setLoading(true);
     const [nextSummary, nextMeals, nextPlanBlocks, nextCustomFoods] = await Promise.all([
@@ -207,12 +377,58 @@ export function NutritionView(): JSX.Element {
     setMeals(nextMeals);
     setMealPlanBlocks(nextPlanBlocks);
     setCustomFoods(nextCustomFoods);
+    if (!targetDraftDirty) {
+      setTargetDraft(toTargetDraft(nextSummary?.targetProfile ?? null));
+    }
     setLoading(false);
   };
 
   useEffect(() => {
     void refresh();
   }, []);
+
+  const updateTargetDraftField = (field: keyof NutritionTargetDraft, value: string): void => {
+    setTargetDraft((previous) => ({
+      ...previous,
+      [field]: value
+    }));
+    setTargetDraftDirty(true);
+  };
+
+  const handleResetTargets = (): void => {
+    setTargetDraft(toTargetDraft(summary?.targetProfile ?? null));
+    setTargetDraftDirty(false);
+    setMessage("");
+  };
+
+  const handleSaveTargets = async (): Promise<void> => {
+    setMessage("");
+    setSavingTargets(true);
+
+    const saved = await upsertNutritionTargetProfile({
+      date: todayKey,
+      weightKg: parseOptionalNumber(targetDraft.weightKg),
+      maintenanceCalories: parseOptionalNumber(targetDraft.maintenanceCalories),
+      surplusCalories: parseOptionalNumber(targetDraft.surplusCalories),
+      targetCalories: parseOptionalNumber(targetDraft.targetCalories),
+      targetProteinGrams: parseOptionalNumber(targetDraft.targetProteinGrams),
+      targetCarbsGrams: parseOptionalNumber(targetDraft.targetCarbsGrams),
+      targetFatGrams: parseOptionalNumber(targetDraft.targetFatGrams)
+    });
+
+    setSavingTargets(false);
+
+    if (!saved) {
+      setMessage("Could not save macro targets right now.");
+      return;
+    }
+
+    hapticSuccess();
+    setTargetDraft(toTargetDraft(saved));
+    setTargetDraftDirty(false);
+    setMessage("Macro targets saved.");
+    await refresh();
+  };
 
   const handleMealSubmit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
@@ -473,7 +689,7 @@ export function NutritionView(): JSX.Element {
       <header className="nutrition-header">
         <div>
           <p className="eyebrow">Nutrition</p>
-          <h2>Macros today</h2>
+          <h2>Meal plan</h2>
         </div>
         <button type="button" onClick={() => void refresh()}>
           Refresh
@@ -482,253 +698,198 @@ export function NutritionView(): JSX.Element {
 
       {message && <p className="nutrition-message">{message}</p>}
 
-      {loading ? (
-        <p>Loading nutrition...</p>
-      ) : (
-        <div className="nutrition-summary-grid">
-          <article className="summary-tile">
-            <p className="summary-label">Calories</p>
-            <p className="summary-value">{summary?.totals.calories ?? 0}</p>
-          </article>
-          <article className="summary-tile">
-            <p className="summary-label">Protein</p>
-            <p className="summary-value">{summary?.totals.proteinGrams ?? 0}g</p>
-          </article>
-          <article className="summary-tile">
-            <p className="summary-label">Carbs</p>
-            <p className="summary-value">{summary?.totals.carbsGrams ?? 0}g</p>
-          </article>
-          <article className="summary-tile">
-            <p className="summary-label">Fat</p>
-            <p className="summary-value">{summary?.totals.fatGrams ?? 0}g</p>
-          </article>
-        </div>
-      )}
-
       <article className="nutrition-card">
-        <div className="nutrition-custom-food-header">
-          <h3>Custom foods</h3>
-          {editingCustomFoodId && (
-            <button type="button" onClick={resetCustomFoodDraft}>
-              Cancel edit
+        <div>
+          <h3>Plan settings</h3>
+          <p className="nutrition-item-meta">
+            Set weight, maintenance, and surplus to derive your macro targets. Use overrides when you want manual targets.
+          </p>
+        </div>
+        <div className="nutrition-form">
+          <div className="nutrition-form-row nutrition-target-grid">
+            <label>
+              Weight (kg)
+              <input
+                type="number"
+                min={0}
+                step="0.1"
+                value={targetDraft.weightKg}
+                onChange={(event) => updateTargetDraftField("weightKg", event.target.value)}
+              />
+            </label>
+            <label>
+              Maintenance calories
+              <input
+                type="number"
+                min={0}
+                step="1"
+                value={targetDraft.maintenanceCalories}
+                onChange={(event) => updateTargetDraftField("maintenanceCalories", event.target.value)}
+              />
+            </label>
+            <label>
+              Surplus calories
+              <input
+                type="number"
+                min={-5000}
+                step="1"
+                value={targetDraft.surplusCalories}
+                onChange={(event) => updateTargetDraftField("surplusCalories", event.target.value)}
+              />
+            </label>
+          </div>
+
+          <div className="nutrition-summary-grid nutrition-target-preview-grid">
+            <article className="summary-tile">
+              <p className="summary-label">Target calories</p>
+              <p className="summary-value">{activeTargets ? `${formatMetric(activeTargets.targetCalories)} kcal` : "—"}</p>
+            </article>
+            <article className="summary-tile">
+              <p className="summary-label">Target protein</p>
+              <p className="summary-value">{activeTargets ? `${formatMetric(activeTargets.targetProteinGrams)}g` : "—"}</p>
+            </article>
+            <article className="summary-tile">
+              <p className="summary-label">Target carbs</p>
+              <p className="summary-value">{activeTargets ? `${formatMetric(activeTargets.targetCarbsGrams)}g` : "—"}</p>
+            </article>
+            <article className="summary-tile">
+              <p className="summary-label">Target fat</p>
+              <p className="summary-value">{activeTargets ? `${formatMetric(activeTargets.targetFatGrams)}g` : "—"}</p>
+            </article>
+          </div>
+
+          <div className="nutrition-form-row nutrition-target-grid">
+            <label>
+              Target calories (override)
+              <input
+                type="number"
+                min={0}
+                step="1"
+                value={targetDraft.targetCalories}
+                onChange={(event) => updateTargetDraftField("targetCalories", event.target.value)}
+              />
+            </label>
+            <label>
+              Target protein (g)
+              <input
+                type="number"
+                min={0}
+                step="0.1"
+                value={targetDraft.targetProteinGrams}
+                onChange={(event) => updateTargetDraftField("targetProteinGrams", event.target.value)}
+              />
+            </label>
+            <label>
+              Target carbs (g)
+              <input
+                type="number"
+                min={0}
+                step="0.1"
+                value={targetDraft.targetCarbsGrams}
+                onChange={(event) => updateTargetDraftField("targetCarbsGrams", event.target.value)}
+              />
+            </label>
+            <label>
+              Target fat (g)
+              <input
+                type="number"
+                min={0}
+                step="0.1"
+                value={targetDraft.targetFatGrams}
+                onChange={(event) => updateTargetDraftField("targetFatGrams", event.target.value)}
+              />
+            </label>
+          </div>
+
+          <div className="nutrition-inline-actions">
+            <button type="button" onClick={() => void handleSaveTargets()} disabled={savingTargets || loading}>
+              {savingTargets ? "Saving..." : "Save targets"}
             </button>
-          )}
-        </div>
-        <form className="nutrition-form" onSubmit={(event) => void handleCustomFoodSubmit(event)}>
-          <div className="nutrition-form-row">
-            <label>
-              Name
-              <input
-                type="text"
-                value={customFoodDraft.name}
-                onChange={(event) => setCustomFoodDraft({ ...customFoodDraft, name: event.target.value })}
-                maxLength={160}
-                required
-              />
-            </label>
-            <label>
-              Unit
-              <input
-                type="text"
-                value={customFoodDraft.unitLabel}
-                onChange={(event) => setCustomFoodDraft({ ...customFoodDraft, unitLabel: event.target.value })}
-                maxLength={40}
-                required
-              />
-            </label>
-          </div>
-          <div className="nutrition-form-row">
-            <label>
-              Calories / unit
-              <input
-                type="number"
-                min={0}
-                step="1"
-                value={customFoodDraft.caloriesPerUnit}
-                onChange={(event) => setCustomFoodDraft({ ...customFoodDraft, caloriesPerUnit: event.target.value })}
-                required
-              />
-            </label>
-            <label>
-              Protein / unit (g)
-              <input
-                type="number"
-                min={0}
-                step="0.1"
-                value={customFoodDraft.proteinGramsPerUnit}
-                onChange={(event) =>
-                  setCustomFoodDraft({ ...customFoodDraft, proteinGramsPerUnit: event.target.value })
-                }
-              />
-            </label>
-            <label>
-              Carbs / unit (g)
-              <input
-                type="number"
-                min={0}
-                step="0.1"
-                value={customFoodDraft.carbsGramsPerUnit}
-                onChange={(event) => setCustomFoodDraft({ ...customFoodDraft, carbsGramsPerUnit: event.target.value })}
-              />
-            </label>
-            <label>
-              Fat / unit (g)
-              <input
-                type="number"
-                min={0}
-                step="0.1"
-                value={customFoodDraft.fatGramsPerUnit}
-                onChange={(event) => setCustomFoodDraft({ ...customFoodDraft, fatGramsPerUnit: event.target.value })}
-              />
-            </label>
-          </div>
-          <button type="submit">{editingCustomFoodId ? "Update custom food" : "Save custom food"}</button>
-        </form>
-
-        {customFoods.length === 0 ? (
-          <p>No custom foods yet.</p>
-        ) : (
-          <div className="nutrition-list">
-            {customFoods.map((food) => (
-              <article key={food.id} className="nutrition-list-item">
-                <div>
-                  <p className="nutrition-item-title">{food.name}</p>
-                  <p className="nutrition-item-meta">
-                    {food.caloriesPerUnit} kcal/{food.unitLabel} • {food.proteinGramsPerUnit}P/{food.carbsGramsPerUnit}
-                    C/{food.fatGramsPerUnit}F
-                  </p>
-                </div>
-                <div className="nutrition-list-item-actions">
-                  <button type="button" onClick={() => handleUseCustomFood(food)}>
-                    Use
-                  </button>
-                  <button type="button" onClick={() => handleEditCustomFood(food)}>
-                    Edit
-                  </button>
-                  <button type="button" onClick={() => void handleDeleteCustomFood(food.id)}>
-                    Delete
-                  </button>
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
-      </article>
-
-      <article className="nutrition-card">
-        <h3>Log meal</h3>
-        <form className="nutrition-form" onSubmit={(event) => void handleMealSubmit(event)}>
-          <label>
-            Meal name
-            <input
-              type="text"
-              value={mealDraft.name}
-              onChange={(event) => setMealDraft({ ...mealDraft, name: event.target.value })}
-              maxLength={160}
-              required
-            />
-          </label>
-          <label>
-            Type
-            <select
-              value={mealDraft.mealType}
-              onChange={(event) =>
-                setMealDraft({ ...mealDraft, mealType: event.target.value as NutritionMealType })
-              }
+            <button
+              type="button"
+              className="nutrition-secondary-button"
+              onClick={handleResetTargets}
+              disabled={!targetDraftDirty || savingTargets}
             >
-              <option value="breakfast">Breakfast</option>
-              <option value="lunch">Lunch</option>
-              <option value="dinner">Dinner</option>
-              <option value="snack">Snack</option>
-              <option value="other">Other</option>
-            </select>
-          </label>
-          <div className="nutrition-form-row">
-            <label>
-              Calories
-              <input
-                type="number"
-                min={0}
-                step="1"
-                value={mealDraft.calories}
-                onChange={(event) => setMealDraft({ ...mealDraft, calories: event.target.value })}
-                required
-              />
-            </label>
-            <label>
-              Protein (g)
-              <input
-                type="number"
-                min={0}
-                step="0.1"
-                value={mealDraft.proteinGrams}
-                onChange={(event) => setMealDraft({ ...mealDraft, proteinGrams: event.target.value })}
-              />
-            </label>
-            <label>
-              Carbs (g)
-              <input
-                type="number"
-                min={0}
-                step="0.1"
-                value={mealDraft.carbsGrams}
-                onChange={(event) => setMealDraft({ ...mealDraft, carbsGrams: event.target.value })}
-              />
-            </label>
-            <label>
-              Fat (g)
-              <input
-                type="number"
-                min={0}
-                step="0.1"
-                value={mealDraft.fatGrams}
-                onChange={(event) => setMealDraft({ ...mealDraft, fatGrams: event.target.value })}
-              />
-            </label>
+              Reset
+            </button>
           </div>
-          <label>
-            Notes
-            <input
-              type="text"
-              value={mealDraft.notes}
-              onChange={(event) => setMealDraft({ ...mealDraft, notes: event.target.value })}
-              maxLength={300}
-            />
-          </label>
-          <button type="submit">Log meal</button>
-        </form>
+        </div>
       </article>
 
       <article className="nutrition-card">
-        <h3>Today&apos;s meals</h3>
-        {meals.length === 0 ? (
-          <p>No meals logged yet.</p>
+        <h3>Daily totals</h3>
+        {loading ? (
+          <p>Loading nutrition...</p>
         ) : (
           <div className="nutrition-list">
-            {meals.map((meal) => (
-              <article key={meal.id} className="nutrition-list-item">
-                <div>
-                  <p className="nutrition-item-title">
-                    {meal.name} <span className="nutrition-item-type">{meal.mealType}</span>
-                  </p>
-                  <p className="nutrition-item-meta">
-                    {meal.calories} kcal • {meal.proteinGrams}P/{meal.carbsGrams}C/{meal.fatGrams}F •{" "}
-                    {formatDateTime(meal.consumedAt)}
-                  </p>
-                </div>
-                <div className="nutrition-list-item-actions nutrition-quick-controls">
-                  <button type="button" onClick={() => void handleAdjustMealPortion(meal.id, "down")} aria-label="Decrease portion">
-                    -
-                  </button>
-                  <button type="button" onClick={() => void handleAdjustMealPortion(meal.id, "up")} aria-label="Increase portion">
-                    +
-                  </button>
-                  <button type="button" onClick={() => void handleDeleteMeal(meal.id)}>
-                    Delete
-                  </button>
-                </div>
-              </article>
-            ))}
+            <article className="nutrition-list-item">
+              <div>
+                <p className="nutrition-item-title">Calories</p>
+                <p className="nutrition-item-meta">
+                  {summary?.totals.calories ?? 0} kcal
+                  {activeTargets ? ` • Target ${formatMetric(activeTargets.targetCalories)} kcal` : ""}
+                </p>
+              </div>
+              <p
+                className={`nutrition-delta ${
+                  targetDeltas ? deltaToneClass(targetDeltas.calories) : "nutrition-delta-neutral"
+                }`}
+              >
+                {targetDeltas ? describeDelta(targetDeltas.calories, " kcal") : "Set targets to track delta"}
+              </p>
+            </article>
+
+            <article className="nutrition-list-item">
+              <div>
+                <p className="nutrition-item-title">Protein</p>
+                <p className="nutrition-item-meta">
+                  {summary ? formatMetric(summary.totals.proteinGrams) : 0} g
+                  {activeTargets ? ` • Target ${formatMetric(activeTargets.targetProteinGrams)} g` : ""}
+                </p>
+              </div>
+              <p
+                className={`nutrition-delta ${
+                  targetDeltas ? deltaToneClass(targetDeltas.proteinGrams) : "nutrition-delta-neutral"
+                }`}
+              >
+                {targetDeltas ? describeDelta(targetDeltas.proteinGrams, "g") : "Set targets to track delta"}
+              </p>
+            </article>
+
+            <article className="nutrition-list-item">
+              <div>
+                <p className="nutrition-item-title">Carbs</p>
+                <p className="nutrition-item-meta">
+                  {summary ? formatMetric(summary.totals.carbsGrams) : 0} g
+                  {activeTargets ? ` • Target ${formatMetric(activeTargets.targetCarbsGrams)} g` : ""}
+                </p>
+              </div>
+              <p
+                className={`nutrition-delta ${
+                  targetDeltas ? deltaToneClass(targetDeltas.carbsGrams) : "nutrition-delta-neutral"
+                }`}
+              >
+                {targetDeltas ? describeDelta(targetDeltas.carbsGrams, "g") : "Set targets to track delta"}
+              </p>
+            </article>
+
+            <article className="nutrition-list-item">
+              <div>
+                <p className="nutrition-item-title">Fat</p>
+                <p className="nutrition-item-meta">
+                  {summary ? formatMetric(summary.totals.fatGrams) : 0} g
+                  {activeTargets ? ` • Target ${formatMetric(activeTargets.targetFatGrams)} g` : ""}
+                </p>
+              </div>
+              <p
+                className={`nutrition-delta ${
+                  targetDeltas ? deltaToneClass(targetDeltas.fatGrams) : "nutrition-delta-neutral"
+                }`}
+              >
+                {targetDeltas ? describeDelta(targetDeltas.fatGrams, "g") : "Set targets to track delta"}
+              </p>
+            </article>
           </div>
         )}
       </article>
@@ -845,6 +1006,234 @@ export function NutritionView(): JSX.Element {
                     Down
                   </button>
                   <button type="button" onClick={() => void handleDeletePlanBlock(block.id)}>
+                    Delete
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </article>
+
+      <article className="nutrition-card">
+        <h3>Today&apos;s meals</h3>
+        {meals.length === 0 ? (
+          <p>No meals logged yet.</p>
+        ) : (
+          <div className="nutrition-list">
+            {meals.map((meal) => (
+              <article key={meal.id} className="nutrition-list-item">
+                <div>
+                  <p className="nutrition-item-title">
+                    {meal.name} <span className="nutrition-item-type">{meal.mealType}</span>
+                  </p>
+                  <p className="nutrition-item-meta">
+                    {meal.calories} kcal • {meal.proteinGrams}P/{meal.carbsGrams}C/{meal.fatGrams}F •{" "}
+                    {formatDateTime(meal.consumedAt)}
+                  </p>
+                </div>
+                <div className="nutrition-list-item-actions nutrition-quick-controls">
+                  <button type="button" onClick={() => void handleAdjustMealPortion(meal.id, "down")} aria-label="Decrease portion">
+                    -
+                  </button>
+                  <button type="button" onClick={() => void handleAdjustMealPortion(meal.id, "up")} aria-label="Increase portion">
+                    +
+                  </button>
+                  <button type="button" onClick={() => void handleDeleteMeal(meal.id)}>
+                    Delete
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </article>
+
+      <article className="nutrition-card">
+        <h3>Log meal</h3>
+        <form className="nutrition-form" onSubmit={(event) => void handleMealSubmit(event)}>
+          <label>
+            Meal name
+            <input
+              type="text"
+              value={mealDraft.name}
+              onChange={(event) => setMealDraft({ ...mealDraft, name: event.target.value })}
+              maxLength={160}
+              required
+            />
+          </label>
+          <label>
+            Type
+            <select
+              value={mealDraft.mealType}
+              onChange={(event) =>
+                setMealDraft({ ...mealDraft, mealType: event.target.value as NutritionMealType })
+              }
+            >
+              <option value="breakfast">Breakfast</option>
+              <option value="lunch">Lunch</option>
+              <option value="dinner">Dinner</option>
+              <option value="snack">Snack</option>
+              <option value="other">Other</option>
+            </select>
+          </label>
+          <div className="nutrition-form-row">
+            <label>
+              Calories
+              <input
+                type="number"
+                min={0}
+                step="1"
+                value={mealDraft.calories}
+                onChange={(event) => setMealDraft({ ...mealDraft, calories: event.target.value })}
+                required
+              />
+            </label>
+            <label>
+              Protein (g)
+              <input
+                type="number"
+                min={0}
+                step="0.1"
+                value={mealDraft.proteinGrams}
+                onChange={(event) => setMealDraft({ ...mealDraft, proteinGrams: event.target.value })}
+              />
+            </label>
+            <label>
+              Carbs (g)
+              <input
+                type="number"
+                min={0}
+                step="0.1"
+                value={mealDraft.carbsGrams}
+                onChange={(event) => setMealDraft({ ...mealDraft, carbsGrams: event.target.value })}
+              />
+            </label>
+            <label>
+              Fat (g)
+              <input
+                type="number"
+                min={0}
+                step="0.1"
+                value={mealDraft.fatGrams}
+                onChange={(event) => setMealDraft({ ...mealDraft, fatGrams: event.target.value })}
+              />
+            </label>
+          </div>
+          <label>
+            Notes
+            <input
+              type="text"
+              value={mealDraft.notes}
+              onChange={(event) => setMealDraft({ ...mealDraft, notes: event.target.value })}
+              maxLength={300}
+            />
+          </label>
+          <button type="submit">Log meal</button>
+        </form>
+      </article>
+
+      <article className="nutrition-card">
+        <div className="nutrition-custom-food-header">
+          <h3>Custom foods</h3>
+          {editingCustomFoodId && (
+            <button type="button" onClick={resetCustomFoodDraft}>
+              Cancel edit
+            </button>
+          )}
+        </div>
+        <form className="nutrition-form" onSubmit={(event) => void handleCustomFoodSubmit(event)}>
+          <div className="nutrition-form-row">
+            <label>
+              Name
+              <input
+                type="text"
+                value={customFoodDraft.name}
+                onChange={(event) => setCustomFoodDraft({ ...customFoodDraft, name: event.target.value })}
+                maxLength={160}
+                required
+              />
+            </label>
+            <label>
+              Unit
+              <input
+                type="text"
+                value={customFoodDraft.unitLabel}
+                onChange={(event) => setCustomFoodDraft({ ...customFoodDraft, unitLabel: event.target.value })}
+                maxLength={40}
+                required
+              />
+            </label>
+          </div>
+          <div className="nutrition-form-row">
+            <label>
+              Calories / unit
+              <input
+                type="number"
+                min={0}
+                step="1"
+                value={customFoodDraft.caloriesPerUnit}
+                onChange={(event) => setCustomFoodDraft({ ...customFoodDraft, caloriesPerUnit: event.target.value })}
+                required
+              />
+            </label>
+            <label>
+              Protein / unit (g)
+              <input
+                type="number"
+                min={0}
+                step="0.1"
+                value={customFoodDraft.proteinGramsPerUnit}
+                onChange={(event) =>
+                  setCustomFoodDraft({ ...customFoodDraft, proteinGramsPerUnit: event.target.value })
+                }
+              />
+            </label>
+            <label>
+              Carbs / unit (g)
+              <input
+                type="number"
+                min={0}
+                step="0.1"
+                value={customFoodDraft.carbsGramsPerUnit}
+                onChange={(event) => setCustomFoodDraft({ ...customFoodDraft, carbsGramsPerUnit: event.target.value })}
+              />
+            </label>
+            <label>
+              Fat / unit (g)
+              <input
+                type="number"
+                min={0}
+                step="0.1"
+                value={customFoodDraft.fatGramsPerUnit}
+                onChange={(event) => setCustomFoodDraft({ ...customFoodDraft, fatGramsPerUnit: event.target.value })}
+              />
+            </label>
+          </div>
+          <button type="submit">{editingCustomFoodId ? "Update custom food" : "Save custom food"}</button>
+        </form>
+
+        {customFoods.length === 0 ? (
+          <p>No custom foods yet.</p>
+        ) : (
+          <div className="nutrition-list">
+            {customFoods.map((food) => (
+              <article key={food.id} className="nutrition-list-item">
+                <div>
+                  <p className="nutrition-item-title">{food.name}</p>
+                  <p className="nutrition-item-meta">
+                    {food.caloriesPerUnit} kcal/{food.unitLabel} • {food.proteinGramsPerUnit}P/{food.carbsGramsPerUnit}
+                    C/{food.fatGramsPerUnit}F
+                  </p>
+                </div>
+                <div className="nutrition-list-item-actions">
+                  <button type="button" onClick={() => handleUseCustomFood(food)}>
+                    Use
+                  </button>
+                  <button type="button" onClick={() => handleEditCustomFood(food)}>
+                    Edit
+                  </button>
+                  <button type="button" onClick={() => void handleDeleteCustomFood(food.id)}>
                     Delete
                   </button>
                 </div>
