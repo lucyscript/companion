@@ -118,6 +118,10 @@ const xSyncService = new XSyncService(store);
 const gmailOAuthService = new GmailOAuthService(store);
 const gmailSyncService = new GmailSyncService(store, gmailOAuthService);
 const syncFailureRecovery = new SyncFailureRecoveryTracker();
+const GITHUB_ON_DEMAND_SYNC_MIN_INTERVAL_MS = 10 * 60 * 1000;
+const GITHUB_ON_DEMAND_SYNC_STALE_MS = 6 * 60 * 60 * 1000;
+let githubOnDemandSyncInFlight: Promise<void> | null = null;
+let lastGithubOnDemandSyncAt = 0;
 
 runtime.start();
 syncService.start();
@@ -128,6 +132,43 @@ githubCourseSyncService.start();
 youtubeSyncService.start();
 xSyncService.start();
 gmailSyncService.start();
+
+async function maybeAutoSyncGitHubDeadlines(): Promise<void> {
+  if (!githubCourseSyncService.isConfigured()) {
+    return;
+  }
+
+  const githubData = store.getGitHubCourseData();
+  const now = Date.now();
+  const lastSyncedAtMs = githubData?.lastSyncedAt ? Date.parse(githubData.lastSyncedAt) : Number.NaN;
+  const isStale = !Number.isFinite(lastSyncedAtMs) || now - lastSyncedAtMs >= GITHUB_ON_DEMAND_SYNC_STALE_MS;
+
+  if (!isStale) {
+    return;
+  }
+
+  if (githubOnDemandSyncInFlight) {
+    await githubOnDemandSyncInFlight;
+    return;
+  }
+
+  if (now - lastGithubOnDemandSyncAt < GITHUB_ON_DEMAND_SYNC_MIN_INTERVAL_MS) {
+    return;
+  }
+
+  lastGithubOnDemandSyncAt = now;
+  githubOnDemandSyncInFlight = (async () => {
+    try {
+      await githubCourseSyncService.sync();
+    } catch {
+      // Keep deadline responses resilient even if upstream sync fails.
+    } finally {
+      githubOnDemandSyncInFlight = null;
+    }
+  })();
+
+  await githubOnDemandSyncInFlight;
+}
 
 function publishSyncRecoveryPrompt(prompt: SyncRecoveryPrompt | null): void {
   if (!prompt) {
@@ -1157,7 +1198,8 @@ app.post("/api/deadlines", (req, res) => {
   return res.status(201).json({ deadline });
 });
 
-app.get("/api/deadlines", (_req, res) => {
+app.get("/api/deadlines", async (_req, res) => {
+  await maybeAutoSyncGitHubDeadlines();
   return res.json({ deadlines: store.getAcademicDeadlines() });
 });
 

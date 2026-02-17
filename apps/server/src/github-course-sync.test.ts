@@ -167,6 +167,33 @@ describe("GitHubCourseSyncService", () => {
         dueDate: `${year}-02-12`
       });
     });
+
+    it("should parse DAT560 schedule rows with Date + Topic when topic contains assignment deadlines", () => {
+      const markdown = `
+# Schedule
+
+| Week | Date       | Topic                    | Comments |
+|------|------------|--------------------------|----------|
+| 5    | 28.01.2026 | **Assignment 1 deadline** |          |
+| 8    | 18.02.2026 | **Assignment 2 deadline** |          |
+| 9    | 25.02.2026 | Language Models          |          |
+`;
+
+      const service = new GitHubCourseSyncService(store);
+      const deadlines = service.parseDeadlines(markdown, "DAT560");
+
+      expect(deadlines).toHaveLength(2);
+      expect(deadlines[0]).toMatchObject({
+        course: "DAT560",
+        task: "Assignment 1 deadline",
+        dueDate: "2026-01-28"
+      });
+      expect(deadlines[1]).toMatchObject({
+        course: "DAT560",
+        task: "Assignment 2 deadline",
+        dueDate: "2026-02-18"
+      });
+    });
   });
 
   describe("sync", () => {

@@ -159,8 +159,10 @@ export class GitHubCourseSyncService {
         const hasTaskHeader = cells.some((cell) =>
           /assignment|exam|task|deliverable|activity|topic|lab/i.test(cell)
         );
+        const hasDateHeader = cells.some((cell) => /\bdate\b/i.test(cell));
+        const hasScheduleTopicHeader = cells.some((cell) => /topic|activity|event/i.test(cell));
 
-        if (hasDeadlineHeader && hasTaskHeader) {
+        if ((hasDeadlineHeader && hasTaskHeader) || (!hasDeadlineHeader && hasDateHeader && hasScheduleTopicHeader)) {
           inTable = true;
           tableLooksLikeDeliverables = cells.some((cell) =>
             /assignment|exam|deliverable|activity|lab/i.test(cell)
@@ -170,8 +172,10 @@ export class GitHubCourseSyncService {
           cells.forEach((cell, idx) => {
             if (/deadline|due.*date|date/i.test(cell)) {
               headerIndices.deadline = idx;
+            } else if (headerIndices.deadline === undefined && /\bdate\b/i.test(cell)) {
+              headerIndices.deadline = idx;
             }
-            if (/assignment|exam|task|deliverable|activity/i.test(cell)) {
+            if (/assignment|exam|task|deliverable|activity|event/i.test(cell)) {
               headerIndices.task = idx;
             }
             if (/lab/i.test(cell)) {
@@ -230,6 +234,12 @@ export class GitHubCourseSyncService {
       return cleaned;
     }
 
+    // European day-first formats (e.g., 28.01.2026, 22.02.2026 23.59)
+    const dayMonthYear = this.parseDayMonthYear(cleaned);
+    if (dayMonthYear) {
+      return dayMonthYear;
+    }
+
     // Month + day without explicit year (e.g., "January 15", "Feb 12").
     const monthDay = this.parseMonthDayWithoutYear(cleaned);
     if (monthDay) {
@@ -247,6 +257,24 @@ export class GitHubCourseSyncService {
     }
 
     return null;
+  }
+
+  private parseDayMonthYear(raw: string): string | null {
+    const normalized = raw.replace(/\s+/g, " ").trim();
+    const match = normalized.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})(?:\s+\d{1,2}[:.]\d{1,2})?$/);
+    if (!match) {
+      return null;
+    }
+
+    const day = Number(match[1]);
+    const month = Number(match[2]);
+    const year = Number(match[3]);
+
+    if (day < 1 || day > 31 || month < 1 || month > 12) {
+      return null;
+    }
+
+    return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
   }
 
   private parseMonthDayWithoutYear(raw: string): string | null {
@@ -343,6 +371,10 @@ export class GitHubCourseSyncService {
 
     if (normalizedLab.length > 0) {
       return `Assignment Lab ${normalizedLab}`;
+    }
+
+    if (normalizedTopic.length > 0 && this.isAssignmentOrExamTask(normalizedTopic)) {
+      return normalizedTopic;
     }
 
     if (normalizedTopic.length > 0 && tableLooksLikeDeliverables) {
