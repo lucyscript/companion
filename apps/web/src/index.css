@@ -112,15 +112,15 @@ body.chat-tab-active {
   display: flex;
   align-items: stretch;
   justify-content: center;
-  padding-bottom: calc(var(--tab-bar-safe-space) - 6px);
+  padding-bottom: 0;
 }
 
 .app-shell-chat-active .chat-tab {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  width: min(100%, 760px);
-  margin: 0 auto;
+  width: 100%;
+  margin: 0;
 }
 
 .hero {
@@ -2237,6 +2237,7 @@ button:disabled {
   min-height: 0;
   height: auto;
   max-height: none;
+  border-radius: 0;
 }
 
 .chat-toolbar {
@@ -2306,7 +2307,7 @@ button:disabled {
 .chat-messages {
   flex: 1;
   overflow-y: auto;
-  padding: 20px;
+  padding: 12px 10px 8px;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -2570,7 +2571,7 @@ button:disabled {
 .chat-input-container {
   display: grid;
   gap: 8px;
-  padding: 12px 20px max(12px, calc(12px + env(safe-area-inset-bottom)));
+  padding: 8px 10px max(6px, calc(6px + env(safe-area-inset-bottom)));
   background: var(--card);
   border-top: 1px solid var(--border-soft);
 }
@@ -2749,7 +2750,7 @@ button:disabled {
 
 @media (max-width: 430px) {
   .chat-input-container {
-    padding: 10px 12px max(10px, calc(10px + env(safe-area-inset-bottom)));
+    padding: 6px 8px max(4px, calc(4px + env(safe-area-inset-bottom)));
   }
 
   .chat-input-row {
@@ -3175,12 +3176,12 @@ body.keyboard-open .chat-talk-mode-btn {
 }
 
 body.keyboard-open .chat-input-container {
-  padding: 6px 6px max(6px, calc(6px + env(safe-area-inset-bottom)));
+  padding: 4px 0 max(2px, env(safe-area-inset-bottom));
   background: rgba(7, 14, 20, 0.96);
 }
 
 body.keyboard-open .chat-messages {
-  padding: max(34px, calc(34px + env(safe-area-inset-top))) 0 6px;
+  padding: max(34px, calc(34px + env(safe-area-inset-top))) 0 4px;
   background: #091019;
 }
 
@@ -4098,14 +4099,14 @@ body.keyboard-open .pull-to-refresh-container {
 @media (max-width: 640px) {
   .app-shell-chat-active {
     padding:
-      max(8px, calc(8px + env(safe-area-inset-top)))
-      max(10px, calc(10px + env(safe-area-inset-right)))
-      max(8px, calc(8px + env(safe-area-inset-bottom)))
-      max(10px, calc(10px + env(safe-area-inset-left)));
+      max(4px, calc(4px + env(safe-area-inset-top)))
+      0
+      0
+      0;
   }
 
   .app-shell-chat-active .tab-content-area {
-    padding-bottom: calc(var(--tab-bar-safe-space) - 10px);
+    padding-bottom: 0;
   }
 
   .app-shell-chat-active .chat-context-cards,
@@ -4119,7 +4120,7 @@ body.keyboard-open .pull-to-refresh-container {
   }
 
   .chat-view {
-    border-radius: 14px;
+    border-radius: 0;
   }
 
   .study-plan-controls {
