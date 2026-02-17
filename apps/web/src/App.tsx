@@ -291,12 +291,10 @@ export default function App(): JSX.Element {
               <SocialMediaView />
             )}
             {activeTab === "habits" && (
-              <div className="habits-tab-container">
+              <div className="habits-tab-container habits-analytics-stack">
                 <HabitsGoalsView />
+                <AnalyticsDashboard />
               </div>
-            )}
-            {activeTab === "analytics" && (
-              <AnalyticsDashboard />
             )}
             {activeTab === "settings" && (
               <SettingsView

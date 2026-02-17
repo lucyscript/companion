@@ -7,7 +7,7 @@ export interface DeepLinkState {
   section: string | null;
 }
 
-const tabIds: TabId[] = ["chat", "schedule", "social", "habits", "analytics", "settings"];
+const tabIds: TabId[] = ["chat", "schedule", "social", "habits", "settings"];
 
 function isTabId(value: string | null): value is TabId {
   return value !== null && tabIds.includes(value as TabId);
@@ -20,7 +20,7 @@ export function parseDeepLink(search: string): DeepLinkState {
   const rawDeadlineId = params.get("deadlineId");
   const rawLectureId = params.get("lectureId");
   const rawSection = params.get("section");
-  const normalizedTab = rawTab === "journal" ? "habits" : rawTab;
+  const normalizedTab = rawTab === "journal" || rawTab === "analytics" ? "habits" : rawTab;
 
   return {
     tab: isTabId(normalizedTab) ? normalizedTab : null,

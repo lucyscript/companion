@@ -3012,6 +3012,16 @@ body.keyboard-open .pull-to-refresh-container {
   gap: 16px;
 }
 
+.habits-analytics-stack {
+  gap: 20px;
+}
+
+.habits-analytics-stack .analytics-container {
+  padding: 0;
+  max-width: none;
+  margin: 0;
+}
+
 .schedule-tab-container h2 {
   margin: 0 0 16px;
   font-size: 1.5rem;
