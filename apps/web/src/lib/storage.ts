@@ -10,6 +10,7 @@ import {
   LectureEvent,
   NotificationPreferences,
   OnboardingProfile,
+  IntegrationScopeSettings,
   ThemePreference,
   UserContext
 } from "../types";
@@ -42,7 +43,8 @@ const STORAGE_KEYS = {
   theme: "companion:theme",
   talkModeEnabled: "companion:talk-mode-enabled",
   canvasSettings: "companion:canvas-settings",
-  canvasStatus: "companion:canvas-status"
+  canvasStatus: "companion:canvas-status",
+  integrationScopeSettings: "companion:integration-scope-settings"
 } as const;
 
 export interface JournalQueueItem {
@@ -77,6 +79,14 @@ const defaultCanvasStatus: CanvasStatus = {
   baseUrl: defaultCanvasSettings.baseUrl,
   lastSyncedAt: null,
   courses: []
+};
+
+const defaultIntegrationScopeSettings: IntegrationScopeSettings = {
+  semester: "26v",
+  tpCourseIds: ["DAT520,1", "DAT560,1", "DAT600,1"],
+  canvasCourseIds: [],
+  pastDays: 30,
+  futureDays: 180
 };
 
 
@@ -164,6 +174,50 @@ export function loadCanvasStatus(): CanvasStatus {
 
 export function saveCanvasStatus(status: CanvasStatus): void {
   localStorage.setItem(STORAGE_KEYS.canvasStatus, JSON.stringify(status));
+}
+
+export function loadIntegrationScopeSettings(): IntegrationScopeSettings {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.integrationScopeSettings);
+    if (!raw) {
+      return defaultIntegrationScopeSettings;
+    }
+
+    const parsed = JSON.parse(raw) as Partial<IntegrationScopeSettings>;
+    const tpCourseIds = Array.isArray(parsed.tpCourseIds)
+      ? parsed.tpCourseIds.map((value) => value.trim()).filter(Boolean)
+      : defaultIntegrationScopeSettings.tpCourseIds;
+    const canvasCourseIds = Array.isArray(parsed.canvasCourseIds)
+      ? parsed.canvasCourseIds.filter((value): value is number => Number.isInteger(value) && value > 0)
+      : [];
+
+    return {
+      semester: typeof parsed.semester === "string" && parsed.semester.trim() ? parsed.semester.trim() : "26v",
+      tpCourseIds,
+      canvasCourseIds,
+      pastDays:
+        typeof parsed.pastDays === "number" && Number.isFinite(parsed.pastDays)
+          ? Math.max(0, Math.min(365, Math.round(parsed.pastDays)))
+          : defaultIntegrationScopeSettings.pastDays,
+      futureDays:
+        typeof parsed.futureDays === "number" && Number.isFinite(parsed.futureDays)
+          ? Math.max(1, Math.min(730, Math.round(parsed.futureDays)))
+          : defaultIntegrationScopeSettings.futureDays
+    };
+  } catch {
+    return defaultIntegrationScopeSettings;
+  }
+}
+
+export function saveIntegrationScopeSettings(settings: IntegrationScopeSettings): void {
+  const normalized: IntegrationScopeSettings = {
+    semester: settings.semester.trim() || "26v",
+    tpCourseIds: settings.tpCourseIds.map((value) => value.trim()).filter(Boolean),
+    canvasCourseIds: settings.canvasCourseIds.filter((value) => Number.isInteger(value) && value > 0),
+    pastDays: Math.max(0, Math.min(365, Math.round(settings.pastDays))),
+    futureDays: Math.max(1, Math.min(730, Math.round(settings.futureDays)))
+  };
+  localStorage.setItem(STORAGE_KEYS.integrationScopeSettings, JSON.stringify(normalized));
 }
 
 function defaultDashboard(): DashboardSnapshot {

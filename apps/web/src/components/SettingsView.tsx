@@ -6,6 +6,7 @@ import { CalendarImportView } from "./CalendarImportView";
 import { WeeklyReviewView } from "./WeeklyReviewView";
 import { NotificationHistoryView } from "./NotificationHistoryView";
 import { IntegrationStatusView } from "./IntegrationStatusView";
+import { IntegrationScopeSettings } from "./IntegrationScopeSettings";
 import { ThemePreference } from "../types";
 
 interface SettingsViewProps {
@@ -25,6 +26,7 @@ export function SettingsView({
     <div className="settings-container">
       <h2>Settings</h2>
       <IntegrationStatusView />
+      <IntegrationScopeSettings />
       <ContextControls onUpdated={onUpdated} />
       <NotificationSettings />
       <AppearanceSettings preference={themePreference} onChange={onThemeChange} />

@@ -171,6 +171,49 @@ Response:
 }
 ```
 
+### POST `/api/integrations/scope/preview`
+
+Preview matched records for integration scope before syncing.
+
+Request (all fields optional):
+
+```json
+{
+  "semester": "26v",
+  "tpCourseIds": ["DAT520,1", "DAT560,1"],
+  "canvasCourseIds": [17649],
+  "pastDays": 30,
+  "futureDays": 180
+}
+```
+
+Response:
+
+```json
+{
+  "preview": {
+    "window": {
+      "pastDays": 30,
+      "futureDays": 180,
+      "start": "2026-01-18T11:00:00.000Z",
+      "end": "2026-08-16T11:00:00.000Z"
+    },
+    "canvas": {
+      "coursesMatched": 1,
+      "coursesTotal": 3,
+      "assignmentsMatched": 4,
+      "assignmentsTotal": 11
+    },
+    "tp": {
+      "semester": "26v",
+      "courseIdsApplied": ["DAT520,1", "DAT560,1"],
+      "eventsMatched": 26,
+      "eventsTotal": 39
+    }
+  }
+}
+```
+
 ### POST `/api/canvas/sync`
 
 Trigger manual Canvas sync with optional scope overrides.

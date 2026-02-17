@@ -6,7 +6,11 @@ import { buildCalendarImportPreview, parseICS } from "./calendar-import.js";
 import { config } from "./config.js";
 import { generateDeadlineSuggestions } from "./deadline-suggestions.js";
 import { executePendingChatAction } from "./gemini-tools.js";
-import { filterTPEventsByDateWindow } from "./integration-date-window.js";
+import {
+  createIntegrationDateWindow,
+  filterCanvasAssignmentsByDateWindow,
+  filterTPEventsByDateWindow
+} from "./integration-date-window.js";
 import { OrchestratorRuntime } from "./orchestrator.js";
 import { EmailDigestService } from "./email-digest.js";
 import { getVapidPublicKey, hasStaticVapidKeys, sendPushNotification } from "./push.js";
@@ -413,6 +417,16 @@ const tpSyncSchema = z.object({
   pastDays: z.coerce.number().int().min(0).max(365).optional(),
   futureDays: z.coerce.number().int().min(1).max(730).optional()
 });
+
+const integrationScopePreviewSchema = z.object({
+  semester: z.string().trim().min(1).max(16).optional(),
+  tpCourseIds: z.array(z.string().trim().min(1).max(32)).max(100).optional(),
+  canvasCourseIds: z.array(z.coerce.number().int().positive()).max(100).optional(),
+  pastDays: z.coerce.number().int().min(0).max(365).optional(),
+  futureDays: z.coerce.number().int().min(1).max(730).optional()
+});
+
+const DEFAULT_TP_SCOPE_COURSE_IDS = ["DAT520,1", "DAT560,1", "DAT600,1"] as const;
 
 const notificationPreferencesSchema = z.object({
   quietHours: z
@@ -1297,6 +1311,81 @@ app.delete("/api/sync/cleanup", (_req, res) => {
   return res.json({ deleted });
 });
 
+app.post("/api/integrations/scope/preview", (req, res) => {
+  const parsed = integrationScopePreviewSchema.safeParse(req.body ?? {});
+
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid integration scope preview payload", issues: parsed.error.issues });
+  }
+
+  const window = createIntegrationDateWindow({
+    pastDays: parsed.data.pastDays,
+    futureDays: parsed.data.futureDays
+  });
+
+  const canvasData = store.getCanvasData();
+  const canvasCourses = canvasData?.courses ?? [];
+  const canvasAssignments = canvasData?.assignments ?? [];
+  const selectedCanvasCourseIds =
+    parsed.data.canvasCourseIds && parsed.data.canvasCourseIds.length > 0
+      ? new Set(parsed.data.canvasCourseIds)
+      : null;
+
+  const scopedCanvasCourses =
+    selectedCanvasCourseIds === null
+      ? canvasCourses
+      : canvasCourses.filter((course) => selectedCanvasCourseIds.has(course.id));
+  const scopedCanvasAssignments = filterCanvasAssignmentsByDateWindow(canvasAssignments, {
+    pastDays: parsed.data.pastDays,
+    futureDays: parsed.data.futureDays
+  }).filter((assignment) => selectedCanvasCourseIds === null || selectedCanvasCourseIds.has(assignment.course_id));
+
+  const selectedTPCourseIds =
+    parsed.data.tpCourseIds && parsed.data.tpCourseIds.length > 0
+      ? parsed.data.tpCourseIds
+      : [...DEFAULT_TP_SCOPE_COURSE_IDS];
+  const selectedTPCourseCodes = selectedTPCourseIds
+    .map((value) => value.split(",")[0]?.trim().toUpperCase())
+    .filter((value): value is string => Boolean(value));
+
+  const scheduleEventsInWindow = store.getScheduleEvents().filter((event) => {
+    const start = new Date(event.startTime);
+    if (Number.isNaN(start.getTime())) {
+      return false;
+    }
+    return start >= window.start && start <= window.end;
+  });
+
+  const tpCandidateEvents = scheduleEventsInWindow.filter((event) => /DAT\d{3}/i.test(event.title));
+  const matchedTPEvents = tpCandidateEvents.filter((event) => {
+    const titleUpper = event.title.toUpperCase();
+    return selectedTPCourseCodes.some((courseCode) => titleUpper.includes(courseCode));
+  });
+
+  return res.json({
+    preview: {
+      window: {
+        pastDays: window.pastDays,
+        futureDays: window.futureDays,
+        start: window.start.toISOString(),
+        end: window.end.toISOString()
+      },
+      canvas: {
+        coursesMatched: scopedCanvasCourses.length,
+        coursesTotal: canvasCourses.length,
+        assignmentsMatched: scopedCanvasAssignments.length,
+        assignmentsTotal: canvasAssignments.length
+      },
+      tp: {
+        semester: parsed.data.semester ?? "26v",
+        courseIdsApplied: selectedTPCourseIds,
+        eventsMatched: matchedTPEvents.length,
+        eventsTotal: tpCandidateEvents.length
+      }
+    }
+  });
+});
+
 app.post("/api/sync/tp", async (req, res) => {
   const parsed = tpSyncSchema.safeParse(req.body ?? {});
 
@@ -1305,9 +1394,14 @@ app.post("/api/sync/tp", async (req, res) => {
   }
 
   try {
+    const appliedTpCourseIds =
+      parsed.data.courseIds && parsed.data.courseIds.length > 0
+        ? parsed.data.courseIds
+        : [...DEFAULT_TP_SCOPE_COURSE_IDS];
+
     const tpEvents = await fetchTPSchedule({
       semester: parsed.data.semester,
-      courseIds: parsed.data.courseIds,
+      courseIds: appliedTpCourseIds,
       pastDays: parsed.data.pastDays,
       futureDays: parsed.data.futureDays
     });
@@ -1323,7 +1417,7 @@ app.post("/api/sync/tp", async (req, res) => {
       lecturesDeleted: result.deleted,
       appliedScope: {
         semester: parsed.data.semester ?? "26v",
-        courseIds: parsed.data.courseIds ?? ["DAT520,1", "DAT560,1", "DAT600,1"],
+        courseIds: appliedTpCourseIds,
         pastDays: parsed.data.pastDays ?? config.INTEGRATION_WINDOW_PAST_DAYS,
         futureDays: parsed.data.futureDays ?? config.INTEGRATION_WINDOW_FUTURE_DAYS
       }
