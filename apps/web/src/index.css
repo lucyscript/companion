@@ -105,12 +105,18 @@ body.chat-tab-active {
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding-bottom: calc(var(--tab-bar-safe-space) - 6px);
 }
 
 .app-shell-chat-active .chat-tab {
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  width: min(100%, 760px);
+  margin: 0 auto;
 }
 
 .hero {
@@ -2171,6 +2177,7 @@ button:disabled {
   flex-direction: column;
   height: calc(var(--app-viewport-height) - var(--tab-bar-safe-space));
   max-height: calc(var(--app-viewport-height) - var(--tab-bar-safe-space));
+  width: 100%;
   background: var(--surface-soft);
   border-radius: 16px;
   overflow: hidden;
@@ -3600,6 +3607,18 @@ body.keyboard-open .pull-to-refresh-container {
 }
 
 @media (max-width: 640px) {
+  .app-shell-chat-active {
+    padding:
+      max(8px, calc(8px + env(safe-area-inset-top)))
+      max(10px, calc(10px + env(safe-area-inset-right)))
+      max(8px, calc(8px + env(safe-area-inset-bottom)))
+      max(10px, calc(10px + env(safe-area-inset-left)));
+  }
+
+  .app-shell-chat-active .tab-content-area {
+    padding-bottom: calc(var(--tab-bar-safe-space) - 10px);
+  }
+
   .app-shell-chat-active .chat-context-cards,
   .app-shell-chat-active .recommendations-panel-chat {
     display: none;
@@ -3607,6 +3626,11 @@ body.keyboard-open .pull-to-refresh-container {
 
   .app-shell-chat-active .chat-tab {
     gap: 0;
+    width: 100%;
+  }
+
+  .chat-view {
+    border-radius: 14px;
   }
 
   .study-plan-controls {

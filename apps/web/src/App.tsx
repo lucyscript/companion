@@ -5,8 +5,6 @@ import { InstallPrompt } from "./components/InstallPrompt";
 import { OnboardingFlow } from "./components/OnboardingFlow";
 import { SettingsView } from "./components/SettingsView";
 import { HabitsGoalsView } from "./components/HabitsGoalsView";
-import { FloatingQuickCapture } from "./components/FloatingQuickCapture";
-import { SyncStatusBadge } from "./components/SyncStatusBadge";
 import { AnalyticsDashboard } from "./components/AnalyticsDashboard";
 import { TabBar, TabId } from "./components/TabBar";
 import { SocialMediaView } from "./components/SocialMediaView";
@@ -23,7 +21,7 @@ type PushState = "checking" | "ready" | "enabled" | "unsupported" | "denied" | "
 
 export default function App(): JSX.Element {
   const initialDeepLink = parseDeepLink(typeof window === "undefined" ? "" : window.location.search);
-  const { data, loading, error, refresh } = useDashboard();
+  const { data, loading, error } = useDashboard();
   const [pushState, setPushState] = useState<PushState>("checking");
   const [pushMessage, setPushMessage] = useState("");
   const [profile, setProfile] = useState<OnboardingProfile | null>(loadOnboardingProfile());
@@ -255,8 +253,6 @@ export default function App(): JSX.Element {
   return (
     <main className={`app-shell ${activeTab === "chat" ? "app-shell-chat-active" : ""}`}>
       <InstallPrompt />
-      <FloatingQuickCapture onUpdated={refresh} />
-      <SyncStatusBadge />
 
       {/* Push setup messaging stays in Settings to avoid squashing chat layout */}
       {activeTab === "settings" && pushState !== "enabled" && (
