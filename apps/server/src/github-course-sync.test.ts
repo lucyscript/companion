@@ -228,6 +228,49 @@ describe("GitHubCourseSyncService", () => {
       expect(githubData?.repositories).toHaveLength(3);
     });
 
+    it("should parse deadlines from non-README markdown files (e.g. lab-plan.md)", async () => {
+      const freshStore = new RuntimeStore(":memory:");
+      const labPlanMarkdown = `
+| Lab | Topic | Deadline |
+|-----|-------|----------|
+| 1 | Getting Started with Network Programming | January 15 |
+| 2 | Network Programming with gRPC | February 12 |
+`;
+      const currentYear = new Date().getUTCFullYear();
+
+      mockClient = {
+        getReadme: async (owner: string, repo: string) => {
+          if (owner === "dat520-2026" && repo === "info") {
+            return "# DAT520 Info";
+          }
+          return "";
+        },
+        listRepositoryFiles: async (owner: string, repo: string) => {
+          if (owner === "dat520-2026" && repo === "info") {
+            return ["README.md", "lab-plan.md", "lecture-plan.md"];
+          }
+          return ["README.md"];
+        },
+        getFileContent: async (owner: string, repo: string, path: string) => {
+          if (owner === "dat520-2026" && repo === "info" && path === "lab-plan.md") {
+            return labPlanMarkdown;
+          }
+          throw new Error(`unexpected path: ${owner}/${repo}/${path}`);
+        }
+      } as unknown as GitHubCourseClient;
+
+      service = new GitHubCourseSyncService(freshStore, mockClient);
+      const result = await service.sync();
+
+      expect(result.success).toBe(true);
+      expect(result.deadlinesCreated).toBeGreaterThanOrEqual(2);
+
+      const deadlines = freshStore.getAcademicDeadlines(new Date(), false).filter((deadline) => deadline.course === "DAT520");
+      expect(deadlines.some((deadline) => deadline.task.includes("Lab 1"))).toBe(true);
+      expect(deadlines.some((deadline) => deadline.dueDate === `${currentYear}-01-15`)).toBe(true);
+      expect(deadlines.some((deadline) => deadline.dueDate === `${currentYear}-02-12`)).toBe(true);
+    });
+
     it("should update existing deadlines if date changes", async () => {
       // Create initial deadline
       const initialDeadline = store.createDeadline({
