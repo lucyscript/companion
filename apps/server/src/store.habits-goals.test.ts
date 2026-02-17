@@ -14,6 +14,11 @@ describe("RuntimeStore - habits and goals", () => {
     vi.useRealTimers();
   });
 
+  it("starts with no seeded habits or goals", () => {
+    expect(store.getHabitsWithStatus()).toEqual([]);
+    expect(store.getGoalsWithStatus()).toEqual([]);
+  });
+
   it("creates habits and tracks daily streaks", () => {
     const habit = store.createHabit({
       name: "Evening stretch",
@@ -66,5 +71,58 @@ describe("RuntimeStore - habits and goals", () => {
 
     const reversed = store.toggleGoalCheckIn(goal.id, { completed: false });
     expect(reversed?.progressCount).toBe(status?.progressCount ? status.progressCount - 1 : 0);
+  });
+
+  it("updates and deletes habits", () => {
+    const habit = store.createHabit({
+      name: "Evening stretch",
+      cadence: "daily",
+      targetPerWeek: 6,
+      motivation: "Stay loose"
+    });
+
+    const updated = store.updateHabit(habit.id, {
+      name: "Evening mobility",
+      cadence: "weekly",
+      targetPerWeek: 4,
+      motivation: "Recovery first"
+    });
+
+    expect(updated).not.toBeNull();
+    expect(updated?.name).toBe("Evening mobility");
+    expect(updated?.cadence).toBe("weekly");
+    expect(updated?.targetPerWeek).toBe(4);
+    expect(updated?.motivation).toBe("Recovery first");
+
+    expect(store.deleteHabit(habit.id)).toBe(true);
+    expect(store.getHabitById(habit.id)).toBeNull();
+  });
+
+  it("updates and deletes goals", () => {
+    const goal = store.createGoal({
+      title: "Ship portfolio",
+      cadence: "daily",
+      targetCount: 5,
+      dueDate: "2026-02-20T00:00:00.000Z",
+      motivation: "Internship prep"
+    });
+
+    const updated = store.updateGoal(goal.id, {
+      title: "Ship portfolio v2",
+      cadence: "weekly",
+      targetCount: 8,
+      dueDate: null,
+      motivation: "Interview readiness"
+    });
+
+    expect(updated).not.toBeNull();
+    expect(updated?.title).toBe("Ship portfolio v2");
+    expect(updated?.cadence).toBe("weekly");
+    expect(updated?.targetCount).toBe(8);
+    expect(updated?.dueDate).toBeNull();
+    expect(updated?.motivation).toBe("Interview readiness");
+
+    expect(store.deleteGoal(goal.id)).toBe(true);
+    expect(store.getGoalById(goal.id)).toBeNull();
   });
 });

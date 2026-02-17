@@ -123,8 +123,8 @@ describe("RuntimeStore - export data", () => {
     expect(exportData.journals).toEqual([]);
     expect(exportData.schedule).toEqual([]);
     expect(exportData.deadlines).toEqual([]);
-    expect(exportData.habits.length).toBeGreaterThan(0);
-    expect(exportData.goals.length).toBeGreaterThan(0);
+    expect(exportData.habits).toEqual([]);
+    expect(exportData.goals).toEqual([]);
     expect(exportData.userContext).toBeDefined();
     expect(exportData.notificationPreferences).toBeDefined();
   });

@@ -37,7 +37,7 @@ import { generateAnalyticsCoachInsight } from "./analytics-coach.js";
 import { PostgresRuntimeSnapshotStore } from "./postgres-persistence.js";
 import type { PostgresPersistenceDiagnostics } from "./postgres-persistence.js";
 import { Notification, NotificationPreferencesPatch } from "./types.js";
-import type { IntegrationSyncName, IntegrationSyncRootCause } from "./types.js";
+import type { Goal, Habit, IntegrationSyncName, IntegrationSyncRootCause } from "./types.js";
 import { SyncFailureRecoveryTracker, SyncRecoveryPrompt } from "./sync-failure-recovery.js";
 import { nowIso } from "./utils.js";
 
@@ -609,6 +609,15 @@ const habitCreateSchema = z.object({
   motivation: z.string().trim().max(240).optional()
 });
 
+const habitUpdateSchema = z
+  .object({
+    name: z.string().trim().min(1).max(120).optional(),
+    cadence: z.enum(["daily", "weekly"]).optional(),
+    targetPerWeek: z.number().int().min(1).max(7).optional(),
+    motivation: z.string().trim().max(240).nullable().optional()
+  })
+  .refine((value) => Object.keys(value).length > 0, "At least one field is required");
+
 const habitCheckInSchema = z.object({
   completed: z.boolean().optional(),
   date: z.string().datetime().optional(),
@@ -622,6 +631,16 @@ const goalCreateSchema = z.object({
   dueDate: z.string().datetime().optional().nullable(),
   motivation: z.string().trim().max(240).optional()
 });
+
+const goalUpdateSchema = z
+  .object({
+    title: z.string().trim().min(1).max(160).optional(),
+    cadence: z.enum(["daily", "weekly"]).optional(),
+    targetCount: z.number().int().min(1).max(365).optional(),
+    dueDate: z.string().datetime().nullable().optional(),
+    motivation: z.string().trim().max(240).nullable().optional()
+  })
+  .refine((value) => Object.keys(value).length > 0, "At least one field is required");
 
 const goalCheckInSchema = z.object({
   completed: z.boolean().optional(),
@@ -1429,6 +1448,47 @@ app.post("/api/habits/:id/check-ins", (req, res) => {
   return res.json({ habit });
 });
 
+app.patch("/api/habits/:id", (req, res) => {
+  const parsed = habitUpdateSchema.safeParse(req.body ?? {});
+
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid habit payload", issues: parsed.error.issues });
+  }
+
+  const patch: Partial<Pick<Habit, "name" | "cadence" | "targetPerWeek" | "motivation">> = {};
+
+  if (parsed.data.name !== undefined) {
+    patch.name = parsed.data.name;
+  }
+  if (parsed.data.cadence !== undefined) {
+    patch.cadence = parsed.data.cadence;
+  }
+  if (parsed.data.targetPerWeek !== undefined) {
+    patch.targetPerWeek = parsed.data.targetPerWeek;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(parsed.data, "motivation")) {
+    const motivation = parsed.data.motivation;
+    patch.motivation = motivation && motivation.trim().length > 0 ? motivation : undefined;
+  }
+
+  const habit = store.updateHabit(req.params.id, patch);
+  if (!habit) {
+    return res.status(404).json({ error: "Habit not found" });
+  }
+
+  return res.json({ habit });
+});
+
+app.delete("/api/habits/:id", (req, res) => {
+  const deleted = store.deleteHabit(req.params.id);
+  if (!deleted) {
+    return res.status(404).json({ error: "Habit not found" });
+  }
+
+  return res.status(204).send();
+});
+
 app.get("/api/goals", (_req, res) => {
   return res.json({ goals: store.getGoalsWithStatus() });
 });
@@ -1462,6 +1522,51 @@ app.post("/api/goals/:id/check-ins", (req, res) => {
   }
 
   return res.json({ goal });
+});
+
+app.patch("/api/goals/:id", (req, res) => {
+  const parsed = goalUpdateSchema.safeParse(req.body ?? {});
+
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid goal payload", issues: parsed.error.issues });
+  }
+
+  const patch: Partial<Pick<Goal, "title" | "cadence" | "targetCount" | "dueDate" | "motivation">> = {};
+
+  if (parsed.data.title !== undefined) {
+    patch.title = parsed.data.title;
+  }
+  if (parsed.data.cadence !== undefined) {
+    patch.cadence = parsed.data.cadence;
+  }
+  if (parsed.data.targetCount !== undefined) {
+    patch.targetCount = parsed.data.targetCount;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(parsed.data, "motivation")) {
+    const motivation = parsed.data.motivation;
+    patch.motivation = motivation && motivation.trim().length > 0 ? motivation : undefined;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(parsed.data, "dueDate")) {
+    patch.dueDate = parsed.data.dueDate ?? null;
+  }
+
+  const goal = store.updateGoal(req.params.id, patch);
+  if (!goal) {
+    return res.status(404).json({ error: "Goal not found" });
+  }
+
+  return res.json({ goal });
+});
+
+app.delete("/api/goals/:id", (req, res) => {
+  const deleted = store.deleteGoal(req.params.id);
+  if (!deleted) {
+    return res.status(404).json({ error: "Goal not found" });
+  }
+
+  return res.status(204).send();
 });
 
 app.get("/api/push/vapid-public-key", (_req, res) => {
