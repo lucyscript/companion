@@ -4,7 +4,6 @@ import { ContentRecommendationsPanel } from "./ContentRecommendationsPanel";
 interface ChatTabProps {
   todayFocus: string;
   pendingDeadlines: number;
-  activeAgents: number;
   journalStreak: number;
 }
 
@@ -20,10 +19,6 @@ export function ChatTab(props: ChatTabProps): JSX.Element {
         <article className="context-card">
           <h3>⚠️ Deadlines</h3>
           <p>{props.pendingDeadlines} pending</p>
-        </article>
-        <article className="context-card">
-          <h3>🤖 Agents</h3>
-          <p>{props.activeAgents} active</p>
         </article>
         <article className="context-card">
           <h3>🔥 Streak</h3>

@@ -266,7 +266,6 @@ export default function App(): JSX.Element {
               <ChatTab
                 todayFocus={data.summary.todayFocus}
                 pendingDeadlines={data.summary.pendingDeadlines}
-                activeAgents={data.summary.activeAgents}
                 journalStreak={data.summary.journalStreak}
               />
             )}

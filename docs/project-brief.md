@@ -374,4 +374,5 @@ Features are built in priority order. The orchestrator reads this section to dec
 | ✅ done | `deadline-effort-budgeting` | backend-engineer | Add per-deadline effort estimates (hours remaining + confidence) and use them as constraints in weekly plan generation to avoid under/over-allocation. |
 | ✅ done | `deadline-effort-editor-ui` | frontend-engineer | Add effort-estimate controls on deadline cards with sensible defaults and inline validation, and surface “hours remaining” context in schedule/planning views. |
 | ✅ done | `pwa-custom-icon-assets` | frontend-engineer | Add production PWA icon assets (192/512/maskable + Apple touch icon) and wire manifest/index metadata so iOS Home Screen installs show Companion branding. |
+| ✅ done | `chat-agent-indicator-cleanup` | frontend-engineer | Remove irrelevant agent-running status from chat surface so top context cards stay focused on user-facing planning signals. |
 | ⬜ todo | `integration-health-log-api` | backend-engineer | Persist TP/Canvas/Gmail sync attempt history (success/failure, latency, root-cause category) and expose an API for troubleshooting and reliability analytics. |
