@@ -20,6 +20,7 @@ import { XSyncService } from "./x-sync.js";
 import { SocialMediaSummarizer } from "./social-media-summarizer.js";
 import { GmailOAuthService } from "./gmail-oauth.js";
 import { GmailSyncService } from "./gmail-sync.js";
+import { generateWeeklyStudyPlan } from "./study-plan.js";
 import { Notification, NotificationPreferencesPatch } from "./types.js";
 
 const app = express();
@@ -382,6 +383,16 @@ const notificationPreferencesSchema = z.object({
     })
     .optional()
 });
+
+const studyPlanGenerateSchema = z
+  .object({
+    horizonDays: z.number().int().min(1).max(14).optional().default(7),
+    minSessionMinutes: z.number().int().min(30).max(180).optional().default(45),
+    maxSessionMinutes: z.number().int().min(45).max(240).optional().default(120)
+  })
+  .refine((value) => value.maxSessionMinutes >= value.minSessionMinutes, {
+    message: "maxSessionMinutes must be greater than or equal to minSessionMinutes"
+  });
 
 const locationCreateSchema = z.object({
   latitude: z.number().min(-90).max(90),
@@ -833,6 +844,23 @@ app.get("/api/deadlines/suggestions", (_req, res) => {
   );
 
   return res.json({ suggestions });
+});
+
+app.post("/api/study-plan/generate", (req, res) => {
+  const parsed = studyPlanGenerateSchema.safeParse(req.body ?? {});
+
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid study plan payload", issues: parsed.error.issues });
+  }
+
+  const plan = generateWeeklyStudyPlan(store.getDeadlines(), store.getScheduleEvents(), {
+    horizonDays: parsed.data.horizonDays,
+    minSessionMinutes: parsed.data.minSessionMinutes,
+    maxSessionMinutes: parsed.data.maxSessionMinutes,
+    now: new Date()
+  });
+
+  return res.json({ plan });
 });
 
 app.get("/api/deadlines/:id", (req, res) => {

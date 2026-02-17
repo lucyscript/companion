@@ -616,6 +616,61 @@ Response `200`:
 - Only suggests gaps of at least 60 minutes
 - Only includes suggestions with overall score ≥ 30
 
+## Study Plan
+
+### `POST /api/study-plan/generate`
+
+Generates a deterministic weekly study plan by combining incomplete deadlines with schedule gaps.
+
+Request:
+
+```json
+{
+  "horizonDays": 7,
+  "minSessionMinutes": 45,
+  "maxSessionMinutes": 120
+}
+```
+
+All fields are optional. Defaults:
+- `horizonDays`: `7` (range `1..14`)
+- `minSessionMinutes`: `45` (range `30..180`)
+- `maxSessionMinutes`: `120` (range `45..240`, must be `>= minSessionMinutes`)
+
+Response `200`:
+
+```json
+{
+  "plan": {
+    "generatedAt": "2026-02-17T10:00:00.000Z",
+    "windowStart": "2026-02-17T10:00:00.000Z",
+    "windowEnd": "2026-02-24T10:00:00.000Z",
+    "summary": {
+      "horizonDays": 7,
+      "deadlinesConsidered": 3,
+      "deadlinesCovered": 2,
+      "totalSessions": 4,
+      "totalPlannedMinutes": 360
+    },
+    "sessions": [
+      {
+        "id": "study-session-deadline-1739700000000-1",
+        "deadlineId": "deadline-1739700000000-1",
+        "course": "DAT560",
+        "task": "Assignment 3",
+        "priority": "high",
+        "startTime": "2026-02-17T11:00:00.000Z",
+        "endTime": "2026-02-17T12:30:00.000Z",
+        "durationMinutes": 90,
+        "score": 680,
+        "rationale": "Due soon (32h). This block is prioritized to reduce deadline risk."
+      }
+    ],
+    "unallocated": []
+  }
+}
+```
+
 ## Export
 
 ### `GET /api/export`

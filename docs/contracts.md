@@ -454,3 +454,61 @@ The `GET /api/sync/status` response adds a `gmail` field:
   }
 }
 ```
+
+### POST `/api/study-plan/generate`
+
+Generate a deterministic weekly study plan from upcoming deadlines and open schedule gaps.
+
+Request:
+
+```json
+{
+  "horizonDays": 7,
+  "minSessionMinutes": 45,
+  "maxSessionMinutes": 120
+}
+```
+
+Response:
+
+```json
+{
+  "plan": {
+    "generatedAt": "2026-02-17T10:00:00.000Z",
+    "windowStart": "2026-02-17T10:00:00.000Z",
+    "windowEnd": "2026-02-24T10:00:00.000Z",
+    "summary": {
+      "horizonDays": 7,
+      "deadlinesConsidered": 3,
+      "deadlinesCovered": 2,
+      "totalSessions": 4,
+      "totalPlannedMinutes": 360
+    },
+    "sessions": [
+      {
+        "id": "study-session-deadline-1739700000000-1",
+        "deadlineId": "deadline-1739700000000-1",
+        "course": "DAT560",
+        "task": "Assignment 3",
+        "priority": "high",
+        "startTime": "2026-02-17T11:00:00.000Z",
+        "endTime": "2026-02-17T12:30:00.000Z",
+        "durationMinutes": 90,
+        "score": 680,
+        "rationale": "Due soon (32h). This block is prioritized to reduce deadline risk."
+      }
+    ],
+    "unallocated": [
+      {
+        "deadlineId": "deadline-1739700000000-3",
+        "course": "DAT520",
+        "task": "Lab report",
+        "priority": "medium",
+        "dueDate": "2026-02-24T23:59:00.000Z",
+        "remainingMinutes": 45,
+        "reason": "Insufficient schedule gaps within planning window."
+      }
+    ]
+  }
+}
+```
