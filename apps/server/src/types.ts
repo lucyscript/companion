@@ -61,6 +61,8 @@ export type ChatCitationType =
   | "journal"
   | "habit"
   | "goal"
+  | "nutrition-meal"
+  | "nutrition-meal-plan"
   | "email"
   | "social-youtube"
   | "social-x"
@@ -437,6 +439,45 @@ export interface GoalWithStatus extends Goal {
   streak: number;
   completionRate7d: number;
   recentCheckIns: Array<{ date: string; completed: boolean }>;
+}
+
+export type NutritionMealType = "breakfast" | "lunch" | "dinner" | "snack" | "other";
+
+export interface NutritionMacros {
+  calories: number;
+  proteinGrams: number;
+  carbsGrams: number;
+  fatGrams: number;
+}
+
+export interface NutritionMeal extends NutritionMacros {
+  id: string;
+  name: string;
+  mealType: NutritionMealType;
+  consumedAt: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface NutritionMealPlanBlock {
+  id: string;
+  title: string;
+  scheduledFor: string;
+  targetCalories?: number;
+  targetProteinGrams?: number;
+  targetCarbsGrams?: number;
+  targetFatGrams?: number;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NutritionDailySummary {
+  date: string;
+  totals: NutritionMacros;
+  mealsLogged: number;
+  meals: NutritionMeal[];
+  mealPlanBlocks: NutritionMealPlanBlock[];
 }
 
 export interface PushSubscriptionRecord {

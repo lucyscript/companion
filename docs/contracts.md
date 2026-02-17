@@ -68,6 +68,84 @@ Response:
 }
 ```
 
+## Nutrition
+
+### GET `/api/nutrition/summary?date=YYYY-MM-DD`
+
+Response:
+
+```json
+{
+  "summary": {
+    "date": "2026-02-17",
+    "totals": {
+      "calories": 1860,
+      "proteinGrams": 132,
+      "carbsGrams": 201,
+      "fatGrams": 58
+    },
+    "mealsLogged": 3,
+    "meals": [],
+    "mealPlanBlocks": []
+  }
+}
+```
+
+### POST `/api/nutrition/meals`
+
+Request:
+
+```json
+{
+  "name": "Chicken bowl",
+  "mealType": "lunch",
+  "calories": 710,
+  "proteinGrams": 54,
+  "carbsGrams": 76,
+  "fatGrams": 18
+}
+```
+
+Response:
+
+```json
+{
+  "meal": {
+    "id": "meal-123",
+    "name": "Chicken bowl",
+    "mealType": "lunch",
+    "consumedAt": "2026-02-17T11:45:00.000Z",
+    "calories": 710,
+    "proteinGrams": 54,
+    "carbsGrams": 76,
+    "fatGrams": 18,
+    "createdAt": "2026-02-17T11:45:01.000Z"
+  }
+}
+```
+
+### GET `/api/nutrition/plan?date=YYYY-MM-DD`
+
+Response:
+
+```json
+{
+  "blocks": [
+    {
+      "id": "meal-plan-1",
+      "title": "Post-workout meal",
+      "scheduledFor": "2026-02-17T08:30:00.000Z",
+      "targetCalories": 700,
+      "targetProteinGrams": 45,
+      "targetCarbsGrams": 70,
+      "targetFatGrams": 18,
+      "createdAt": "2026-02-17T07:00:00.000Z",
+      "updatedAt": "2026-02-17T07:00:00.000Z"
+    }
+  ]
+}
+```
+
 ---
 
 ## Phase 2: Conversational AI & Data Integrations

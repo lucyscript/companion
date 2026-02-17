@@ -107,7 +107,7 @@ describe("chat service", () => {
     expect(contextWindow).toContain("Feb 14");
   });
 
-  it("includes social media context (YouTube and X) when available", async () => {
+  it("omits social media context from prompt window even when social data exists", async () => {
     const now = new Date("2026-02-16T09:00:00.000Z");
 
     // Add YouTube data
@@ -192,15 +192,9 @@ describe("chat service", () => {
     expect(generateChatResponse).toHaveBeenCalled();
     const contextWindow = result.assistantMessage.metadata?.contextWindow;
     
-    // Check YouTube context
-    expect(contextWindow).toContain("Recent YouTube Videos");
-    expect(contextWindow).toContain("Fireship");
-    expect(contextWindow).toContain("GPT-5 in 100 seconds");
-    
-    // Check X/Twitter context
-    expect(contextWindow).toContain("Recent Posts on X");
-    expect(contextWindow).toContain("@kaborneai");
-    expect(contextWindow).toContain("major update to our AI platform");
+    expect(contextWindow).not.toContain("Recent YouTube Videos");
+    expect(contextWindow).not.toContain("Recent Posts on X");
+    expect(contextWindow).not.toContain("@kaborneai");
   });
 
   it("includes recommendation context for upcoming deadlines when relevant content exists", async () => {
@@ -254,7 +248,7 @@ describe("chat service", () => {
     expect(contextWindow).toContain("VAE and transformer tutorial");
   });
 
-  it("shows fallback message when no social media data is synced", async () => {
+  it("does not inject social fallback text into prompt context", async () => {
     const now = new Date("2026-02-16T09:00:00.000Z");
 
     const result = await sendChatMessage(store, "Any new videos?", {
@@ -265,7 +259,7 @@ describe("chat service", () => {
 
     expect(generateChatResponse).toHaveBeenCalled();
     const contextWindow = result.assistantMessage.metadata?.contextWindow;
-    expect(contextWindow).toContain("Social media: No recent data synced");
+    expect(contextWindow).not.toContain("Social media:");
   });
 
   it("includes Gmail context with unread count and actionable items", async () => {

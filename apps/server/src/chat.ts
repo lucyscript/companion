@@ -248,6 +248,35 @@ function buildContentRecommendationSummary(store: RuntimeStore, now: Date = new 
   return parts.join("\n");
 }
 
+function buildNutritionContextSummary(store: RuntimeStore, now: Date = new Date()): string {
+  const summary = store.getNutritionDailySummary(now);
+  if (summary.mealsLogged === 0 && summary.mealPlanBlocks.length === 0) {
+    return "Nutrition: no meals logged or planned for today yet.";
+  }
+
+  const parts: string[] = [
+    `**Nutrition today:** ${summary.totals.calories} kcal, ${summary.totals.proteinGrams}g protein, ${summary.totals.carbsGrams}g carbs, ${summary.totals.fatGrams}g fat`
+  ];
+
+  if (summary.meals.length > 0) {
+    parts.push("");
+    parts.push("**Recent meals:**");
+    summary.meals.slice(0, 4).forEach((meal) => {
+      parts.push(`- ${meal.name}: ${meal.calories} kcal (${meal.proteinGrams}P/${meal.carbsGrams}C/${meal.fatGrams}F)`);
+    });
+  }
+
+  if (summary.mealPlanBlocks.length > 0) {
+    parts.push("");
+    parts.push("**Meal plan blocks:**");
+    summary.mealPlanBlocks.slice(0, 3).forEach((block) => {
+      parts.push(`- ${block.title} (${block.scheduledFor})`);
+    });
+  }
+
+  return parts.join("\n");
+}
+
 function buildGitHubCourseContextSummary(store: RuntimeStore): string {
   const githubData = store.getGitHubCourseData();
 
@@ -290,16 +319,22 @@ export function buildChatContext(store: RuntimeStore, now: Date = new Date(), hi
   const userState: UserContext = store.getUserContext();
   const canvasContext = buildCanvasContextSummary(store, now);
   const gmailContext = buildGmailContextSummary(store, now);
-  const socialMediaContext = buildSocialMediaContextSummary(store, now);
   const recommendationContext = buildContentRecommendationSummary(store, now);
   const githubCourseContext = buildGitHubCourseContextSummary(store);
+  const nutritionContext = buildNutritionContextSummary(store, now);
 
   const contextWindow = buildContextWindow({
     todaySchedule,
     upcomingDeadlines,
     recentJournals,
     userState,
-    customContext: [canvasContext, gmailContext, socialMediaContext, recommendationContext, githubCourseContext]
+    customContext: [
+      canvasContext,
+      gmailContext,
+      recommendationContext,
+      githubCourseContext,
+      nutritionContext
+    ]
       .filter((section) => section.length > 0)
       .join("\n\n")
   });
@@ -389,6 +424,7 @@ type ChatIntent =
   | "deadlines"
   | "study-plan"
   | "journal"
+  | "nutrition"
   | "emails"
   | "social"
   | "habits-goals"
@@ -524,6 +560,18 @@ const INTENT_PATTERNS: Array<{ intent: Exclude<ChatIntent, "general">; patterns:
       /\bwrite\b/i,
       /\breflection\b/i,
       /\bwhat have i written\b/i
+    ]
+  },
+  {
+    intent: "nutrition",
+    patterns: [
+      /\bnutrition\b/i,
+      /\bmeal(s)?\b/i,
+      /\bcalorie(s)?\b/i,
+      /\bmacro(s)?\b/i,
+      /\bprotein\b/i,
+      /\bcarb(s)?\b/i,
+      /\bfat(s)?\b/i
     ]
   },
   {
@@ -668,6 +716,8 @@ function buildIntentGuidance(intent: ChatIntent): string {
       return "Intent hint: study planning. Use getDeadlines/getSchedule to propose realistic weekly blocks.";
     case "journal":
       return "Intent hint: journal. Prefer searchJournal before answering memory/reflection questions.";
+    case "nutrition":
+      return "Intent hint: nutrition. Prefer getNutritionSummary/getMealPlan for status and logMeal/deleteMeal/upsertMealPlanBlock/removeMealPlanBlock for requested updates.";
     case "emails":
       return "Intent hint: emails. Prefer getEmails for inbox-related requests.";
     case "social":
@@ -721,6 +771,18 @@ const INTENT_FEW_SHOT_EXAMPLES: IntentFewShotExample[] = [
     intent: "journal",
     toolPlan: "Call createJournalEntry with the requested text immediately.",
     responseStyle: "Confirm that the journal entry was saved in one clear sentence."
+  },
+  {
+    user: "Log my lunch: salmon bowl, 680 calories, 45g protein, 62g carbs, 26g fat.",
+    intent: "nutrition",
+    toolPlan: "Call logMeal with name/calories/protein/carbs/fat and mealType when obvious.",
+    responseStyle: "Confirm the meal log and summarize updated daily totals."
+  },
+  {
+    user: "How are my macros today?",
+    intent: "nutrition",
+    toolPlan: "Call getNutritionSummary for today and respond from totals.",
+    responseStyle: "Report calories/protein/carbs/fat clearly in one compact block."
   },
   {
     user: "Any important emails I should read now?",
@@ -807,6 +869,7 @@ function buildFunctionCallingSystemInstruction(userName: string, intent: ChatInt
 Core behavior:
 - For factual questions about schedule, deadlines, journal, email, social updates, or GitHub course materials, use tools before answering.
 - For habits and goals questions, call getHabitsGoalsStatus first. For create/delete requests, use createHabit/deleteHabit/createGoal/deleteGoal. For check-ins, use updateHabitCheckIn/updateGoalCheckIn.
+- For nutrition requests, use nutrition tools and focus on macro tracking only: calories, protein, carbs, and fat.
 - Do not hallucinate user-specific data. If data is unavailable, say so explicitly and suggest the next sync step.
 - For email follow-ups like "what did it contain?" after inbox discussion, call getEmails again and answer from sender/subject/snippet.
 - For mutating requests that change schedule/deadlines, use queue* action tools and require explicit user confirmation.
@@ -1116,6 +1179,68 @@ function buildGoalUpdateFallbackSection(response: unknown): string | null {
   return null;
 }
 
+function buildNutritionSummaryFallbackSection(response: unknown): string | null {
+  const payload = asRecord(response);
+  if (!payload) {
+    return null;
+  }
+
+  const totals = asRecord(payload.totals);
+  const calories = typeof totals?.calories === "number" ? totals.calories : null;
+  const protein = typeof totals?.proteinGrams === "number" ? totals.proteinGrams : null;
+  const carbs = typeof totals?.carbsGrams === "number" ? totals.carbsGrams : null;
+  const fat = typeof totals?.fatGrams === "number" ? totals.fatGrams : null;
+  const mealsLogged = typeof payload.mealsLogged === "number" ? payload.mealsLogged : null;
+
+  if (calories === null || protein === null || carbs === null || fat === null) {
+    return null;
+  }
+
+  return `Nutrition today: ${calories} kcal, ${protein}g protein, ${carbs}g carbs, ${fat}g fat${mealsLogged !== null ? ` (${mealsLogged} meals)` : ""}.`;
+}
+
+function buildMealPlanFallbackSection(response: unknown): string | null {
+  const payload = asRecord(response);
+  if (!payload) {
+    return null;
+  }
+
+  const blocks = Array.isArray(payload.blocks) ? payload.blocks : [];
+  if (blocks.length === 0) {
+    return "Meal plan: no blocks found.";
+  }
+
+  const lines: string[] = [`Meal plan blocks (${blocks.length}):`];
+  blocks.slice(0, 4).forEach((value) => {
+    const block = asRecord(value);
+    if (!block) {
+      return;
+    }
+    const title = asNonEmptyString(block.title) ?? "Untitled block";
+    const scheduledFor = asNonEmptyString(block.scheduledFor);
+    lines.push(`- ${title}${scheduledFor ? ` (${scheduledFor})` : ""}`);
+  });
+  if (blocks.length > 4) {
+    lines.push(`- +${blocks.length - 4} more`);
+  }
+
+  return lines.join("\n");
+}
+
+function buildNutritionMutationFallbackSection(response: unknown): string | null {
+  const payload = asRecord(response);
+  if (!payload) {
+    return null;
+  }
+  if (typeof payload.error === "string") {
+    return `Nutrition update failed: ${payload.error}`;
+  }
+  if (typeof payload.message === "string") {
+    return payload.message;
+  }
+  return null;
+}
+
 function buildGitHubCourseFallbackSection(response: unknown): string | null {
   if (!Array.isArray(response)) {
     return null;
@@ -1205,6 +1330,18 @@ function buildToolDataFallbackReply(
       case "createGoal":
       case "deleteGoal":
         section = buildGoalUpdateFallbackSection(result.rawResponse);
+        break;
+      case "getNutritionSummary":
+        section = buildNutritionSummaryFallbackSection(result.rawResponse);
+        break;
+      case "logMeal":
+      case "deleteMeal":
+      case "upsertMealPlanBlock":
+      case "removeMealPlanBlock":
+        section = buildNutritionMutationFallbackSection(result.rawResponse);
+        break;
+      case "getMealPlan":
+        section = buildMealPlanFallbackSection(result.rawResponse);
         break;
       case "getGitHubCourseContent":
         section = buildGitHubCourseFallbackSection(result.rawResponse);
@@ -1591,6 +1728,122 @@ function compactGoalUpdateForModel(response: unknown): unknown {
   };
 }
 
+function compactNutritionSummaryForModel(response: unknown): unknown {
+  const payload = asRecord(response);
+  if (!payload) {
+    return compactGenericValue(response);
+  }
+
+  const totals = asRecord(payload.totals);
+  const meals = Array.isArray(payload.meals) ? payload.meals : [];
+  const blocks = Array.isArray(payload.mealPlanBlocks) ? payload.mealPlanBlocks : [];
+
+  return {
+    date: asNonEmptyString(payload.date) ?? null,
+    totals: {
+      calories: typeof totals?.calories === "number" ? totals.calories : 0,
+      proteinGrams: typeof totals?.proteinGrams === "number" ? totals.proteinGrams : 0,
+      carbsGrams: typeof totals?.carbsGrams === "number" ? totals.carbsGrams : 0,
+      fatGrams: typeof totals?.fatGrams === "number" ? totals.fatGrams : 0
+    },
+    mealsLogged: typeof payload.mealsLogged === "number" ? payload.mealsLogged : meals.length,
+    meals: meals.slice(0, TOOL_RESULT_ITEM_LIMIT).map((value) => {
+      const meal = asRecord(value);
+      if (!meal) {
+        return {};
+      }
+      return {
+        id: asNonEmptyString(meal.id) ?? "",
+        name: compactTextValue(asNonEmptyString(meal.name) ?? "", 100),
+        mealType: asNonEmptyString(meal.mealType) ?? "other",
+        consumedAt: asNonEmptyString(meal.consumedAt) ?? null,
+        calories: typeof meal.calories === "number" ? meal.calories : 0,
+        proteinGrams: typeof meal.proteinGrams === "number" ? meal.proteinGrams : 0,
+        carbsGrams: typeof meal.carbsGrams === "number" ? meal.carbsGrams : 0,
+        fatGrams: typeof meal.fatGrams === "number" ? meal.fatGrams : 0
+      };
+    }),
+    mealPlanBlocks: blocks.slice(0, TOOL_RESULT_ITEM_LIMIT).map((value) => {
+      const block = asRecord(value);
+      if (!block) {
+        return {};
+      }
+      return {
+        id: asNonEmptyString(block.id) ?? "",
+        title: compactTextValue(asNonEmptyString(block.title) ?? "", 100),
+        scheduledFor: asNonEmptyString(block.scheduledFor) ?? null
+      };
+    }),
+    mealsTruncated: meals.length > TOOL_RESULT_ITEM_LIMIT,
+    blocksTruncated: blocks.length > TOOL_RESULT_ITEM_LIMIT
+  };
+}
+
+function compactMealPlanForModel(response: unknown): unknown {
+  const payload = asRecord(response);
+  if (!payload) {
+    return compactGenericValue(response);
+  }
+
+  const blocks = Array.isArray(payload.blocks) ? payload.blocks : [];
+  return {
+    total: typeof payload.total === "number" ? payload.total : blocks.length,
+    blocks: blocks.slice(0, TOOL_RESULT_ITEM_LIMIT).map((value) => {
+      const block = asRecord(value);
+      if (!block) {
+        return {};
+      }
+      return {
+        id: asNonEmptyString(block.id) ?? "",
+        title: compactTextValue(asNonEmptyString(block.title) ?? "", 100),
+        scheduledFor: asNonEmptyString(block.scheduledFor) ?? null,
+        targetCalories: typeof block.targetCalories === "number" ? block.targetCalories : null,
+        targetProteinGrams: typeof block.targetProteinGrams === "number" ? block.targetProteinGrams : null,
+        targetCarbsGrams: typeof block.targetCarbsGrams === "number" ? block.targetCarbsGrams : null,
+        targetFatGrams: typeof block.targetFatGrams === "number" ? block.targetFatGrams : null
+      };
+    }),
+    truncated: blocks.length > TOOL_RESULT_ITEM_LIMIT
+  };
+}
+
+function compactNutritionMutationForModel(response: unknown): unknown {
+  const payload = asRecord(response);
+  if (!payload) {
+    return compactGenericValue(response);
+  }
+
+  if (payload.error) {
+    return {
+      success: false,
+      error: compactTextValue(payload.error, 180)
+    };
+  }
+
+  const meal = asRecord(payload.meal);
+  const block = asRecord(payload.block);
+  return {
+    success: Boolean(payload.success),
+    created: typeof payload.created === "boolean" ? payload.created : undefined,
+    deleted: typeof payload.deleted === "boolean" ? payload.deleted : undefined,
+    message: asNonEmptyString(payload.message) ?? null,
+    meal: meal
+      ? {
+          id: asNonEmptyString(meal.id) ?? "",
+          name: compactTextValue(asNonEmptyString(meal.name) ?? "", 100),
+          consumedAt: asNonEmptyString(meal.consumedAt) ?? null
+        }
+      : null,
+    block: block
+      ? {
+          id: asNonEmptyString(block.id) ?? "",
+          title: compactTextValue(asNonEmptyString(block.title) ?? "", 100),
+          scheduledFor: asNonEmptyString(block.scheduledFor) ?? null
+        }
+      : null
+  };
+}
+
 function compactGitHubCourseContentForModel(response: unknown): unknown {
   if (!Array.isArray(response)) {
     return compactGenericValue(response);
@@ -1646,6 +1899,15 @@ function compactFunctionResponseForModel(functionName: string, response: unknown
     case "createGoal":
     case "deleteGoal":
       return compactGoalUpdateForModel(response);
+    case "getNutritionSummary":
+      return compactNutritionSummaryForModel(response);
+    case "logMeal":
+    case "deleteMeal":
+    case "upsertMealPlanBlock":
+    case "removeMealPlanBlock":
+      return compactNutritionMutationForModel(response);
+    case "getMealPlan":
+      return compactMealPlanForModel(response);
     case "getGitHubCourseContent":
       return compactGitHubCourseContentForModel(response);
     default:
@@ -1949,6 +2211,151 @@ function collectToolCitations(
       {
         id,
         type: "goal",
+        label: title
+      }
+    ];
+  }
+
+  if (functionName === "getNutritionSummary") {
+    const payload = asRecord(response);
+    if (!payload) {
+      return [];
+    }
+
+    const next: ChatCitation[] = [];
+    const meals = Array.isArray(payload.meals) ? payload.meals : [];
+    meals.forEach((value) => {
+      const meal = asRecord(value);
+      if (!meal) {
+        return;
+      }
+      const id = asNonEmptyString(meal.id);
+      const name = asNonEmptyString(meal.name);
+      const consumedAt = asNonEmptyString(meal.consumedAt);
+      if (!id || !name) {
+        return;
+      }
+      next.push({
+        id,
+        type: "nutrition-meal",
+        label: name,
+        timestamp: consumedAt ?? undefined
+      });
+    });
+
+    const blocks = Array.isArray(payload.mealPlanBlocks) ? payload.mealPlanBlocks : [];
+    blocks.forEach((value) => {
+      const block = asRecord(value);
+      if (!block) {
+        return;
+      }
+      const id = asNonEmptyString(block.id);
+      const title = asNonEmptyString(block.title);
+      const scheduledFor = asNonEmptyString(block.scheduledFor);
+      if (!id || !title) {
+        return;
+      }
+      next.push({
+        id,
+        type: "nutrition-meal-plan",
+        label: title,
+        timestamp: scheduledFor ?? undefined
+      });
+    });
+
+    return next;
+  }
+
+  if (functionName === "logMeal") {
+    const payload = asRecord(response);
+    const meal = asRecord(payload?.meal);
+    const id = asNonEmptyString(meal?.id);
+    const name = asNonEmptyString(meal?.name);
+    const consumedAt = asNonEmptyString(meal?.consumedAt);
+    if (!id || !name) {
+      return [];
+    }
+    return [
+      {
+        id,
+        type: "nutrition-meal",
+        label: name,
+        timestamp: consumedAt ?? undefined
+      }
+    ];
+  }
+
+  if (functionName === "deleteMeal") {
+    const payload = asRecord(response);
+    const id = asNonEmptyString(payload?.mealId);
+    const name = asNonEmptyString(payload?.mealName);
+    if (!id || !name) {
+      return [];
+    }
+    return [
+      {
+        id,
+        type: "nutrition-meal",
+        label: name
+      }
+    ];
+  }
+
+  if (functionName === "getMealPlan") {
+    const payload = asRecord(response);
+    const blocks = Array.isArray(payload?.blocks) ? payload.blocks : [];
+    const next: ChatCitation[] = [];
+    blocks.forEach((value) => {
+      const block = asRecord(value);
+      if (!block) {
+        return;
+      }
+      const id = asNonEmptyString(block.id);
+      const title = asNonEmptyString(block.title);
+      const scheduledFor = asNonEmptyString(block.scheduledFor);
+      if (!id || !title) {
+        return;
+      }
+      next.push({
+        id,
+        type: "nutrition-meal-plan",
+        label: title,
+        timestamp: scheduledFor ?? undefined
+      });
+    });
+    return next;
+  }
+
+  if (functionName === "upsertMealPlanBlock") {
+    const payload = asRecord(response);
+    const block = asRecord(payload?.block);
+    const id = asNonEmptyString(block?.id);
+    const title = asNonEmptyString(block?.title);
+    const scheduledFor = asNonEmptyString(block?.scheduledFor);
+    if (!id || !title) {
+      return [];
+    }
+    return [
+      {
+        id,
+        type: "nutrition-meal-plan",
+        label: title,
+        timestamp: scheduledFor ?? undefined
+      }
+    ];
+  }
+
+  if (functionName === "removeMealPlanBlock") {
+    const payload = asRecord(response);
+    const id = asNonEmptyString(payload?.blockId);
+    const title = asNonEmptyString(payload?.blockTitle);
+    if (!id || !title) {
+      return [];
+    }
+    return [
+      {
+        id,
+        type: "nutrition-meal-plan",
         label: title
       }
     ];

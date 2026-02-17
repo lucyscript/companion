@@ -42,6 +42,8 @@ import type {
   DailyJournalSummary,
   Goal,
   Habit,
+  NutritionMeal,
+  NutritionMealPlanBlock,
   IntegrationSyncName,
   IntegrationSyncRootCause
 } from "./types.js";
@@ -857,6 +859,51 @@ const goalUpdateSchema = z
 const goalCheckInSchema = z.object({
   completed: z.boolean().optional(),
   date: z.string().datetime().optional()
+});
+
+const nutritionDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+
+const nutritionMealCreateSchema = z.object({
+  name: z.string().trim().min(1).max(160),
+  mealType: z.enum(["breakfast", "lunch", "dinner", "snack", "other"]).default("other"),
+  consumedAt: z.string().datetime().optional(),
+  calories: z.number().min(0).max(10000),
+  proteinGrams: z.number().min(0).max(1000).default(0),
+  carbsGrams: z.number().min(0).max(1500).default(0),
+  fatGrams: z.number().min(0).max(600).default(0),
+  notes: z.string().trim().max(300).optional()
+});
+
+const nutritionMealsQuerySchema = z.object({
+  date: nutritionDateSchema.optional(),
+  from: z.string().datetime().optional(),
+  to: z.string().datetime().optional(),
+  limit: z.coerce.number().int().min(1).max(1000).optional()
+});
+
+const nutritionSummaryQuerySchema = z.object({
+  date: nutritionDateSchema.optional()
+});
+
+const nutritionMealPlanCreateSchema = z.object({
+  title: z.string().trim().min(1).max(160),
+  scheduledFor: z.string().datetime(),
+  targetCalories: z.number().min(0).max(10000).optional(),
+  targetProteinGrams: z.number().min(0).max(1000).optional(),
+  targetCarbsGrams: z.number().min(0).max(1500).optional(),
+  targetFatGrams: z.number().min(0).max(600).optional(),
+  notes: z.string().trim().max(300).optional()
+});
+
+const nutritionMealPlanUpdateSchema = nutritionMealPlanCreateSchema
+  .partial()
+  .refine((value) => Object.keys(value).length > 0, "At least one field is required");
+
+const nutritionMealPlanQuerySchema = z.object({
+  date: nutritionDateSchema.optional(),
+  from: z.string().datetime().optional(),
+  to: z.string().datetime().optional(),
+  limit: z.coerce.number().int().min(1).max(1000).optional()
 });
 
 const pushSubscriptionSchema = z.object({
@@ -1797,6 +1844,108 @@ app.delete("/api/goals/:id", (req, res) => {
     return res.status(404).json({ error: "Goal not found" });
   }
 
+  return res.status(204).send();
+});
+
+app.get("/api/nutrition/summary", (req, res) => {
+  const parsed = nutritionSummaryQuerySchema.safeParse(req.query ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid nutrition summary query", issues: parsed.error.issues });
+  }
+
+  const summary = store.getNutritionDailySummary(parsed.data.date ?? new Date());
+  return res.json({ summary });
+});
+
+app.get("/api/nutrition/meals", (req, res) => {
+  const parsed = nutritionMealsQuerySchema.safeParse(req.query ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid nutrition meals query", issues: parsed.error.issues });
+  }
+
+  const meals = store.getNutritionMeals(parsed.data);
+  return res.json({ meals });
+});
+
+app.post("/api/nutrition/meals", (req, res) => {
+  const parsed = nutritionMealCreateSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid nutrition meal payload", issues: parsed.error.issues });
+  }
+
+  const meal: NutritionMeal = store.createNutritionMeal({
+    ...parsed.data,
+    consumedAt: parsed.data.consumedAt ?? nowIso()
+  });
+
+  return res.status(201).json({ meal });
+});
+
+app.delete("/api/nutrition/meals/:id", (req, res) => {
+  const deleted = store.deleteNutritionMeal(req.params.id);
+  if (!deleted) {
+    return res.status(404).json({ error: "Meal not found" });
+  }
+  return res.status(204).send();
+});
+
+app.get("/api/nutrition/plan", (req, res) => {
+  const parsed = nutritionMealPlanQuerySchema.safeParse(req.query ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid nutrition meal-plan query", issues: parsed.error.issues });
+  }
+
+  const blocks = store.getNutritionMealPlanBlocks(parsed.data);
+  return res.json({ blocks });
+});
+
+app.post("/api/nutrition/plan", (req, res) => {
+  const parsed = nutritionMealPlanCreateSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid nutrition meal-plan payload", issues: parsed.error.issues });
+  }
+
+  const block: NutritionMealPlanBlock = store.upsertNutritionMealPlanBlock(parsed.data);
+  return res.status(201).json({ block });
+});
+
+app.put("/api/nutrition/plan/:id", (req, res) => {
+  const parsed = nutritionMealPlanUpdateSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid nutrition meal-plan payload", issues: parsed.error.issues });
+  }
+
+  const existing = store.getNutritionMealPlanBlockById(req.params.id);
+  if (!existing && (!parsed.data.title || !parsed.data.scheduledFor)) {
+    return res.status(400).json({
+      error: "title and scheduledFor are required when creating a new meal-plan block via PUT."
+    });
+  }
+
+  const merged = {
+    ...(existing ?? {}),
+    ...parsed.data
+  };
+
+  const block: NutritionMealPlanBlock = store.upsertNutritionMealPlanBlock({
+    id: req.params.id,
+    title: merged.title as string,
+    scheduledFor: merged.scheduledFor as string,
+    targetCalories: merged.targetCalories,
+    targetProteinGrams: merged.targetProteinGrams,
+    targetCarbsGrams: merged.targetCarbsGrams,
+    targetFatGrams: merged.targetFatGrams,
+    notes: merged.notes
+  });
+
+  return res.json({ block });
+});
+
+app.delete("/api/nutrition/plan/:id", (req, res) => {
+  const deleted = store.deleteNutritionMealPlanBlock(req.params.id);
+  if (!deleted) {
+    return res.status(404).json({ error: "Meal-plan block not found" });
+  }
   return res.status(204).send();
 });
 

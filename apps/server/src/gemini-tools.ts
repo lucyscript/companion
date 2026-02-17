@@ -9,7 +9,11 @@ import {
   GitHubCourseDocument,
   HabitWithStatus,
   JournalEntry,
-  LectureEvent
+  LectureEvent,
+  NutritionDailySummary,
+  NutritionMeal,
+  NutritionMealPlanBlock,
+  NutritionMealType
 } from "./types.js";
 
 /**
@@ -243,6 +247,164 @@ export const functionDeclarations: FunctionDeclaration[] = [
         goalTitle: {
           type: SchemaType.STRING,
           description: "Goal title hint when ID is unknown."
+        }
+      },
+      required: []
+    }
+  },
+  {
+    name: "getNutritionSummary",
+    description:
+      "Get a daily nutrition summary with calories and macro totals (protein/carbs/fat), plus logged meals and meal-plan blocks.",
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        date: {
+          type: SchemaType.STRING,
+          description: "Optional date in YYYY-MM-DD format. Defaults to today."
+        }
+      },
+      required: []
+    }
+  },
+  {
+    name: "logMeal",
+    description:
+      "Log a meal with calories and macros (protein/carbs/fat). Use this when user asks to add or track what they ate.",
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        name: {
+          type: SchemaType.STRING,
+          description: "Meal name."
+        },
+        mealType: {
+          type: SchemaType.STRING,
+          description: "Meal type: breakfast, lunch, dinner, snack, or other."
+        },
+        consumedAt: {
+          type: SchemaType.STRING,
+          description: "Optional consumed time as ISO datetime. Defaults to now."
+        },
+        calories: {
+          type: SchemaType.NUMBER,
+          description: "Calories for the meal."
+        },
+        proteinGrams: {
+          type: SchemaType.NUMBER,
+          description: "Protein grams."
+        },
+        carbsGrams: {
+          type: SchemaType.NUMBER,
+          description: "Carbohydrate grams."
+        },
+        fatGrams: {
+          type: SchemaType.NUMBER,
+          description: "Fat grams."
+        },
+        notes: {
+          type: SchemaType.STRING,
+          description: "Optional note."
+        }
+      },
+      required: ["name", "calories"]
+    }
+  },
+  {
+    name: "deleteMeal",
+    description:
+      "Delete a logged meal entry. Prefer mealId; mealName may be used when id is unknown.",
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        mealId: {
+          type: SchemaType.STRING,
+          description: "Meal ID (preferred)."
+        },
+        mealName: {
+          type: SchemaType.STRING,
+          description: "Meal name hint when ID is unknown."
+        }
+      },
+      required: []
+    }
+  },
+  {
+    name: "getMealPlan",
+    description:
+      "Get nutrition meal-plan blocks for a day/time window. Use this when user asks about planned meals.",
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        date: {
+          type: SchemaType.STRING,
+          description: "Optional date in YYYY-MM-DD format."
+        },
+        limit: {
+          type: SchemaType.NUMBER,
+          description: "Maximum number of plan blocks to return (default: 20, max: 100)."
+        }
+      },
+      required: []
+    }
+  },
+  {
+    name: "upsertMealPlanBlock",
+    description:
+      "Create or update a meal-plan block with target macros/calories.",
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        blockId: {
+          type: SchemaType.STRING,
+          description: "Existing block ID for updates."
+        },
+        title: {
+          type: SchemaType.STRING,
+          description: "Meal-plan block title."
+        },
+        scheduledFor: {
+          type: SchemaType.STRING,
+          description: "ISO datetime for scheduled meal block."
+        },
+        targetCalories: {
+          type: SchemaType.NUMBER,
+          description: "Optional target calories."
+        },
+        targetProteinGrams: {
+          type: SchemaType.NUMBER,
+          description: "Optional target protein grams."
+        },
+        targetCarbsGrams: {
+          type: SchemaType.NUMBER,
+          description: "Optional target carbs grams."
+        },
+        targetFatGrams: {
+          type: SchemaType.NUMBER,
+          description: "Optional target fat grams."
+        },
+        notes: {
+          type: SchemaType.STRING,
+          description: "Optional notes."
+        }
+      },
+      required: []
+    }
+  },
+  {
+    name: "removeMealPlanBlock",
+    description:
+      "Remove a meal-plan block. Prefer blockId; blockTitle may be used when id is unknown.",
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        blockId: {
+          type: SchemaType.STRING,
+          description: "Meal-plan block ID (preferred)."
+        },
+        blockTitle: {
+          type: SchemaType.STRING,
+          description: "Meal-plan block title hint when ID is unknown."
         }
       },
       required: []
@@ -948,6 +1110,264 @@ export function handleDeleteGoal(
   };
 }
 
+export function handleGetNutritionSummary(
+  store: RuntimeStore,
+  args: Record<string, unknown> = {}
+): NutritionDailySummary {
+  const date = parseNutritionDate(args.date);
+  return store.getNutritionDailySummary(date ?? new Date());
+}
+
+export function handleLogMeal(
+  store: RuntimeStore,
+  args: Record<string, unknown> = {}
+): { success: true; meal: NutritionMeal; message: string } | { error: string } {
+  const name = asTrimmedString(args.name);
+  if (!name) {
+    return { error: "name is required." };
+  }
+
+  if (typeof args.calories !== "number") {
+    return { error: "calories is required." };
+  }
+
+  const meal = store.createNutritionMeal({
+    name,
+    mealType: parseMealType(args.mealType),
+    consumedAt: asTrimmedString(args.consumedAt) ?? new Date().toISOString(),
+    calories: clampFloat(args.calories, 0, 0, 10000),
+    proteinGrams: clampFloat(args.proteinGrams, 0, 0, 1000),
+    carbsGrams: clampFloat(args.carbsGrams, 0, 0, 1500),
+    fatGrams: clampFloat(args.fatGrams, 0, 0, 600),
+    ...(asTrimmedString(args.notes) ? { notes: asTrimmedString(args.notes)! } : {})
+  });
+
+  return {
+    success: true,
+    meal,
+    message: `Logged meal "${meal.name}".`
+  };
+}
+
+export function handleDeleteMeal(
+  store: RuntimeStore,
+  args: Record<string, unknown> = {}
+):
+  | {
+      success: true;
+      deleted: boolean;
+      mealId?: string;
+      mealName?: string;
+      message: string;
+    }
+  | { error: string } {
+  const meals = store.getNutritionMeals({ limit: 500 });
+  if (meals.length === 0) {
+    return {
+      success: true,
+      deleted: false,
+      message: "No meals have been logged yet."
+    };
+  }
+
+  const mealId = asTrimmedString(args.mealId);
+  const mealName = asTrimmedString(args.mealName);
+  let target: NutritionMeal | null = null;
+
+  if (mealId) {
+    target = meals.find((meal) => meal.id === mealId) ?? null;
+    if (!target) {
+      return {
+        success: true,
+        deleted: false,
+        message: `Meal not found: ${mealId}`
+      };
+    }
+  } else if (mealName) {
+    const needle = normalizeSearchText(mealName);
+    const matches = meals.filter((meal) => normalizeSearchText(meal.name).includes(needle));
+    if (matches.length === 0) {
+      return {
+        success: true,
+        deleted: false,
+        message: `No meal matched "${mealName}".`
+      };
+    }
+    if (matches.length > 1) {
+      return {
+        error: `Meal name is ambiguous. Matches: ${matches
+          .slice(0, 4)
+          .map((meal) => meal.name)
+          .join(", ")}`
+      };
+    }
+    target = matches[0]!;
+  } else if (meals.length === 1) {
+    target = meals[0]!;
+  } else {
+    return {
+      error: "Provide mealId or mealName when multiple meal logs exist."
+    };
+  }
+
+  const deleted = store.deleteNutritionMeal(target.id);
+  if (!deleted) {
+    return { error: "Unable to delete meal." };
+  }
+
+  return {
+    success: true,
+    deleted: true,
+    mealId: target.id,
+    mealName: target.name,
+    message: `Deleted meal "${target.name}".`
+  };
+}
+
+export function handleGetMealPlan(
+  store: RuntimeStore,
+  args: Record<string, unknown> = {}
+): { blocks: NutritionMealPlanBlock[]; total: number } {
+  const date = parseNutritionDate(args.date) ?? undefined;
+  const limit = clampNumber(args.limit, 20, 1, 100);
+  const blocks = store.getNutritionMealPlanBlocks({
+    ...(date ? { date } : {}),
+    limit
+  });
+
+  return {
+    blocks,
+    total: blocks.length
+  };
+}
+
+export function handleUpsertMealPlanBlock(
+  store: RuntimeStore,
+  args: Record<string, unknown> = {}
+): { success: true; block: NutritionMealPlanBlock; created: boolean; message: string } | { error: string } {
+  const blockId = asTrimmedString(args.blockId);
+  const existing = blockId ? store.getNutritionMealPlanBlockById(blockId) : null;
+  const title = asTrimmedString(args.title) ?? existing?.title;
+  const scheduledFor = asTrimmedString(args.scheduledFor) ?? existing?.scheduledFor;
+
+  if (!title || !scheduledFor) {
+    return { error: "title and scheduledFor are required." };
+  }
+
+  const block = store.upsertNutritionMealPlanBlock({
+    ...(blockId ? { id: blockId } : {}),
+    title,
+    scheduledFor,
+    ...(typeof args.targetCalories === "number"
+      ? { targetCalories: clampFloat(args.targetCalories, 0, 0, 10000) }
+      : existing?.targetCalories !== undefined
+        ? { targetCalories: existing.targetCalories }
+        : {}),
+    ...(typeof args.targetProteinGrams === "number"
+      ? { targetProteinGrams: clampFloat(args.targetProteinGrams, 0, 0, 1000) }
+      : existing?.targetProteinGrams !== undefined
+        ? { targetProteinGrams: existing.targetProteinGrams }
+        : {}),
+    ...(typeof args.targetCarbsGrams === "number"
+      ? { targetCarbsGrams: clampFloat(args.targetCarbsGrams, 0, 0, 1500) }
+      : existing?.targetCarbsGrams !== undefined
+        ? { targetCarbsGrams: existing.targetCarbsGrams }
+        : {}),
+    ...(typeof args.targetFatGrams === "number"
+      ? { targetFatGrams: clampFloat(args.targetFatGrams, 0, 0, 600) }
+      : existing?.targetFatGrams !== undefined
+        ? { targetFatGrams: existing.targetFatGrams }
+        : {}),
+    ...(asTrimmedString(args.notes)
+      ? { notes: asTrimmedString(args.notes)! }
+      : existing?.notes
+        ? { notes: existing.notes }
+        : {})
+  });
+
+  return {
+    success: true,
+    block,
+    created: !existing,
+    message: `${existing ? "Updated" : "Created"} meal-plan block "${block.title}".`
+  };
+}
+
+export function handleRemoveMealPlanBlock(
+  store: RuntimeStore,
+  args: Record<string, unknown> = {}
+):
+  | {
+      success: true;
+      deleted: boolean;
+      blockId?: string;
+      blockTitle?: string;
+      message: string;
+    }
+  | { error: string } {
+  const blocks = store.getNutritionMealPlanBlocks({ limit: 500 });
+  if (blocks.length === 0) {
+    return {
+      success: true,
+      deleted: false,
+      message: "No meal-plan blocks exist yet."
+    };
+  }
+
+  const blockId = asTrimmedString(args.blockId);
+  const blockTitle = asTrimmedString(args.blockTitle);
+  let target: NutritionMealPlanBlock | null = null;
+
+  if (blockId) {
+    target = blocks.find((block) => block.id === blockId) ?? null;
+    if (!target) {
+      return {
+        success: true,
+        deleted: false,
+        message: `Meal-plan block not found: ${blockId}`
+      };
+    }
+  } else if (blockTitle) {
+    const needle = normalizeSearchText(blockTitle);
+    const matches = blocks.filter((block) => normalizeSearchText(block.title).includes(needle));
+    if (matches.length === 0) {
+      return {
+        success: true,
+        deleted: false,
+        message: `No meal-plan block matched "${blockTitle}".`
+      };
+    }
+    if (matches.length > 1) {
+      return {
+        error: `Meal-plan title is ambiguous. Matches: ${matches
+          .slice(0, 4)
+          .map((block) => block.title)
+          .join(", ")}`
+      };
+    }
+    target = matches[0]!;
+  } else if (blocks.length === 1) {
+    target = blocks[0]!;
+  } else {
+    return {
+      error: "Provide blockId or blockTitle when multiple meal-plan blocks exist."
+    };
+  }
+
+  const deleted = store.deleteNutritionMealPlanBlock(target.id);
+  if (!deleted) {
+    return { error: "Unable to remove meal-plan block." };
+  }
+
+  return {
+    success: true,
+    deleted: true,
+    blockId: target.id,
+    blockTitle: target.title,
+    message: `Removed meal-plan block "${target.title}".`
+  };
+}
+
 export interface PendingActionToolResponse {
   requiresConfirmation: true;
   pendingAction: ChatPendingAction;
@@ -980,6 +1400,32 @@ function clampNumber(value: unknown, fallback: number, min: number, max: number)
     return fallback;
   }
   return Math.min(max, Math.max(min, Math.round(parsed)));
+}
+
+function clampFloat(value: unknown, fallback: number, min: number, max: number): number {
+  const parsed = typeof value === "number" ? value : Number.NaN;
+  if (Number.isNaN(parsed)) {
+    return fallback;
+  }
+  const clamped = Math.min(max, Math.max(min, parsed));
+  return Math.round(clamped * 10) / 10;
+}
+
+function parseNutritionDate(value: unknown): string | null {
+  const raw = asTrimmedString(value);
+  if (!raw) {
+    return null;
+  }
+
+  return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : null;
+}
+
+function parseMealType(value: unknown): NutritionMealType {
+  const raw = asTrimmedString(value)?.toLowerCase();
+  if (raw === "breakfast" || raw === "lunch" || raw === "dinner" || raw === "snack" || raw === "other") {
+    return raw;
+  }
+  return "other";
 }
 
 function normalizeSearchTokens(value: string): string[] {
@@ -1492,6 +1938,24 @@ export function executeFunctionCall(
       break;
     case "deleteGoal":
       response = handleDeleteGoal(store, args);
+      break;
+    case "getNutritionSummary":
+      response = handleGetNutritionSummary(store, args);
+      break;
+    case "logMeal":
+      response = handleLogMeal(store, args);
+      break;
+    case "deleteMeal":
+      response = handleDeleteMeal(store, args);
+      break;
+    case "getMealPlan":
+      response = handleGetMealPlan(store, args);
+      break;
+    case "upsertMealPlanBlock":
+      response = handleUpsertMealPlanBlock(store, args);
+      break;
+    case "removeMealPlanBlock":
+      response = handleRemoveMealPlanBlock(store, args);
       break;
     case "getGitHubCourseContent":
       response = handleGetGitHubCourseContent(store, args);

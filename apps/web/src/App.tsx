@@ -6,6 +6,7 @@ import { OnboardingFlow } from "./components/OnboardingFlow";
 import { SettingsView } from "./components/SettingsView";
 import { HabitsGoalsView } from "./components/HabitsGoalsView";
 import { AnalyticsDashboard } from "./components/AnalyticsDashboard";
+import { NutritionView } from "./components/NutritionView";
 import { TabBar, TabId } from "./components/TabBar";
 import { useDashboard } from "./hooks/useDashboard";
 import { enablePushNotifications, isPushEnabled, supportsPushNotifications } from "./lib/push";
@@ -281,6 +282,9 @@ export default function App(): JSX.Element {
                 focusDeadlineId={focusDeadlineId ?? undefined}
                 focusLectureId={focusLectureId ?? undefined}
               />
+            )}
+            {activeTab === "nutrition" && (
+              <NutritionView />
             )}
             {activeTab === "habits" && (
               <div className="habits-tab-container habits-analytics-stack">

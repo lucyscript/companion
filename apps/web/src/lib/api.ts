@@ -13,6 +13,9 @@ import {
   StudyPlanGeneratePayload,
   Goal,
   Habit,
+  NutritionDailySummary,
+  NutritionMeal,
+  NutritionMealPlanBlock,
   DeadlineStatusConfirmation,
   JournalEntry,
   JournalSyncPayload,
@@ -804,6 +807,151 @@ export async function toggleGoalCheckIn(goalId: string, completed?: boolean): Pr
     updated[index] = offline;
     saveGoals(updated);
     return offline;
+  }
+}
+
+export interface NutritionMealCreatePayload {
+  name: string;
+  mealType?: "breakfast" | "lunch" | "dinner" | "snack" | "other";
+  consumedAt?: string;
+  calories: number;
+  proteinGrams?: number;
+  carbsGrams?: number;
+  fatGrams?: number;
+  notes?: string;
+}
+
+export interface NutritionMealPlanUpsertPayload {
+  title: string;
+  scheduledFor: string;
+  targetCalories?: number;
+  targetProteinGrams?: number;
+  targetCarbsGrams?: number;
+  targetFatGrams?: number;
+  notes?: string;
+}
+
+export async function getNutritionSummary(date?: string): Promise<NutritionDailySummary | null> {
+  const params = new URLSearchParams();
+  if (date) {
+    params.set("date", date);
+  }
+
+  const query = params.toString();
+  const endpoint = query ? `/api/nutrition/summary?${query}` : "/api/nutrition/summary";
+
+  try {
+    const response = await jsonOrThrow<{ summary: NutritionDailySummary }>(endpoint);
+    return response.summary;
+  } catch {
+    return null;
+  }
+}
+
+export async function getNutritionMeals(options: {
+  date?: string;
+  from?: string;
+  to?: string;
+  limit?: number;
+} = {}): Promise<NutritionMeal[]> {
+  const params = new URLSearchParams();
+  if (options.date) params.set("date", options.date);
+  if (options.from) params.set("from", options.from);
+  if (options.to) params.set("to", options.to);
+  if (typeof options.limit === "number") params.set("limit", String(Math.round(options.limit)));
+  const query = params.toString();
+  const endpoint = query ? `/api/nutrition/meals?${query}` : "/api/nutrition/meals";
+
+  try {
+    const response = await jsonOrThrow<{ meals: NutritionMeal[] }>(endpoint);
+    return response.meals;
+  } catch {
+    return [];
+  }
+}
+
+export async function createNutritionMeal(payload: NutritionMealCreatePayload): Promise<NutritionMeal | null> {
+  try {
+    const response = await jsonOrThrow<{ meal: NutritionMeal }>("/api/nutrition/meals", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+    return response.meal;
+  } catch {
+    return null;
+  }
+}
+
+export async function deleteNutritionMeal(mealId: string): Promise<boolean> {
+  try {
+    const response = await fetch(apiUrl(`/api/nutrition/meals/${mealId}`), {
+      method: "DELETE"
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function getNutritionMealPlan(options: {
+  date?: string;
+  from?: string;
+  to?: string;
+  limit?: number;
+} = {}): Promise<NutritionMealPlanBlock[]> {
+  const params = new URLSearchParams();
+  if (options.date) params.set("date", options.date);
+  if (options.from) params.set("from", options.from);
+  if (options.to) params.set("to", options.to);
+  if (typeof options.limit === "number") params.set("limit", String(Math.round(options.limit)));
+  const query = params.toString();
+  const endpoint = query ? `/api/nutrition/plan?${query}` : "/api/nutrition/plan";
+
+  try {
+    const response = await jsonOrThrow<{ blocks: NutritionMealPlanBlock[] }>(endpoint);
+    return response.blocks;
+  } catch {
+    return [];
+  }
+}
+
+export async function createNutritionMealPlanBlock(
+  payload: NutritionMealPlanUpsertPayload
+): Promise<NutritionMealPlanBlock | null> {
+  try {
+    const response = await jsonOrThrow<{ block: NutritionMealPlanBlock }>("/api/nutrition/plan", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+    return response.block;
+  } catch {
+    return null;
+  }
+}
+
+export async function upsertNutritionMealPlanBlock(
+  blockId: string,
+  payload: Partial<NutritionMealPlanUpsertPayload>
+): Promise<NutritionMealPlanBlock | null> {
+  try {
+    const response = await jsonOrThrow<{ block: NutritionMealPlanBlock }>(`/api/nutrition/plan/${blockId}`, {
+      method: "PUT",
+      body: JSON.stringify(payload)
+    });
+    return response.block;
+  } catch {
+    return null;
+  }
+}
+
+export async function deleteNutritionMealPlanBlock(blockId: string): Promise<boolean> {
+  try {
+    const response = await fetch(apiUrl(`/api/nutrition/plan/${blockId}`), {
+      method: "DELETE"
+    });
+    return response.ok;
+  } catch {
+    return false;
   }
 }
 

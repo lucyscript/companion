@@ -7,7 +7,7 @@ export interface DeepLinkState {
   section: string | null;
 }
 
-const tabIds: TabId[] = ["chat", "schedule", "habits", "settings"];
+const tabIds: TabId[] = ["chat", "schedule", "nutrition", "habits", "settings"];
 
 function isTabId(value: string | null): value is TabId {
   return value !== null && tabIds.includes(value as TabId);

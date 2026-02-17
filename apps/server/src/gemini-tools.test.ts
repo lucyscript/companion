@@ -13,6 +13,12 @@ import {
   handleDeleteHabit,
   handleCreateGoal,
   handleDeleteGoal,
+  handleGetNutritionSummary,
+  handleLogMeal,
+  handleDeleteMeal,
+  handleGetMealPlan,
+  handleUpsertMealPlanBlock,
+  handleRemoveMealPlanBlock,
   handleGetGitHubCourseContent,
   handleQueueDeadlineAction,
   handleQueueScheduleBlock,
@@ -32,8 +38,8 @@ describe("gemini-tools", () => {
   });
 
   describe("functionDeclarations", () => {
-    it("should define 17 function declarations", () => {
-      expect(functionDeclarations).toHaveLength(17);
+    it("should define 23 function declarations", () => {
+      expect(functionDeclarations).toHaveLength(23);
     });
 
     it("should include getSchedule function", () => {
@@ -74,6 +80,15 @@ describe("gemini-tools", () => {
       expect(functionDeclarations.find((f) => f.name === "deleteHabit")).toBeDefined();
       expect(functionDeclarations.find((f) => f.name === "createGoal")).toBeDefined();
       expect(functionDeclarations.find((f) => f.name === "deleteGoal")).toBeDefined();
+    });
+
+    it("should include nutrition functions", () => {
+      expect(functionDeclarations.find((f) => f.name === "getNutritionSummary")).toBeDefined();
+      expect(functionDeclarations.find((f) => f.name === "logMeal")).toBeDefined();
+      expect(functionDeclarations.find((f) => f.name === "deleteMeal")).toBeDefined();
+      expect(functionDeclarations.find((f) => f.name === "getMealPlan")).toBeDefined();
+      expect(functionDeclarations.find((f) => f.name === "upsertMealPlanBlock")).toBeDefined();
+      expect(functionDeclarations.find((f) => f.name === "removeMealPlanBlock")).toBeDefined();
     });
 
     it("should include getGitHubCourseContent function", () => {
@@ -405,6 +420,73 @@ describe("gemini-tools", () => {
     });
   });
 
+  describe("nutrition handlers", () => {
+    it("returns daily nutrition summary", () => {
+      store.createNutritionMeal({
+        name: "Overnight oats",
+        mealType: "breakfast",
+        consumedAt: "2026-02-17T07:30:00.000Z",
+        calories: 480,
+        proteinGrams: 28,
+        carbsGrams: 62,
+        fatGrams: 14
+      });
+
+      const result = handleGetNutritionSummary(store, { date: "2026-02-17" });
+      expect(result.mealsLogged).toBe(1);
+      expect(result.totals.calories).toBe(480);
+    });
+
+    it("logs and deletes meals", () => {
+      const logged = handleLogMeal(store, {
+        name: "Chicken wrap",
+        mealType: "lunch",
+        calories: 640,
+        proteinGrams: 44,
+        carbsGrams: 58,
+        fatGrams: 18
+      });
+
+      if ("error" in logged) {
+        throw new Error(logged.error);
+      }
+
+      expect(logged.success).toBe(true);
+      expect(logged.meal.name).toBe("Chicken wrap");
+
+      const deleted = handleDeleteMeal(store, { mealId: logged.meal.id });
+      if ("error" in deleted) {
+        throw new Error(deleted.error);
+      }
+      expect(deleted.deleted).toBe(true);
+    });
+
+    it("creates, lists, and removes meal plan blocks", () => {
+      const upserted = handleUpsertMealPlanBlock(store, {
+        title: "Post-workout meal",
+        scheduledFor: "2026-02-18T08:30:00.000Z",
+        targetCalories: 700,
+        targetProteinGrams: 45
+      });
+
+      if ("error" in upserted) {
+        throw new Error(upserted.error);
+      }
+
+      expect(upserted.success).toBe(true);
+      expect(upserted.block.title).toBe("Post-workout meal");
+
+      const plan = handleGetMealPlan(store, { date: "2026-02-18" });
+      expect(plan.blocks.length).toBeGreaterThan(0);
+
+      const removed = handleRemoveMealPlanBlock(store, { blockId: upserted.block.id });
+      if ("error" in removed) {
+        throw new Error(removed.error);
+      }
+      expect(removed.deleted).toBe(true);
+    });
+  });
+
   describe("handleGetGitHubCourseContent", () => {
     it("returns empty array when no GitHub data is synced", () => {
       const result = handleGetGitHubCourseContent(store);
@@ -714,6 +796,31 @@ describe("gemini-tools", () => {
       expect(result.name).toBe("deleteGoal");
       expect(result.response).toHaveProperty("success", true);
       expect(result.response).toHaveProperty("deleted", true);
+    });
+
+    it("should execute getNutritionSummary function", () => {
+      const result = executeFunctionCall("getNutritionSummary", { date: "2026-02-17" }, store);
+
+      expect(result.name).toBe("getNutritionSummary");
+      expect(result.response).toHaveProperty("totals");
+    });
+
+    it("should execute logMeal function", () => {
+      const result = executeFunctionCall(
+        "logMeal",
+        { name: "Protein smoothie", calories: 320, proteinGrams: 32, carbsGrams: 24, fatGrams: 8 },
+        store
+      );
+
+      expect(result.name).toBe("logMeal");
+      expect(result.response).toHaveProperty("success", true);
+    });
+
+    it("should execute getMealPlan function", () => {
+      const result = executeFunctionCall("getMealPlan", { date: "2026-02-17" }, store);
+
+      expect(result.name).toBe("getMealPlan");
+      expect(result.response).toHaveProperty("blocks");
     });
 
     it("should execute getGitHubCourseContent function", () => {

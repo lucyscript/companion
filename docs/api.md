@@ -81,6 +81,69 @@ Response `200`:
 }
 ```
 
+## Nutrition
+
+### `GET /api/nutrition/summary?date=YYYY-MM-DD`
+
+Returns daily macro totals (`calories`, `proteinGrams`, `carbsGrams`, `fatGrams`) plus meals and meal-plan blocks.
+
+### `GET /api/nutrition/meals?date=YYYY-MM-DD&limit=50`
+
+Returns meal logs for the given date/time filter.
+
+### `POST /api/nutrition/meals`
+
+Request:
+
+```json
+{
+  "name": "Protein oats",
+  "mealType": "breakfast",
+  "calories": 520,
+  "proteinGrams": 32,
+  "carbsGrams": 68,
+  "fatGrams": 14
+}
+```
+
+Response `201`:
+
+```json
+{
+  "meal": {
+    "id": "meal-1739570000000-1",
+    "name": "Protein oats",
+    "mealType": "breakfast",
+    "consumedAt": "2026-02-17T07:15:00.000Z",
+    "calories": 520,
+    "proteinGrams": 32,
+    "carbsGrams": 68,
+    "fatGrams": 14,
+    "createdAt": "2026-02-17T07:15:01.000Z"
+  }
+}
+```
+
+### `DELETE /api/nutrition/meals/:id`
+
+Deletes a meal log. Response `204` or `404`.
+
+### `GET /api/nutrition/plan?date=YYYY-MM-DD`
+
+Returns meal-plan blocks for the selected date/time filter.
+
+### `POST /api/nutrition/plan`
+
+Creates a meal-plan block. Response `201` with `{ "block": ... }`.
+
+### `PUT /api/nutrition/plan/:id`
+
+Upserts a meal-plan block by id. Response `200` with `{ "block": ... }`.
+
+### `DELETE /api/nutrition/plan/:id`
+
+Deletes a meal-plan block. Response `204` or `404`.
+
 ## Journal
 
 ### `POST /api/journal`

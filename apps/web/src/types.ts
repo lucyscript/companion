@@ -247,6 +247,47 @@ export interface Goal {
   recentCheckIns: CheckInDay[];
 }
 
+export type NutritionMealType = "breakfast" | "lunch" | "dinner" | "snack" | "other";
+
+export interface NutritionMeal {
+  id: string;
+  name: string;
+  mealType: NutritionMealType;
+  consumedAt: string;
+  calories: number;
+  proteinGrams: number;
+  carbsGrams: number;
+  fatGrams: number;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface NutritionMealPlanBlock {
+  id: string;
+  title: string;
+  scheduledFor: string;
+  targetCalories?: number;
+  targetProteinGrams?: number;
+  targetCarbsGrams?: number;
+  targetFatGrams?: number;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NutritionDailySummary {
+  date: string;
+  totals: {
+    calories: number;
+    proteinGrams: number;
+    carbsGrams: number;
+    fatGrams: number;
+  };
+  mealsLogged: number;
+  meals: NutritionMeal[];
+  mealPlanBlocks: NutritionMealPlanBlock[];
+}
+
 export interface CalendarImportPayload {
   ics?: string;
   url?: string;
@@ -330,6 +371,8 @@ export type ChatCitationType =
   | "journal"
   | "habit"
   | "goal"
+  | "nutrition-meal"
+  | "nutrition-meal-plan"
   | "email"
   | "social-youtube"
   | "social-x"

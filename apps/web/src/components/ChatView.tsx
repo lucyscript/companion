@@ -21,7 +21,7 @@ function latestAssistantMessage(messages: ChatMessage[]): ChatMessage | null {
 }
 
 interface CitationLinkTarget {
-  tab: "schedule" | "habits" | "settings";
+  tab: "schedule" | "nutrition" | "habits" | "settings";
   deadlineId?: string;
   lectureId?: string;
   section?: string;
@@ -38,6 +38,9 @@ function toCitationTarget(citation: ChatCitation): CitationLinkTarget {
     case "habit":
     case "goal":
       return { tab: "habits" };
+    case "nutrition-meal":
+    case "nutrition-meal-plan":
+      return { tab: "nutrition" };
     case "email":
       return { tab: "settings", section: "integrations" };
     case "social-youtube":

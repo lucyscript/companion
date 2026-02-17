@@ -407,7 +407,7 @@ Features are built in priority order. The orchestrator reads this section to dec
 | ✅ done | `social-sync-strict-diagnostics` | fullstack-engineer | Keep social sync strict (no hidden provider fallback behavior), return explicit sync diagnostics (`channelsCount`/`videosCount`/`tweetsCount` + `lastSyncedAt`) from `/api/social-media/sync`, and surface “synced but 0 items” debug messaging in Social tab. Tracked in issue #334. |
 | | | | |
 | | **— Phase 10: Wellness & Nutrition —** | | |
-| 🟡 todo | `food-module-integration` | fullstack-engineer | Integrate `lucyscript/food` into Companion as a native nutrition module (meal logging, calories/macros, meal plans), expose Gemini nutrition tools, and persist data in the primary app storage. Tracked in issue #300. |
+| ✅ done | `food-module-integration` | fullstack-engineer | Integrate macro-focused nutrition tracking into Companion as a native module (meal logging, calories/protein/carbs/fat, meal plans), expose Gemini nutrition tools, and persist nutrition data in primary runtime storage/API/UI surfaces. Tracked in issue #300. |
 | | | | |
 | | **— Phase 11: Continuous Coaching & Reliability —** | | |
 | ⬜ todo | `habit-goal-intent-autocapture` | backend-engineer | Add intent-level habit/goal autocapture in chat: detect repeated commitment language ("I keep missing morning gym", "I want to read nightly"), propose create/update actions, and generate one-tap confirmation prompts with rationale. |
