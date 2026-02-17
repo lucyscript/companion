@@ -199,6 +199,7 @@ export function ChatView(): JSX.Element {
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
@@ -208,13 +209,17 @@ export function ChatView(): JSX.Element {
   const speechRecognitionSupported = Boolean(recognitionCtor);
   const speechSynthesisSupported = typeof window !== "undefined" && "speechSynthesis" in window;
 
-  // Scroll to bottom when new messages arrive
-  const scrollToBottom = (): void => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  const scrollToBottom = (behavior: ScrollBehavior = "smooth"): void => {
+    const container = messagesContainerRef.current;
+    if (container) {
+      container.scrollTo({ top: container.scrollHeight, behavior });
+      return;
+    }
+    messagesEndRef.current?.scrollIntoView({ behavior });
   };
 
   useEffect(() => {
-    scrollToBottom();
+    window.requestAnimationFrame(() => scrollToBottom("auto"));
   }, [messages]);
 
   // Load chat history on mount
@@ -225,6 +230,7 @@ export function ChatView(): JSX.Element {
         setMessages(response.history.messages);
         const latestAssistant = latestAssistantMessage(response.history.messages);
         lastSpokenAssistantIdRef.current = latestAssistant?.id ?? null;
+        window.requestAnimationFrame(() => scrollToBottom("auto"));
       } catch (err) {
         setError("Failed to load chat history");
         console.error(err);
@@ -359,6 +365,7 @@ export function ChatView(): JSX.Element {
 
     // Add user message immediately
     setMessages((prev) => [...prev, userMessage]);
+    window.requestAnimationFrame(() => scrollToBottom("auto"));
     setInputText("");
     setPendingAttachments([]);
     setIsSending(true);
@@ -373,6 +380,7 @@ export function ChatView(): JSX.Element {
       streaming: true
     };
     setMessages((prev) => [...prev, assistantPlaceholder]);
+    window.requestAnimationFrame(() => scrollToBottom("auto"));
 
     try {
       const response = await sendChatMessage(trimmedText, attachmentsToSend);
@@ -382,6 +390,7 @@ export function ChatView(): JSX.Element {
           msg.streaming ? { ...response, streaming: false } : msg
         )
       );
+      window.requestAnimationFrame(() => scrollToBottom("auto"));
     } catch (err) {
       setError("Failed to send message. Please try again.");
       console.error(err);
@@ -518,7 +527,7 @@ export function ChatView(): JSX.Element {
         <div className="chat-error">Talk mode has limited support in this browser.</div>
       )}
 
-      <div className="chat-messages">
+      <div className="chat-messages" ref={messagesContainerRef}>
         {messages.length === 0 && (
           <div className="chat-welcome">
             <h2>👋 Hi there!</h2>
