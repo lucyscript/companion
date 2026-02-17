@@ -31,6 +31,7 @@ import { buildStudyPlanCalendarIcs } from "./study-plan-export.js";
 import { generateWeeklyStudyPlan } from "./study-plan.js";
 import { generateContentRecommendations } from "./content-recommendations.js";
 import { Notification, NotificationPreferencesPatch } from "./types.js";
+import { SyncFailureRecoveryTracker, SyncRecoveryPrompt } from "./sync-failure-recovery.js";
 import { nowIso } from "./utils.js";
 
 const app = express();
@@ -45,6 +46,7 @@ const youtubeSyncService = new YouTubeSyncService(store);
 const xSyncService = new XSyncService(store);
 const gmailOAuthService = new GmailOAuthService(store);
 const gmailSyncService = new GmailSyncService(store, gmailOAuthService);
+const syncFailureRecovery = new SyncFailureRecoveryTracker();
 
 runtime.start();
 syncService.start();
@@ -55,6 +57,27 @@ githubCourseSyncService.start();
 youtubeSyncService.start();
 xSyncService.start();
 gmailSyncService.start();
+
+function publishSyncRecoveryPrompt(prompt: SyncRecoveryPrompt | null): void {
+  if (!prompt) {
+    return;
+  }
+
+  const details = [prompt.rootCauseHint, ...prompt.suggestedActions.slice(0, 2)].join(" ");
+  store.pushNotification({
+    source: "orchestrator",
+    title: prompt.title,
+    message: `${prompt.message} ${details}`.trim(),
+    priority: prompt.severity === "high" ? "high" : "medium",
+    url: "/companion/?tab=settings&section=integrations",
+    metadata: {
+      integration: prompt.integration,
+      failureCount: prompt.failureCount,
+      rootCauseHint: prompt.rootCauseHint,
+      suggestedActions: prompt.suggestedActions
+    }
+  });
+}
 
 app.use(cors());
 app.use(express.json());
@@ -1489,6 +1512,7 @@ app.post("/api/sync/tp", async (req, res) => {
     const existingEvents = store.getScheduleEvents();
     const diff = diffScheduleEvents(existingEvents, tpEvents);
     const result = store.upsertScheduleEvents(diff.toCreate, diff.toUpdate, diff.toDelete);
+    syncFailureRecovery.recordSuccess("tp");
 
     return res.json({
       success: true,
@@ -1504,13 +1528,18 @@ app.post("/api/sync/tp", async (req, res) => {
       }
     });
   } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    const recoveryPrompt = syncFailureRecovery.recordFailure("tp", message);
+    publishSyncRecoveryPrompt(recoveryPrompt);
+
     return res.status(500).json({
       success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
+      error: message,
       eventsProcessed: 0,
       lecturesCreated: 0,
       lecturesUpdated: 0,
-      lecturesDeleted: 0
+      lecturesDeleted: 0,
+      recoveryPrompt
     });
   }
 });
@@ -1547,7 +1576,18 @@ app.post("/api/canvas/sync", async (req, res) => {
     pastDays: parsed.data.pastDays,
     futureDays: parsed.data.futureDays
   });
-  return res.json(result);
+
+  if (result.success) {
+    syncFailureRecovery.recordSuccess("canvas");
+    return res.json(result);
+  }
+
+  const recoveryPrompt = syncFailureRecovery.recordFailure("canvas", result.error ?? "Canvas sync failed");
+  publishSyncRecoveryPrompt(recoveryPrompt);
+  return res.json({
+    ...result,
+    recoveryPrompt
+  });
 });
 
 app.get("/api/x/status", (_req, res) => {
@@ -1687,18 +1727,33 @@ app.get("/api/gmail/status", (_req, res) => {
   return res.json(connectionInfo);
 });
 
+app.get("/api/integrations/recovery-prompts", (_req, res) => {
+  return res.json(syncFailureRecovery.getSnapshot());
+});
+
 app.post("/api/gmail/sync", async (_req, res) => {
   try {
     const result = await gmailSyncService.triggerSync();
+    let recoveryPrompt: SyncRecoveryPrompt | null = null;
+    if (result.success) {
+      syncFailureRecovery.recordSuccess("gmail");
+    } else {
+      recoveryPrompt = syncFailureRecovery.recordFailure("gmail", result.error ?? "Gmail sync failed");
+      publishSyncRecoveryPrompt(recoveryPrompt);
+    }
+
     return res.json({
       status: result.success ? "syncing" : "failed",
       messagesFound: result.messagesCount,
       startedAt: new Date().toISOString(),
-      error: result.error
+      error: result.error,
+      recoveryPrompt
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    return res.status(500).json({ error: errorMessage });
+    const recoveryPrompt = syncFailureRecovery.recordFailure("gmail", errorMessage);
+    publishSyncRecoveryPrompt(recoveryPrompt);
+    return res.status(500).json({ error: errorMessage, recoveryPrompt });
   }
 });
 
