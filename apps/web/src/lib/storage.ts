@@ -531,141 +531,60 @@ export function loadSocialMediaCachedAt(): string | null {
   }
 }
 
-function buildRecentCheckIns(offsets: number[]): Array<{ date: string; completed: boolean }> {
-  const recent: Array<{ date: string; completed: boolean }> = [];
-  for (let offset = 6; offset >= 0; offset -= 1) {
-    const day = new Date();
-    day.setDate(day.getDate() - offset);
-    const date = day.toISOString().slice(0, 10);
-    recent.push({
-      date,
-      completed: offsets.includes(offset)
-    });
+const LEGACY_GOAL_SIGNATURES = [
+  "finish algorithms pset|daily|6",
+  "publish portfolio draft|daily|10"
+];
+
+function isLegacySeedHabits(habits: Habit[]): boolean {
+  if (habits.length !== 3) {
+    return false;
   }
-  return recent;
+
+  const signatures = new Set(
+    habits
+    .map((habit) => {
+      return `${habit.name.trim().toLowerCase()}|${habit.cadence}|${habit.targetPerWeek}`;
+    })
+  );
+
+  return (
+    signatures.has("morning run|daily|5") &&
+    signatures.has("wind-down reading|weekly|4") &&
+    (signatures.has("study sprint|daily|6") || signatures.has("deep work block|daily|6"))
+  );
 }
 
-function completionRate(recent: Array<{ completed: boolean }>): number {
-  return recent.length === 0 ? 0 : Math.round((recent.filter((c) => c.completed).length / recent.length) * 100);
-}
-
-function streakFromRecent(recent: Array<{ completed: boolean }>): number {
-  let streak = 0;
-  let graceUsed = false;
-  for (let i = recent.length - 1; i >= 0; i -= 1) {
-    const offsetFromToday = recent.length - 1 - i;
-    if (recent[i].completed) {
-      streak += 1;
-      continue;
-    }
-    if (!graceUsed && streak > 0 && offsetFromToday <= 1) {
-      graceUsed = true;
-      streak += 1;
-      continue;
-    }
-    break;
+function isLegacySeedGoals(goals: Goal[]): boolean {
+  if (goals.length !== LEGACY_GOAL_SIGNATURES.length) {
+    return false;
   }
-  return streak;
-}
 
-function defaultHabits(): Habit[] {
-  const seed = [
-    {
-      id: "habit-seed-1",
-      name: "Morning run",
-      cadence: "daily",
-      targetPerWeek: 5,
-      motivation: "Energy before lectures",
-      offsets: [0, 1, 2, 4]
-    },
-    {
-      id: "habit-seed-2",
-      name: "Deep work block",
-      cadence: "daily",
-      targetPerWeek: 6,
-      motivation: "Keep assignments moving",
-      offsets: [0, 1, 3]
-    },
-    {
-      id: "habit-seed-3",
-      name: "Wind-down reading",
-      cadence: "weekly",
-      targetPerWeek: 4,
-      motivation: "Better sleep and focus",
-      offsets: [1, 3, 5]
-    }
-  ];
+  const signatures = goals
+    .map((goal) => {
+      return `${goal.title.trim().toLowerCase()}|${goal.cadence}|${goal.targetCount}`;
+    })
+    .sort();
 
-  return seed.map((habit) => {
-    const recentCheckIns = buildRecentCheckIns(habit.offsets);
-    const streak = streakFromRecent(recentCheckIns);
-    return {
-      id: habit.id,
-      name: habit.name,
-      cadence: habit.cadence as Habit["cadence"],
-      targetPerWeek: habit.targetPerWeek,
-      motivation: habit.motivation,
-      recentCheckIns,
-      completionRate7d: completionRate(recentCheckIns),
-      streak,
-      todayCompleted: recentCheckIns[recentCheckIns.length - 1]?.completed ?? false
-    };
-  });
-}
-
-function defaultGoals(): Goal[] {
-  const seed = [
-    {
-      id: "goal-seed-1",
-      title: "Publish portfolio draft",
-      cadence: "daily",
-      targetCount: 10,
-      dueDate: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
-      motivation: "Prepare for internship interviews",
-      offsets: [0, 1, 2, 3]
-    },
-    {
-      id: "goal-seed-2",
-      title: "Finish algorithms PSET",
-      cadence: "daily",
-      targetCount: 6,
-      dueDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
-      motivation: "Stay ahead of class pace",
-      offsets: [0, 2, 4]
-    }
-  ];
-
-  return seed.map((goal) => {
-    const recentCheckIns = buildRecentCheckIns(goal.offsets);
-    const progressCount = goal.offsets.length;
-    const streak = streakFromRecent(recentCheckIns);
-    return {
-      id: goal.id,
-      title: goal.title,
-      cadence: goal.cadence as Goal["cadence"],
-      targetCount: goal.targetCount,
-      dueDate: goal.dueDate,
-      motivation: goal.motivation,
-      progressCount,
-      remaining: Math.max(goal.targetCount - progressCount, 0),
-      recentCheckIns,
-      completionRate7d: completionRate(recentCheckIns),
-      streak,
-      todayCompleted: recentCheckIns[recentCheckIns.length - 1]?.completed ?? false
-    };
-  });
+  return JSON.stringify(signatures) === JSON.stringify([...LEGACY_GOAL_SIGNATURES].sort());
 }
 
 export function loadHabits(): Habit[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.habits);
-    if (raw) return JSON.parse(raw) as Habit[];
+    if (raw) {
+      const parsed = JSON.parse(raw) as Habit[];
+      if (Array.isArray(parsed) && isLegacySeedHabits(parsed)) {
+        saveHabits([]);
+        return [];
+      }
+      return Array.isArray(parsed) ? parsed : [];
+    }
   } catch {
     // corrupted — fall through
   }
-  const habits = defaultHabits();
-  saveHabits(habits);
-  return habits;
+  saveHabits([]);
+  return [];
 }
 
 export function saveHabits(habits: Habit[]): void {
@@ -675,13 +594,19 @@ export function saveHabits(habits: Habit[]): void {
 export function loadGoals(): Goal[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.goals);
-    if (raw) return JSON.parse(raw) as Goal[];
+    if (raw) {
+      const parsed = JSON.parse(raw) as Goal[];
+      if (Array.isArray(parsed) && isLegacySeedGoals(parsed)) {
+        saveGoals([]);
+        return [];
+      }
+      return Array.isArray(parsed) ? parsed : [];
+    }
   } catch {
     // corrupted — fall through
   }
-  const goals = defaultGoals();
-  saveGoals(goals);
-  return goals;
+  saveGoals([]);
+  return [];
 }
 
 export function saveGoals(goals: Goal[]): void {

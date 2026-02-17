@@ -597,95 +597,50 @@ export class RuntimeStore {
         .run();
     }
 
-    // Seed starter habits/goals for a fresh database
-    const dateKey = (offsetDays: number): string => {
-      const date = new Date();
-      date.setUTCHours(0, 0, 0, 0);
-      date.setUTCDate(date.getUTCDate() - offsetDays);
-      return date.toISOString().slice(0, 10);
-    };
+    this.pruneLegacySeedHabitsAndGoals();
+  }
 
-    const habitCount = (this.db.prepare("SELECT COUNT(*) as count FROM habits").get() as { count: number }).count;
-    if (habitCount === 0) {
-      const habits: Array<Omit<Habit, "id">> = [
-        {
-          name: "Morning run",
-          cadence: "daily",
-          targetPerWeek: 5,
-          motivation: "Energy before class",
-          createdAt: nowIso()
-        },
-        {
-          name: "Study sprint",
-          cadence: "daily",
-          targetPerWeek: 6,
-          motivation: "Keep assignments moving",
-          createdAt: nowIso()
-        },
-        {
-          name: "Wind-down reading",
-          cadence: "weekly",
-          targetPerWeek: 4,
-          motivation: "Better sleep and focus",
-          createdAt: nowIso()
-        }
-      ];
+  private pruneLegacySeedHabitsAndGoals(): void {
+    const habitRows = this.db.prepare("SELECT id, name, cadence, targetPerWeek FROM habits").all() as Array<{
+      id: string;
+      name: string;
+      cadence: string;
+      targetPerWeek: number;
+    }>;
 
-      const insertHabit = this.db.prepare(
-        "INSERT INTO habits (id, name, cadence, targetPerWeek, motivation, createdAt) VALUES (?, ?, ?, ?, ?, ?)"
-      );
-      const insertHabitCheckIn = this.db.prepare(
-        "INSERT INTO habit_check_ins (id, habitId, checkInDate, completed, note) VALUES (?, ?, ?, ?, ?)"
-      );
+    const goalRows = this.db.prepare("SELECT id, title, cadence, targetCount FROM goals").all() as Array<{
+      id: string;
+      title: string;
+      cadence: string;
+      targetCount: number;
+    }>;
 
-      habits.forEach((habit, index) => {
-        const habitId = makeId("habit");
-        insertHabit.run(habitId, habit.name, habit.cadence, habit.targetPerWeek, habit.motivation ?? null, habit.createdAt);
+    const habitSignatures = new Set(
+      habitRows.map((habit) => `${habit.name.trim().toLowerCase()}|${habit.cadence}|${habit.targetPerWeek}`)
+    );
+    const goalSignatures = new Set(
+      goalRows.map((goal) => `${goal.title.trim().toLowerCase()}|${goal.cadence}|${goal.targetCount}`)
+    );
 
-        const completions = index === 0 ? [0, 1, 2, 4] : index === 1 ? [0, 1, 3] : [1, 3, 5];
-        for (const offset of completions) {
-          insertHabitCheckIn.run(makeId("habit-check"), habitId, dateKey(offset), 1, null);
-        }
-      });
+    const hasLegacyHabits =
+      habitRows.length === 3 &&
+      habitSignatures.has("morning run|daily|5") &&
+      habitSignatures.has("study sprint|daily|6") &&
+      habitSignatures.has("wind-down reading|weekly|4");
+
+    const hasLegacyGoals =
+      goalRows.length === 2 &&
+      goalSignatures.has("finish algorithms pset|daily|6") &&
+      goalSignatures.has("publish portfolio draft|daily|10");
+
+    if (hasLegacyHabits) {
+      this.db.prepare("DELETE FROM habit_check_ins").run();
+      this.db.prepare("DELETE FROM habits").run();
     }
 
-    const goalCount = (this.db.prepare("SELECT COUNT(*) as count FROM goals").get() as { count: number }).count;
-    if (goalCount === 0) {
-      const goals: Array<Omit<Goal, "id">> = [
-        {
-          title: "Publish portfolio draft",
-          cadence: "daily",
-          targetCount: 10,
-          dueDate: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
-          motivation: "Finish before internship interviews",
-          createdAt: nowIso()
-        },
-        {
-          title: "Finish algorithms PSET",
-          cadence: "daily",
-          targetCount: 6,
-          dueDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
-          motivation: "Stay ahead of class pace",
-          createdAt: nowIso()
-        }
-      ];
-
-      const insertGoal = this.db.prepare(
-        "INSERT INTO goals (id, title, cadence, targetCount, dueDate, motivation, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)"
-      );
-      const insertGoalCheckIn = this.db.prepare(
-        "INSERT INTO goal_check_ins (id, goalId, checkInDate, completed) VALUES (?, ?, ?, ?)"
-      );
-
-      goals.forEach((goal, index) => {
-        const goalId = makeId("goal");
-        insertGoal.run(goalId, goal.title, goal.cadence, goal.targetCount, goal.dueDate, goal.motivation ?? null, goal.createdAt);
-
-        const completions = index === 0 ? [0, 1, 2, 3] : [0, 2, 4];
-        for (const offset of completions) {
-          insertGoalCheckIn.run(makeId("goal-check"), goalId, dateKey(offset), 1);
-        }
-      });
+    if (hasLegacyGoals) {
+      this.db.prepare("DELETE FROM goal_check_ins").run();
+      this.db.prepare("DELETE FROM goals").run();
     }
   }
 
@@ -2169,6 +2124,37 @@ export class RuntimeStore {
     return this.getHabitWithStatus(habit.id)!;
   }
 
+  updateHabit(
+    id: string,
+    patch: Partial<Pick<Habit, "name" | "cadence" | "targetPerWeek" | "motivation">>
+  ): HabitWithStatus | null {
+    const existing = this.getHabitById(id);
+    if (!existing) {
+      return null;
+    }
+
+    const next: Habit = {
+      ...existing,
+      ...patch
+    };
+
+    this.db
+      .prepare(
+        `UPDATE habits SET
+          name = ?, cadence = ?, targetPerWeek = ?, motivation = ?
+         WHERE id = ?`
+      )
+      .run(next.name, next.cadence, next.targetPerWeek, next.motivation ?? null, id);
+
+    return this.getHabitWithStatus(id);
+  }
+
+  deleteHabit(id: string): boolean {
+    this.db.prepare("DELETE FROM habit_check_ins WHERE habitId = ?").run(id);
+    const result = this.db.prepare("DELETE FROM habits WHERE id = ?").run(id);
+    return result.changes > 0;
+  }
+
   getHabits(): Habit[] {
     const rows = this.db.prepare("SELECT * FROM habits ORDER BY insertOrder DESC").all() as Array<{
       id: string;
@@ -2323,6 +2309,37 @@ export class RuntimeStore {
     }
 
     return this.getGoalWithStatus(goal.id)!;
+  }
+
+  updateGoal(
+    id: string,
+    patch: Partial<Pick<Goal, "title" | "cadence" | "targetCount" | "dueDate" | "motivation">>
+  ): GoalWithStatus | null {
+    const existing = this.getGoalById(id);
+    if (!existing) {
+      return null;
+    }
+
+    const next: Goal = {
+      ...existing,
+      ...patch
+    };
+
+    this.db
+      .prepare(
+        `UPDATE goals SET
+          title = ?, cadence = ?, targetCount = ?, dueDate = ?, motivation = ?
+         WHERE id = ?`
+      )
+      .run(next.title, next.cadence, next.targetCount, next.dueDate ?? null, next.motivation ?? null, id);
+
+    return this.getGoalWithStatus(id);
+  }
+
+  deleteGoal(id: string): boolean {
+    this.db.prepare("DELETE FROM goal_check_ins WHERE goalId = ?").run(id);
+    const result = this.db.prepare("DELETE FROM goals WHERE id = ?").run(id);
+    return result.changes > 0;
   }
 
   getGoals(): Goal[] {

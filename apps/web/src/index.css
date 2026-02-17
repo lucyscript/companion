@@ -1501,6 +1501,45 @@ button:disabled {
   font-size: 0.9rem;
 }
 
+.habit-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.habit-edit-form {
+  display: grid;
+  gap: 8px;
+}
+
+.habit-edit-form label {
+  display: grid;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.habit-edit-form input,
+.habit-edit-form select {
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  color: var(--text);
+  padding: 8px 10px;
+  font: inherit;
+}
+
+.habit-delete-button {
+  border-color: var(--danger-border) !important;
+  color: var(--danger);
+}
+
+.habit-delete-button:hover:not(:disabled) {
+  border-color: var(--danger-border-strong) !important;
+  background: var(--danger-surface);
+}
+
 .warning-text {
   color: var(--danger);
   font-size: 0.9rem;

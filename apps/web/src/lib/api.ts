@@ -577,6 +577,63 @@ export async function getHabits(): Promise<Habit[]> {
   }
 }
 
+export interface HabitUpdatePayload {
+  name?: string;
+  cadence?: "daily" | "weekly";
+  targetPerWeek?: number;
+  motivation?: string | null;
+}
+
+export async function updateHabit(habitId: string, payload: HabitUpdatePayload): Promise<Habit | null> {
+  try {
+    const response = await jsonOrThrow<{ habit: Habit }>(`/api/habits/${habitId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload)
+    });
+    const nextHabits = loadHabits();
+    const merged = nextHabits.map((habit) => (habit.id === habitId ? response.habit : habit));
+    if (!merged.find((habit) => habit.id === habitId)) {
+      merged.push(response.habit);
+    }
+    saveHabits(merged);
+    return response.habit;
+  } catch {
+    const habits = loadHabits();
+    const index = habits.findIndex((habit) => habit.id === habitId);
+    if (index === -1) return null;
+
+    const updatedHabit: Habit = {
+      ...habits[index],
+      ...(payload.name !== undefined ? { name: payload.name } : {}),
+      ...(payload.cadence !== undefined ? { cadence: payload.cadence } : {}),
+      ...(payload.targetPerWeek !== undefined ? { targetPerWeek: payload.targetPerWeek } : {}),
+      ...(Object.prototype.hasOwnProperty.call(payload, "motivation")
+        ? { motivation: payload.motivation ?? undefined }
+        : {})
+    };
+    const next = [...habits];
+    next[index] = updatedHabit;
+    saveHabits(next);
+    return updatedHabit;
+  }
+}
+
+export async function deleteHabit(habitId: string): Promise<boolean> {
+  try {
+    const response = await fetch(apiUrl(`/api/habits/${habitId}`), {
+      method: "DELETE"
+    });
+    if (!response.ok) {
+      return false;
+    }
+    saveHabits(loadHabits().filter((habit) => habit.id !== habitId));
+    return true;
+  } catch {
+    saveHabits(loadHabits().filter((habit) => habit.id !== habitId));
+    return true;
+  }
+}
+
 export async function toggleHabitCheckIn(habitId: string, completed?: boolean): Promise<Habit | null> {
   const body: Record<string, boolean> = {};
   if (completed !== undefined) {
@@ -626,6 +683,72 @@ export async function getGoals(): Promise<Goal[]> {
     return response.goals;
   } catch {
     return loadGoals();
+  }
+}
+
+export interface GoalUpdatePayload {
+  title?: string;
+  cadence?: "daily" | "weekly";
+  targetCount?: number;
+  dueDate?: string | null;
+  motivation?: string | null;
+}
+
+export async function updateGoal(goalId: string, payload: GoalUpdatePayload): Promise<Goal | null> {
+  try {
+    const response = await jsonOrThrow<{ goal: Goal }>(`/api/goals/${goalId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload)
+    });
+    const nextGoals = loadGoals();
+    const merged = nextGoals.map((goal) => (goal.id === goalId ? response.goal : goal));
+    if (!merged.find((goal) => goal.id === goalId)) {
+      merged.push(response.goal);
+    }
+    saveGoals(merged);
+    return response.goal;
+  } catch {
+    const goals = loadGoals();
+    const index = goals.findIndex((goal) => goal.id === goalId);
+    if (index === -1) return null;
+
+    const updatedGoal: Goal = {
+      ...goals[index],
+      ...(payload.title !== undefined ? { title: payload.title } : {}),
+      ...(payload.cadence !== undefined ? { cadence: payload.cadence } : {}),
+      ...(payload.targetCount !== undefined ? { targetCount: payload.targetCount } : {}),
+      ...(Object.prototype.hasOwnProperty.call(payload, "dueDate")
+        ? { dueDate: payload.dueDate ?? null }
+        : {}),
+      ...(Object.prototype.hasOwnProperty.call(payload, "motivation")
+        ? { motivation: payload.motivation ?? undefined }
+        : {})
+    };
+
+    if (payload.targetCount !== undefined) {
+      updatedGoal.remaining = Math.max(payload.targetCount - updatedGoal.progressCount, 0);
+    }
+
+    const next = [...goals];
+    next[index] = updatedGoal;
+    saveGoals(next);
+    return updatedGoal;
+  }
+}
+
+export async function deleteGoal(goalId: string): Promise<boolean> {
+  try {
+    const response = await fetch(apiUrl(`/api/goals/${goalId}`), {
+      method: "DELETE"
+    });
+    if (!response.ok) {
+      return false;
+    }
+    saveGoals(loadGoals().filter((goal) => goal.id !== goalId));
+    return true;
+  } catch {
+    saveGoals(loadGoals().filter((goal) => goal.id !== goalId));
+    return true;
   }
 }
 
