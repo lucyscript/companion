@@ -21,6 +21,23 @@ const EFFORT_MIN_HOURS = 0;
 const EFFORT_MAX_HOURS = 200;
 const EFFORT_STEP_HOURS = 0.5;
 
+function normalizeDueDateInput(dueDate: string): string {
+  const trimmed = dueDate.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    // Date-only deadlines are interpreted as local end-of-day.
+    return `${trimmed}T23:59:00`;
+  }
+  return trimmed;
+}
+
+function dueTimestamp(dueDate: string): number {
+  return new Date(normalizeDueDateInput(dueDate)).getTime();
+}
+
+function formatDeadlineTaskLabel(task: string): string {
+  return task.replace(/^Assignment\s+Lab\b/i, "Lab");
+}
+
 function defaultEffortHours(priority: Priority): number {
   switch (priority) {
     case "critical":
@@ -140,7 +157,7 @@ export function DeadlineList({ focusDeadlineId }: DeadlineListProps): JSX.Elemen
   };
 
   const formatTimeRemaining = (dueDate: string): string => {
-    const due = new Date(dueDate).getTime();
+    const due = dueTimestamp(dueDate);
     const now = Date.now();
     const diffMs = due - now;
     const diffMinutes = Math.floor(diffMs / 60000);
@@ -150,12 +167,13 @@ export function DeadlineList({ focusDeadlineId }: DeadlineListProps): JSX.Elemen
     if (diffMs < 0) return "Overdue";
     if (diffHours < 1) return `${diffMinutes}m left`;
     if (diffHours < 24) return `${diffHours}h left`;
+    if (diffDays === 1 && diffHours % 24 > 0) return `1 day ${diffHours % 24}h left`;
     if (diffDays === 1) return "1 day left";
     return `${diffDays} days left`;
   };
 
   const formatDueDate = (dueDate: string): string => {
-    const date = new Date(dueDate);
+    const date = new Date(normalizeDueDateInput(dueDate));
     return date.toLocaleString(undefined, {
       weekday: "short",
       month: "short",
@@ -167,7 +185,7 @@ export function DeadlineList({ focusDeadlineId }: DeadlineListProps): JSX.Elemen
   };
 
   const getUrgencyClass = (dueDate: string): string => {
-    const due = new Date(dueDate).getTime();
+    const due = dueTimestamp(dueDate);
     const now = Date.now();
     const hoursLeft = (due - now) / (1000 * 60 * 60);
 
@@ -316,7 +334,7 @@ export function DeadlineList({ focusDeadlineId }: DeadlineListProps): JSX.Elemen
     setSyncMessage("");
 
     const originalDeadlines = deadlines;
-    const snoozedDueDate = new Date(new Date(deadline.dueDate).getTime() + 24 * 60 * 60 * 1000).toISOString();
+    const snoozedDueDate = new Date(dueTimestamp(deadline.dueDate) + 24 * 60 * 60 * 1000).toISOString();
     const optimistic = deadlines.map((item) => (
       item.id === deadline.id ? { ...item, dueDate: snoozedDueDate } : item
     ));
@@ -366,7 +384,7 @@ export function DeadlineList({ focusDeadlineId }: DeadlineListProps): JSX.Elemen
 
   const sortedDeadlines = [...deadlines].sort((a, b) => {
     if (a.completed !== b.completed) return a.completed ? 1 : -1;
-    return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+    return dueTimestamp(a.dueDate) - dueTimestamp(b.dueDate);
   });
   const cacheAgeMs = cachedAt ? Date.now() - new Date(cachedAt).getTime() : Number.POSITIVE_INFINITY;
   const isStale = Number.isFinite(cacheAgeMs) && cacheAgeMs > DEADLINE_STALE_MS;
@@ -426,7 +444,7 @@ export function DeadlineList({ focusDeadlineId }: DeadlineListProps): JSX.Elemen
                   />
                   <div className="deadline-content">
                     <div className="deadline-header">
-                      <h3 className="deadline-task">{deadline.task}</h3>
+                      <h3 className="deadline-task">{formatDeadlineTaskLabel(deadline.task)}</h3>
                       <span className="deadline-time-remaining">
                         {formatTimeRemaining(deadline.dueDate)}
                       </span>
