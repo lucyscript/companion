@@ -57,6 +57,9 @@ describe("Canvas Integration", () => {
     });
 
     it("filters assignments to integration date window before storing and bridging", async () => {
+      const nearDueAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString();
+      const farDueAt = new Date(Date.now() + 400 * 24 * 60 * 60 * 1000).toISOString();
+
       const mockClient = {
         getCourses: async () => [
           { id: 7, name: "DAT560", course_code: "DAT560", workflow_state: "available" }
@@ -66,7 +69,7 @@ describe("Canvas Integration", () => {
             id: 1,
             name: "Near assignment",
             description: null,
-            due_at: "2026-03-01T23:59:00.000Z",
+            due_at: nearDueAt,
             points_possible: 100,
             course_id: 7,
             submission_types: ["online_upload"],
@@ -76,7 +79,7 @@ describe("Canvas Integration", () => {
             id: 2,
             name: "Far assignment",
             description: null,
-            due_at: "2027-01-01T23:59:00.000Z",
+            due_at: farDueAt,
             points_possible: 100,
             course_id: 7,
             submission_types: ["online_upload"],
@@ -96,6 +99,129 @@ describe("Canvas Integration", () => {
       const canvasData = store.getCanvasData();
       expect(canvasData?.assignments).toHaveLength(1);
       expect(canvasData?.assignments[0]?.id).toBe(1);
+    });
+
+    it("applies scoped Canvas course IDs across stored courses, assignments, and announcements", async () => {
+      const dueAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      const getAllAssignments = vi.fn(async () => [
+        {
+          id: 10,
+          name: "Course 7 assignment",
+          description: null,
+          due_at: dueAt,
+          points_possible: 100,
+          course_id: 7,
+          submission_types: ["online_upload"],
+          has_submitted_submissions: false
+        },
+        {
+          id: 11,
+          name: "Course 8 assignment",
+          description: null,
+          due_at: dueAt,
+          points_possible: 100,
+          course_id: 8,
+          submission_types: ["online_upload"],
+          has_submitted_submissions: false
+        }
+      ]);
+
+      const mockClient = {
+        getCourses: async () => [
+          { id: 7, name: "DAT560", course_code: "DAT560", workflow_state: "available" },
+          { id: 8, name: "DAT520", course_code: "DAT520", workflow_state: "available" }
+        ],
+        getAllAssignments,
+        getAllModules: async (courses: Array<{ id: number }>) =>
+          courses.map((course, index) => ({
+            id: index + 1,
+            name: `Module-${course.id}`,
+            position: index + 1,
+            unlock_at: null,
+            require_sequential_progress: false,
+            state: "unlocked" as const
+          })),
+        getAnnouncements: async () => [
+          {
+            id: 201,
+            title: "Only DAT560",
+            message: "Scoped notice",
+            posted_at: dueAt,
+            author: { display_name: "Professor" },
+            context_code: "course_7"
+          },
+          {
+            id: 202,
+            title: "Only DAT520",
+            message: "Other notice",
+            posted_at: dueAt,
+            author: { display_name: "Professor" },
+            context_code: "course_8"
+          }
+        ]
+      } as unknown as CanvasClient;
+
+      const service = new CanvasSyncService(store, mockClient);
+      const result = await service.sync({ courseIds: [7] });
+
+      expect(result.success).toBe(true);
+      expect(result.coursesCount).toBe(1);
+      expect(result.assignmentsCount).toBe(1);
+      expect(result.modulesCount).toBe(1);
+      expect(result.announcementsCount).toBe(1);
+
+      expect(getAllAssignments).toHaveBeenCalledTimes(1);
+
+      const canvasData = store.getCanvasData();
+      expect(canvasData?.courses.map((course) => course.id)).toEqual([7]);
+      expect(canvasData?.assignments.map((assignment) => assignment.course_id)).toEqual([7]);
+      expect(canvasData?.announcements.map((announcement) => announcement.id)).toEqual([201]);
+      expect(result.deadlineBridge?.created).toBe(1);
+    });
+
+    it("supports custom date-window overrides for Canvas assignment filtering", async () => {
+      const dueSoon = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString();
+      const dueLater = new Date(Date.now() + 12 * 24 * 60 * 60 * 1000).toISOString();
+
+      const mockClient = {
+        getCourses: async () => [
+          { id: 7, name: "DAT560", course_code: "DAT560", workflow_state: "available" }
+        ],
+        getAllAssignments: async () => [
+          {
+            id: 301,
+            name: "Inside custom window",
+            description: null,
+            due_at: dueSoon,
+            points_possible: 100,
+            course_id: 7,
+            submission_types: ["online_upload"],
+            has_submitted_submissions: false
+          },
+          {
+            id: 302,
+            name: "Outside custom window",
+            description: null,
+            due_at: dueLater,
+            points_possible: 100,
+            course_id: 7,
+            submission_types: ["online_upload"],
+            has_submitted_submissions: false
+          }
+        ],
+        getAllModules: async () => [],
+        getAnnouncements: async () => []
+      } as unknown as CanvasClient;
+
+      const service = new CanvasSyncService(store, mockClient);
+      const result = await service.sync({
+        pastDays: 0,
+        futureDays: 5
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.assignmentsCount).toBe(1);
+      expect(store.getCanvasData()?.assignments.map((assignment) => assignment.id)).toEqual([301]);
     });
 
     it("should use override token and baseUrl when provided", async () => {

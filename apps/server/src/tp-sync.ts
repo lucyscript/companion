@@ -12,10 +12,40 @@ export interface TPSyncResult {
   error?: string;
 }
 
-const TP_EDUCLOUD_URL = "https://tp.educloud.no/uis/timeplan/ical.php?type=courseact&sem=26v&id[]=DAT520,1&id[]=DAT560,1&id[]=DAT600,1";
+const TP_EDUCLOUD_BASE_URL = "https://tp.educloud.no/uis/timeplan/ical.php";
+const DEFAULT_TP_SEMESTER = "26v";
+const DEFAULT_TP_COURSE_IDS = ["DAT520,1", "DAT560,1", "DAT600,1"] as const;
 
-export async function fetchTPSchedule(): Promise<ImportedCalendarEvent[]> {
-  const response = await fetch(TP_EDUCLOUD_URL);
+export interface TPScheduleFetchOptions {
+  semester?: string;
+  courseIds?: string[];
+  pastDays?: number;
+  futureDays?: number;
+}
+
+function normalizeCourseIds(courseIds?: string[]): string[] {
+  const normalized = (courseIds ?? []).map((value) => value.trim()).filter(Boolean);
+  if (normalized.length > 0) {
+    return normalized;
+  }
+
+  return [...DEFAULT_TP_COURSE_IDS];
+}
+
+export function buildTPScheduleUrl(options: Pick<TPScheduleFetchOptions, "semester" | "courseIds"> = {}): string {
+  const params = new URLSearchParams();
+  params.set("type", "courseact");
+  params.set("sem", options.semester?.trim() || DEFAULT_TP_SEMESTER);
+
+  for (const courseId of normalizeCourseIds(options.courseIds)) {
+    params.append("id[]", courseId);
+  }
+
+  return `${TP_EDUCLOUD_BASE_URL}?${params.toString()}`;
+}
+
+export async function fetchTPSchedule(options: TPScheduleFetchOptions = {}): Promise<ImportedCalendarEvent[]> {
+  const response = await fetch(buildTPScheduleUrl(options));
 
   if (!response.ok) {
     throw new Error(`Failed to fetch TP schedule: ${response.status} ${response.statusText}`);
@@ -23,7 +53,10 @@ export async function fetchTPSchedule(): Promise<ImportedCalendarEvent[]> {
 
   const icsContent = await response.text();
   const parsed = parseICS(icsContent);
-  return filterTPEventsByDateWindow(parsed);
+  return filterTPEventsByDateWindow(parsed, {
+    pastDays: options.pastDays,
+    futureDays: options.futureDays
+  });
 }
 
 export function convertTPEventToLecture(event: ImportedCalendarEvent): Omit<LectureEvent, "id"> {

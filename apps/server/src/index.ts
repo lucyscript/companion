@@ -401,7 +401,17 @@ const pushTestSchema = z.object({
 
 const canvasSyncSchema = z.object({
   token: z.string().trim().min(1).optional(),
-  baseUrl: z.string().url().optional()
+  baseUrl: z.string().url().optional(),
+  courseIds: z.array(z.coerce.number().int().positive()).max(100).optional(),
+  pastDays: z.coerce.number().int().min(0).max(365).optional(),
+  futureDays: z.coerce.number().int().min(1).max(730).optional()
+});
+
+const tpSyncSchema = z.object({
+  semester: z.string().trim().min(1).max(16).optional(),
+  courseIds: z.array(z.string().trim().min(1).max(32)).max(100).optional(),
+  pastDays: z.coerce.number().int().min(0).max(365).optional(),
+  futureDays: z.coerce.number().int().min(1).max(730).optional()
 });
 
 const notificationPreferencesSchema = z.object({
@@ -1287,9 +1297,20 @@ app.delete("/api/sync/cleanup", (_req, res) => {
   return res.json({ deleted });
 });
 
-app.post("/api/sync/tp", async (_req, res) => {
+app.post("/api/sync/tp", async (req, res) => {
+  const parsed = tpSyncSchema.safeParse(req.body ?? {});
+
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid TP sync payload", issues: parsed.error.issues });
+  }
+
   try {
-    const tpEvents = await fetchTPSchedule();
+    const tpEvents = await fetchTPSchedule({
+      semester: parsed.data.semester,
+      courseIds: parsed.data.courseIds,
+      pastDays: parsed.data.pastDays,
+      futureDays: parsed.data.futureDays
+    });
     const existingEvents = store.getScheduleEvents();
     const diff = diffScheduleEvents(existingEvents, tpEvents);
     const result = store.upsertScheduleEvents(diff.toCreate, diff.toUpdate, diff.toDelete);
@@ -1299,7 +1320,13 @@ app.post("/api/sync/tp", async (_req, res) => {
       eventsProcessed: tpEvents.length,
       lecturesCreated: result.created,
       lecturesUpdated: result.updated,
-      lecturesDeleted: result.deleted
+      lecturesDeleted: result.deleted,
+      appliedScope: {
+        semester: parsed.data.semester ?? "26v",
+        courseIds: parsed.data.courseIds ?? ["DAT520,1", "DAT560,1", "DAT600,1"],
+        pastDays: parsed.data.pastDays ?? config.INTEGRATION_WINDOW_PAST_DAYS,
+        futureDays: parsed.data.futureDays ?? config.INTEGRATION_WINDOW_FUTURE_DAYS
+      }
     });
   } catch (error) {
     return res.status(500).json({
@@ -1338,7 +1365,13 @@ app.post("/api/canvas/sync", async (req, res) => {
     return res.status(400).json({ error: "Invalid Canvas sync payload", issues: parsed.error.issues });
   }
 
-  const result = await canvasSyncService.sync(parsed.data);
+  const result = await canvasSyncService.sync({
+    baseUrl: parsed.data.baseUrl,
+    token: parsed.data.token,
+    courseIds: parsed.data.courseIds,
+    pastDays: parsed.data.pastDays,
+    futureDays: parsed.data.futureDays
+  });
   return res.json(result);
 });
 

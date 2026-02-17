@@ -171,33 +171,64 @@ Response:
 }
 ```
 
-### POST `/api/sync/canvas`
+### POST `/api/canvas/sync`
 
-Trigger manual Canvas sync.
+Trigger manual Canvas sync with optional scope overrides.
+
+Request (all fields optional):
+
+```json
+{
+  "token": "canvas-api-token",
+  "baseUrl": "https://stavanger.instructure.com",
+  "courseIds": [17649, 17650],
+  "pastDays": 30,
+  "futureDays": 180
+}
+```
 
 Response:
 
 ```json
 {
-  "status": "syncing",
-  "coursesFound": 3,
-  "startedAt": "2026-02-14T15:00:00.000Z"
+  "success": true,
+  "coursesCount": 2,
+  "assignmentsCount": 7,
+  "modulesCount": 10,
+  "announcementsCount": 4
 }
 ```
 
 ### POST `/api/sync/tp`
 
-Trigger manual TP EduCloud schedule sync (fetches public iCal feed, no API key needed).
+Trigger manual TP EduCloud schedule sync (fetches public iCal feed, no API key needed) with optional scope overrides.
+
+Request (all fields optional):
+
+```json
+{
+  "semester": "26v",
+  "courseIds": ["DAT520,1", "DAT560,1", "DAT600,1"],
+  "pastDays": 30,
+  "futureDays": 180
+}
+```
 
 Response:
 
 ```json
 {
-  "status": "syncing",
-  "eventsFound": 151,
-  "source": "ical",
-  "icalUrl": "https://tp.educloud.no/uis/timeplan/ical.php?type=courseact&sem=26v&id[]=DAT520,1&id[]=DAT560,1&id[]=DAT600,1",
-  "startedAt": "2026-02-14T15:00:00.000Z"
+  "success": true,
+  "eventsProcessed": 151,
+  "lecturesCreated": 8,
+  "lecturesUpdated": 3,
+  "lecturesDeleted": 1,
+  "appliedScope": {
+    "semester": "26v",
+    "courseIds": ["DAT520,1", "DAT560,1", "DAT600,1"],
+    "pastDays": 30,
+    "futureDays": 180
+  }
 }
 ```
 

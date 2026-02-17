@@ -1,8 +1,41 @@
 import { describe, expect, it } from "vitest";
-import { convertTPEventToLecture, diffScheduleEvents, generateTPEventKey } from "./tp-sync.js";
+import { buildTPScheduleUrl, convertTPEventToLecture, diffScheduleEvents, generateTPEventKey } from "./tp-sync.js";
 import { LectureEvent } from "./types.js";
 
 describe("TP EduCloud sync", () => {
+  it("builds default TP schedule URL with configured course list", () => {
+    const url = new URL(buildTPScheduleUrl());
+
+    expect(url.origin + url.pathname).toBe("https://tp.educloud.no/uis/timeplan/ical.php");
+    expect(url.searchParams.get("type")).toBe("courseact");
+    expect(url.searchParams.get("sem")).toBe("26v");
+    expect(url.searchParams.getAll("id[]")).toEqual(["DAT520,1", "DAT560,1", "DAT600,1"]);
+  });
+
+  it("builds scoped TP schedule URL from semester + course IDs", () => {
+    const url = new URL(
+      buildTPScheduleUrl({
+        semester: "26h",
+        courseIds: ["DAT530,1", " DAT540,1 "]
+      })
+    );
+
+    expect(url.searchParams.get("sem")).toBe("26h");
+    expect(url.searchParams.getAll("id[]")).toEqual(["DAT530,1", "DAT540,1"]);
+  });
+
+  it("falls back to default course IDs when scoped IDs are empty", () => {
+    const url = new URL(
+      buildTPScheduleUrl({
+        semester: "26h",
+        courseIds: [" ", ""]
+      })
+    );
+
+    expect(url.searchParams.get("sem")).toBe("26h");
+    expect(url.searchParams.getAll("id[]")).toEqual(["DAT520,1", "DAT560,1", "DAT600,1"]);
+  });
+
   it("converts TP event to lecture with correct duration", () => {
     const event = {
       summary: "DAT520 Forelesning",

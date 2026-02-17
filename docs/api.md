@@ -294,6 +294,80 @@ Examples:
 - `/api/journal/search?q=algorithms&startDate=2026-02-01T00:00:00.000Z&limit=5` - Find up to 5 entries containing "algorithms" from February 2026 onwards
 - `/api/journal/search?tags=tag-1739570000000-1,tag-1739570000000-2` - Entries that include both tags
 
+## Integrations
+
+### `POST /api/canvas/sync`
+
+Runs manual Canvas sync with optional scope overrides.
+
+Request (all fields optional):
+
+```json
+{
+  "token": "canvas-api-token",
+  "baseUrl": "https://stavanger.instructure.com",
+  "courseIds": [17649, 17650],
+  "pastDays": 30,
+  "futureDays": 180
+}
+```
+
+Validation:
+- `courseIds`: array of positive integers (max 100)
+- `pastDays`: integer `0..365`
+- `futureDays`: integer `1..730`
+
+Response `200`:
+
+```json
+{
+  "success": true,
+  "coursesCount": 2,
+  "assignmentsCount": 7,
+  "modulesCount": 10,
+  "announcementsCount": 4
+}
+```
+
+### `POST /api/sync/tp`
+
+Runs manual TP iCal sync with optional scope overrides.
+
+Request (all fields optional):
+
+```json
+{
+  "semester": "26v",
+  "courseIds": ["DAT520,1", "DAT560,1", "DAT600,1"],
+  "pastDays": 30,
+  "futureDays": 180
+}
+```
+
+Validation:
+- `semester`: non-empty string, max 16 chars
+- `courseIds`: array of non-empty strings, max 100
+- `pastDays`: integer `0..365`
+- `futureDays`: integer `1..730`
+
+Response `200`:
+
+```json
+{
+  "success": true,
+  "eventsProcessed": 151,
+  "lecturesCreated": 8,
+  "lecturesUpdated": 3,
+  "lecturesDeleted": 1,
+  "appliedScope": {
+    "semester": "26v",
+    "courseIds": ["DAT520,1", "DAT560,1", "DAT600,1"],
+    "pastDays": 30,
+    "futureDays": 180
+  }
+}
+```
+
 ## Schedule
 
 Schedule payload fields:

@@ -17,6 +17,28 @@ export interface CanvasSyncResult {
 export interface CanvasSyncOptions {
   baseUrl?: string;
   token?: string;
+  courseIds?: number[];
+  pastDays?: number;
+  futureDays?: number;
+}
+
+function filterAnnouncementsByCourseScope(
+  announcements: CanvasData["announcements"],
+  courseIds?: number[]
+): CanvasData["announcements"] {
+  if (!courseIds || courseIds.length === 0) {
+    return announcements;
+  }
+
+  const allowedCourseIds = new Set(courseIds);
+  return announcements.filter((announcement) => {
+    const match = /course_(\d+)/.exec(announcement.context_code);
+    if (!match) {
+      return false;
+    }
+
+    return allowedCourseIds.has(Number(match[1]));
+  });
 }
 
 export class CanvasSyncService {
@@ -62,17 +84,27 @@ export class CanvasSyncService {
    * Perform a Canvas sync
    */
   async sync(options?: CanvasSyncOptions): Promise<CanvasSyncResult> {
-    const client = options ? new CanvasClient(options.baseUrl, options.token) : this.client;
+    const shouldUseOverrideClient = Boolean(options?.baseUrl || options?.token);
+    const client = shouldUseOverrideClient ? new CanvasClient(options?.baseUrl, options?.token) : this.client;
 
     try {
       const courses = await client.getCourses();
-      const assignments = await client.getAllAssignments(courses);
-      const filteredAssignments = filterCanvasAssignmentsByDateWindow(assignments);
-      const modules = await client.getAllModules(courses);
-      const announcements = await client.getAnnouncements();
+      const scopedCourses =
+        options?.courseIds && options.courseIds.length > 0
+          ? courses.filter((course) => options.courseIds?.includes(course.id))
+          : courses;
+
+      const scopedCourseIds = new Set(scopedCourses.map((course) => course.id));
+      const assignments = await client.getAllAssignments(scopedCourses);
+      const filteredAssignments = filterCanvasAssignmentsByDateWindow(assignments, {
+        pastDays: options?.pastDays,
+        futureDays: options?.futureDays
+      }).filter((assignment) => scopedCourseIds.has(assignment.course_id));
+      const modules = await client.getAllModules(scopedCourses);
+      const announcements = filterAnnouncementsByCourseScope(await client.getAnnouncements(), options?.courseIds);
 
       const canvasData: CanvasData = {
-        courses,
+        courses: scopedCourses,
         assignments: filteredAssignments,
         modules,
         announcements,
@@ -82,11 +114,11 @@ export class CanvasSyncService {
       this.store.setCanvasData(canvasData);
 
       // Bridge Canvas assignments to deadlines
-      const deadlineBridge = this.deadlineBridge.syncAssignments(courses, filteredAssignments);
+      const deadlineBridge = this.deadlineBridge.syncAssignments(scopedCourses, filteredAssignments);
 
       return {
         success: true,
-        coursesCount: courses.length,
+        coursesCount: scopedCourses.length,
         assignmentsCount: filteredAssignments.length,
         modulesCount: modules.length,
         announcementsCount: announcements.length,
