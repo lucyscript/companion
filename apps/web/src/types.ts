@@ -344,7 +344,42 @@ export interface TPSyncResult {
   lecturesCreated: number;
   lecturesUpdated: number;
   lecturesDeleted: number;
+  appliedScope?: {
+    semester: string;
+    courseIds: string[];
+    pastDays: number;
+    futureDays: number;
+  };
   error?: string;
+}
+
+export interface IntegrationScopeSettings {
+  semester: string;
+  tpCourseIds: string[];
+  canvasCourseIds: number[];
+  pastDays: number;
+  futureDays: number;
+}
+
+export interface IntegrationScopePreview {
+  window: {
+    pastDays: number;
+    futureDays: number;
+    start: string;
+    end: string;
+  };
+  canvas: {
+    coursesMatched: number;
+    coursesTotal: number;
+    assignmentsMatched: number;
+    assignmentsTotal: number;
+  };
+  tp: {
+    semester: string;
+    courseIdsApplied: string[];
+    eventsMatched: number;
+    eventsTotal: number;
+  };
 }
 
 export interface GeminiStatus {

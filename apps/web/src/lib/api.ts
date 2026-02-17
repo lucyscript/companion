@@ -23,6 +23,8 @@ import {
   CanvasSettings,
   CanvasStatus,
   CanvasSyncResult,
+  TPSyncResult,
+  IntegrationScopePreview,
   SocialMediaFeed,
   SocialMediaSyncResult,
   ContentRecommendationsResponse
@@ -581,13 +583,23 @@ export async function getCanvasStatus(): Promise<CanvasStatus> {
   }
 }
 
-export async function triggerCanvasSync(settings?: CanvasSettings): Promise<CanvasSyncResult> {
-  const payload = settings
-    ? {
-        token: settings.token?.trim() ? settings.token : undefined,
-        baseUrl: settings.baseUrl?.trim() ? settings.baseUrl : undefined
-      }
-    : {};
+export interface CanvasSyncScopeOptions {
+  courseIds?: number[];
+  pastDays?: number;
+  futureDays?: number;
+}
+
+export async function triggerCanvasSync(
+  settings?: CanvasSettings,
+  scope?: CanvasSyncScopeOptions
+): Promise<CanvasSyncResult> {
+  const payload = {
+    token: settings?.token?.trim() ? settings.token : undefined,
+    baseUrl: settings?.baseUrl?.trim() ? settings.baseUrl : undefined,
+    courseIds: scope?.courseIds && scope.courseIds.length > 0 ? scope.courseIds : undefined,
+    pastDays: scope?.pastDays,
+    futureDays: scope?.futureDays
+  };
 
   try {
     const result = await jsonOrThrow<CanvasSyncResult>("/api/canvas/sync", {
@@ -607,6 +619,57 @@ export async function triggerCanvasSync(settings?: CanvasSettings): Promise<Canv
       error: message
     };
   }
+}
+
+export interface TriggerTPSyncOptions {
+  semester?: string;
+  courseIds?: string[];
+  pastDays?: number;
+  futureDays?: number;
+}
+
+export async function triggerTPSync(options?: TriggerTPSyncOptions): Promise<TPSyncResult> {
+  const payload = options
+    ? {
+        semester: options.semester?.trim() ? options.semester : undefined,
+        courseIds: options.courseIds?.map((value) => value.trim()).filter(Boolean),
+        pastDays: options.pastDays,
+        futureDays: options.futureDays
+      }
+    : {};
+
+  try {
+    return await jsonOrThrow<TPSyncResult>("/api/sync/tp", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "TP sync failed";
+    return {
+      success: false,
+      eventsProcessed: 0,
+      lecturesCreated: 0,
+      lecturesUpdated: 0,
+      lecturesDeleted: 0,
+      error: message
+    };
+  }
+}
+
+export interface IntegrationScopePreviewPayload {
+  semester?: string;
+  tpCourseIds?: string[];
+  canvasCourseIds?: number[];
+  pastDays?: number;
+  futureDays?: number;
+}
+
+export async function previewIntegrationScope(payload: IntegrationScopePreviewPayload): Promise<IntegrationScopePreview> {
+  const response = await jsonOrThrow<{ preview: IntegrationScopePreview }>("/api/integrations/scope/preview", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+  return response.preview;
 }
 
 export async function getSocialMediaFeed(): Promise<SocialMediaFeed> {
