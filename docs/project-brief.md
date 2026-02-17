@@ -408,3 +408,10 @@ Features are built in priority order. The orchestrator reads this section to dec
 | | | | |
 | | **— Phase 10: Wellness & Nutrition —** | | |
 | 🟡 todo | `food-module-integration` | fullstack-engineer | Integrate `lucyscript/food` into Companion as a native nutrition module (meal logging, calories/macros, meal plans), expose Gemini nutrition tools, and persist data in the primary app storage. Tracked in issue #300. |
+| | | | |
+| | **— Phase 11: Continuous Coaching & Reliability —** | | |
+| ⬜ todo | `habit-goal-intent-autocapture` | backend-engineer | Add intent-level habit/goal autocapture in chat: detect repeated commitment language ("I keep missing morning gym", "I want to read nightly"), propose create/update actions, and generate one-tap confirmation prompts with rationale. |
+| ⬜ todo | `new-deadline-release-notifications` | backend-engineer | Detect newly discovered assignments/exams during Canvas/GitHub sync deltas and push concise notifications that include due date, course, and deep-link into Deadlines so users never miss newly published work. |
+| ⬜ todo | `schedule-routine-presets` | fullstack-engineer | Add reusable routine presets (e.g., gym 07:00, nightly review 21:00) that Gemini can create/update and auto-place into free schedule blocks without overwriting fixed lecture/lab events. |
+| ⬜ todo | `offline-habit-goal-checkin-queue` | fullstack-engineer | Extend offline queueing to habit/goal check-ins (and schedule block edits) with optimistic UI, conflict-safe replay, and visible sync state so execution tracking works reliably on flaky mobile connections. |
+| ⬜ todo | `weekly-growth-review-v2` | fullstack-engineer | Generate a weekly Gemini growth review combining schedule adherence, deadline completion, and habit momentum with explicit next-week commitments and an optional Sunday push summary. |
