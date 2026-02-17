@@ -52,11 +52,19 @@ function formatCachedLabel(cachedAt: string | null): string {
     return "Cached snapshot time unavailable";
   }
 
-  return `Cached ${timestamp.toLocaleString()}`;
+  return `Cached ${timestamp.toLocaleString(undefined, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false
+  })}`;
 }
 
 function formatTime(value: string): string {
-  return new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
 function formatDayLabel(value: string): string {
@@ -501,7 +509,15 @@ export function StudyPlanView(): JSX.Element {
                       <p className="study-plan-session-rationale">{session.rationale}</p>
                       {checkedAt && (
                         <p className="study-plan-session-checked">
-                          Updated {new Date(checkedAt).toLocaleString()}
+                          Updated {new Date(checkedAt).toLocaleString(undefined, {
+                            year: "numeric",
+                            month: "2-digit",
+                            day: "2-digit",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            second: "2-digit",
+                            hour12: false
+                          })}
                         </p>
                       )}
                       {hasCheckInStats && (

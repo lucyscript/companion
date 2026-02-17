@@ -65,7 +65,15 @@ function formatCachedLabel(cachedAt: string | null): string {
     return "Cached snapshot time unavailable";
   }
 
-  return `Cached ${timestamp.toLocaleString()}`;
+  return `Cached ${timestamp.toLocaleString(undefined, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false
+  })}`;
 }
 
 export function DeadlineList({ focusDeadlineId }: DeadlineListProps): JSX.Element {
@@ -178,9 +186,9 @@ export function DeadlineList({ focusDeadlineId }: DeadlineListProps): JSX.Elemen
       weekday: "short",
       month: "short",
       day: "numeric",
-      hour: "numeric",
+      hour: "2-digit",
       minute: "2-digit",
-      hour12: true
+      hour12: false
     });
   };
 

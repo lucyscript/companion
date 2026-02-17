@@ -122,12 +122,28 @@ export function CalendarImportView({ onImported }: CalendarImportViewProps): JSX
           <ul>
             {preview.lectures.slice(0, 3).map((lecture) => (
               <li key={`${lecture.title}-${lecture.startTime}`}>
-                Lecture: {lecture.title} ({new Date(lecture.startTime).toLocaleString()})
+                Lecture: {lecture.title} ({new Date(lecture.startTime).toLocaleString(undefined, {
+                  year: "numeric",
+                  month: "2-digit",
+                  day: "2-digit",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                  hour12: false
+                })})
               </li>
             ))}
             {preview.deadlines.slice(0, 3).map((deadline) => (
               <li key={`${deadline.task}-${deadline.dueDate}`}>
-                Deadline: {deadline.task} ({new Date(deadline.dueDate).toLocaleString()})
+                Deadline: {deadline.task} ({new Date(deadline.dueDate).toLocaleString(undefined, {
+                  year: "numeric",
+                  month: "2-digit",
+                  day: "2-digit",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                  hour12: false
+                })})
               </li>
             ))}
           </ul>
