@@ -2574,7 +2574,7 @@ button:disabled {
 .chat-input-container {
   display: grid;
   gap: 6px;
-  padding: 6px 8px max(4px, calc(4px + env(safe-area-inset-bottom)));
+  padding: 6px 8px 4px;
   background: var(--card);
   border-top: 1px solid var(--border-soft);
   position: sticky;
@@ -2756,7 +2756,7 @@ button:disabled {
 
 @media (max-width: 430px) {
   .chat-input-container {
-    padding: 5px 6px max(3px, calc(3px + env(safe-area-inset-bottom)));
+    padding: 5px 6px 3px;
   }
 
   .chat-input-row {
@@ -3185,14 +3185,14 @@ body.keyboard-open .chat-input-container {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: var(--keyboard-gap, 0px);
+  bottom: calc(var(--keyboard-gap, 0px) + env(safe-area-inset-bottom));
   z-index: 5;
-  padding: 3px 0 max(1px, env(safe-area-inset-bottom));
+  padding: 2px 0 0;
   background: rgba(7, 14, 20, 0.96);
 }
 
 body.keyboard-open .chat-messages {
-  padding: max(34px, calc(34px + env(safe-area-inset-top))) 0 calc(56px + var(--keyboard-gap, 0px));
+  padding: max(34px, calc(34px + env(safe-area-inset-top))) 0 calc(52px + var(--keyboard-gap, 0px) + env(safe-area-inset-bottom));
   background: #091019;
 }
 
