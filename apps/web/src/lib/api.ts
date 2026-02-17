@@ -30,6 +30,10 @@ import {
   TPSyncResult,
   IntegrationScopePreview,
   GeminiStatus,
+  IntegrationHealthAttempt,
+  IntegrationHealthSummary,
+  IntegrationSyncAttemptStatus,
+  IntegrationSyncName,
   SocialMediaFeed,
   SocialMediaSyncResult,
   ContentRecommendationsResponse
@@ -844,6 +848,116 @@ export async function previewIntegrationScope(payload: IntegrationScopePreviewPa
     body: JSON.stringify(payload)
   });
   return response.preview;
+}
+
+export async function getIntegrationHealthSummary(hours = 24 * 7): Promise<IntegrationHealthSummary> {
+  const params = new URLSearchParams();
+  params.set("hours", String(hours));
+
+  try {
+    return await jsonOrThrow<IntegrationHealthSummary>(`/api/integrations/health-log/summary?${params.toString()}`);
+  } catch {
+    return {
+      generatedAt: new Date().toISOString(),
+      windowHours: hours,
+      totals: {
+        attempts: 0,
+        successes: 0,
+        failures: 0,
+        successRate: 0
+      },
+      integrations: [
+        {
+          integration: "tp",
+          attempts: 0,
+          successes: 0,
+          failures: 0,
+          successRate: 0,
+          averageLatencyMs: 0,
+          lastAttemptAt: null,
+          lastSuccessAt: null,
+          failuresByRootCause: {
+            none: 0,
+            auth: 0,
+            network: 0,
+            rate_limit: 0,
+            validation: 0,
+            provider: 0,
+            unknown: 0
+          }
+        },
+        {
+          integration: "canvas",
+          attempts: 0,
+          successes: 0,
+          failures: 0,
+          successRate: 0,
+          averageLatencyMs: 0,
+          lastAttemptAt: null,
+          lastSuccessAt: null,
+          failuresByRootCause: {
+            none: 0,
+            auth: 0,
+            network: 0,
+            rate_limit: 0,
+            validation: 0,
+            provider: 0,
+            unknown: 0
+          }
+        },
+        {
+          integration: "gmail",
+          attempts: 0,
+          successes: 0,
+          failures: 0,
+          successRate: 0,
+          averageLatencyMs: 0,
+          lastAttemptAt: null,
+          lastSuccessAt: null,
+          failuresByRootCause: {
+            none: 0,
+            auth: 0,
+            network: 0,
+            rate_limit: 0,
+            validation: 0,
+            provider: 0,
+            unknown: 0
+          }
+        }
+      ]
+    };
+  }
+}
+
+export async function getIntegrationHealthLog(options?: {
+  integration?: IntegrationSyncName;
+  status?: IntegrationSyncAttemptStatus;
+  limit?: number;
+  hours?: number;
+}): Promise<IntegrationHealthAttempt[]> {
+  const params = new URLSearchParams();
+  if (options?.integration) {
+    params.set("integration", options.integration);
+  }
+  if (options?.status) {
+    params.set("status", options.status);
+  }
+  if (typeof options?.limit === "number") {
+    params.set("limit", String(options.limit));
+  }
+  if (typeof options?.hours === "number") {
+    params.set("hours", String(options.hours));
+  }
+
+  const query = params.toString();
+  const endpoint = query ? `/api/integrations/health-log?${query}` : "/api/integrations/health-log";
+
+  try {
+    const response = await jsonOrThrow<{ attempts: IntegrationHealthAttempt[] }>(endpoint);
+    return response.attempts;
+  } catch {
+    return [];
+  }
 }
 
 export async function getSocialMediaFeed(): Promise<SocialMediaFeed> {

@@ -1170,6 +1170,81 @@ button:disabled {
 .settings-stack { display: grid; gap: 0.75rem; }
 .settings-stack label { display: grid; gap: 0.25rem; }
 
+.integration-health-controls {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  align-items: end;
+}
+
+.integration-health-controls label {
+  min-width: 0;
+}
+
+.integration-health-controls button {
+  min-height: 42px;
+}
+
+.integration-health-metrics {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  margin-top: 10px;
+}
+
+.integration-health-metric-card {
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  padding: 10px;
+  background: var(--surface);
+  display: grid;
+  gap: 4px;
+}
+
+.integration-health-metric-card p,
+.integration-health-metric-card strong {
+  margin: 0;
+}
+
+.integration-health-attempts {
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.integration-health-attempts > p {
+  margin: 0;
+}
+
+.integration-health-attempts ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.integration-health-attempt-item {
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  padding: 10px;
+  background: var(--surface);
+  display: grid;
+  gap: 6px;
+}
+
+.integration-health-attempt-item > div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.integration-health-attempt-item p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 .calendar-import-panel {
   margin-bottom: 12px;
 }
