@@ -21,7 +21,11 @@ interface UndoToast {
   onUndo: () => void;
 }
 
-export function JournalView(): JSX.Element {
+interface JournalViewProps {
+  focusJournalId?: string;
+}
+
+export function JournalView({ focusJournalId }: JournalViewProps): JSX.Element {
   const normalizeEntry = (entry: JournalEntry): JournalEntry => ({
     ...entry,
     text: entry.text ?? entry.content,
@@ -104,6 +108,21 @@ export function JournalView(): JSX.Element {
   useEffect(() => {
     applyFilters(entries);
   }, [searchQuery, startDate, endDate, filterTags, entries]);
+
+  useEffect(() => {
+    if (!focusJournalId) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      const target = document.getElementById(`journal-${focusJournalId}`);
+      target?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 60);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [focusJournalId, displayedEntries, archivedIds]);
 
   useEffect(() => {
     return () => {
@@ -547,7 +566,8 @@ export function JournalView(): JSX.Element {
             {visibleEntries.map((entry) => (
               <SwipeableListItem
                 key={entry.id}
-                className="journal-entry"
+                itemId={`journal-${entry.id}`}
+                className={`journal-entry ${focusJournalId === entry.id ? "journal-entry-focused" : ""}`}
                 onSwipeRight={() => archiveEntry(entry)}
                 onSwipeLeft={() => queueDeleteEntry(entry)}
                 rightActionLabel="Archive"

@@ -493,6 +493,11 @@ button:disabled {
   background: var(--surface);
 }
 
+.journal-entry-focused {
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 2px rgba(246, 195, 127, 0.2);
+}
+
 .journal-entry-text {
   margin: 0;
   line-height: 1.5;
@@ -862,6 +867,11 @@ button:disabled {
 .schedule-item-upcoming {
   border-color: var(--accent-border);
   background: var(--accent-surface);
+}
+
+.schedule-item-focused {
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 2px rgba(246, 195, 127, 0.2);
 }
 
 .schedule-item-header {
@@ -2110,6 +2120,29 @@ button:disabled {
   border: 1px solid var(--border-soft);
   color: var(--text);
   border-bottom-left-radius: 4px;
+}
+
+.chat-citation-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.chat-citation-chip {
+  border: 1px solid var(--border-soft);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.chat-citation-chip:hover {
+  border-color: var(--accent-border);
+  background: var(--accent-surface);
 }
 
 .chat-bubble-timestamp {

@@ -3,6 +3,8 @@ import type { TabId } from "../components/TabBar";
 export interface DeepLinkState {
   tab: TabId | null;
   deadlineId: string | null;
+  lectureId: string | null;
+  journalId: string | null;
   section: string | null;
 }
 
@@ -17,11 +19,15 @@ export function parseDeepLink(search: string): DeepLinkState {
 
   const rawTab = params.get("tab");
   const rawDeadlineId = params.get("deadlineId");
+  const rawLectureId = params.get("lectureId");
+  const rawJournalId = params.get("journalId");
   const rawSection = params.get("section");
 
   return {
     tab: isTabId(rawTab) ? rawTab : null,
     deadlineId: rawDeadlineId && rawDeadlineId.trim().length > 0 ? rawDeadlineId.trim() : null,
+    lectureId: rawLectureId && rawLectureId.trim().length > 0 ? rawLectureId.trim() : null,
+    journalId: rawJournalId && rawJournalId.trim().length > 0 ? rawJournalId.trim() : null,
     section: rawSection && rawSection.trim().length > 0 ? rawSection.trim() : null
   };
 }

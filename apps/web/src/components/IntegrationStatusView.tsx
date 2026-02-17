@@ -81,7 +81,7 @@ export function IntegrationStatusView(): JSX.Element {
   const geminiStatusClass = geminiStatus.apiConfigured ? "status-running" : "status-idle";
 
   return (
-    <section className="panel">
+    <section id="integration-status-panel" className="panel">
       <header className="panel-header">
         <h2>Integrations</h2>
       </header>

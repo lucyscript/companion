@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { sendChatMessage, getChatHistory, submitJournalEntry } from "../lib/api";
-import { ChatMessage } from "../types";
+import { ChatCitation, ChatMessage } from "../types";
 import { addJournalEntry, enqueueJournalEntry, loadTalkModeEnabled, saveTalkModeEnabled } from "../lib/storage";
 
 function getSpeechRecognitionCtor(): (new () => SpeechRecognition) | null {
@@ -18,6 +18,37 @@ function latestAssistantMessage(messages: ChatMessage[]): ChatMessage | null {
   return assistantMessages.reduce((latest, current) => {
     return new Date(current.timestamp).getTime() > new Date(latest.timestamp).getTime() ? current : latest;
   });
+}
+
+interface CitationLinkTarget {
+  tab: "schedule" | "journal" | "social" | "settings";
+  deadlineId?: string;
+  lectureId?: string;
+  journalId?: string;
+  section?: string;
+}
+
+function toCitationTarget(citation: ChatCitation): CitationLinkTarget {
+  switch (citation.type) {
+    case "deadline":
+      return { tab: "schedule", deadlineId: citation.id };
+    case "schedule":
+      return { tab: "schedule", lectureId: citation.id };
+    case "journal":
+      return { tab: "journal", journalId: citation.id };
+    case "email":
+      return { tab: "settings", section: "integrations" };
+    case "social-youtube":
+    case "social-x":
+      return { tab: "social" };
+    default:
+      return { tab: "settings", section: "integrations" };
+  }
+}
+
+function formatCitationChipLabel(citation: ChatCitation): string {
+  const label = citation.label.trim();
+  return label.length > 56 ? `${label.slice(0, 56)}...` : label;
 }
 
 export function ChatView(): JSX.Element {
@@ -226,6 +257,28 @@ export function ChatView(): JSX.Element {
     inputRef.current?.focus();
   };
 
+  const handleCitationClick = (citation: ChatCitation): void => {
+    const target = toCitationTarget(citation);
+    const params = new URLSearchParams();
+    params.set("tab", target.tab);
+    if (target.deadlineId) {
+      params.set("deadlineId", target.deadlineId);
+    }
+    if (target.lectureId) {
+      params.set("lectureId", target.lectureId);
+    }
+    if (target.journalId) {
+      params.set("journalId", target.journalId);
+    }
+    if (target.section) {
+      params.set("section", target.section);
+    }
+
+    const nextUrl = `${window.location.pathname}?${params.toString()}${window.location.hash}`;
+    window.history.pushState({}, "", nextUrl);
+    window.dispatchEvent(new Event("popstate"));
+  };
+
   const handleSaveToJournal = async (message: ChatMessage): Promise<void> => {
     if (savedMessageIds.has(message.id) || savingMessageId === message.id) return;
 
@@ -311,6 +364,21 @@ export function ChatView(): JSX.Element {
                 msg.content
               )}
             </div>
+            {msg.role === "assistant" && !msg.streaming && (msg.metadata?.citations?.length ?? 0) > 0 && (
+              <div className="chat-citation-list" role="list" aria-label="Message citations">
+                {(msg.metadata?.citations ?? []).map((citation) => (
+                  <button
+                    key={`${citation.type}-${citation.id}`}
+                    type="button"
+                    className="chat-citation-chip"
+                    onClick={() => handleCitationClick(citation)}
+                    title={citation.label}
+                  >
+                    {formatCitationChipLabel(citation)}
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="chat-bubble-footer">
               <div className="chat-bubble-timestamp">
                 {new Date(msg.timestamp).toLocaleTimeString([], {

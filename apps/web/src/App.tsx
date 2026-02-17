@@ -33,6 +33,8 @@ export default function App(): JSX.Element {
   const [themePreference, setThemePreference] = useState<ThemePreference>(() => loadThemePreference());
   const [activeTab, setActiveTab] = useState<TabId>(initialDeepLink.tab ?? "chat");
   const [focusDeadlineId, setFocusDeadlineId] = useState<string | null>(initialDeepLink.deadlineId);
+  const [focusLectureId, setFocusLectureId] = useState<string | null>(initialDeepLink.lectureId);
+  const [focusJournalId, setFocusJournalId] = useState<string | null>(initialDeepLink.journalId);
   const [settingsSection, setSettingsSection] = useState<string | null>(initialDeepLink.section);
   const seenCriticalNotifications = useRef<Set<string>>(new Set());
 
@@ -114,6 +116,8 @@ export default function App(): JSX.Element {
       setActiveTab(next.tab);
     }
     setFocusDeadlineId(next.deadlineId);
+    setFocusLectureId(next.lectureId);
+    setFocusJournalId(next.journalId);
     setSettingsSection(next.section);
   }, []);
 
@@ -137,12 +141,21 @@ export default function App(): JSX.Element {
   }, [applyDeepLinkFromUrl]);
 
   useEffect(() => {
-    if (activeTab !== "settings" || settingsSection !== "weekly-review") {
+    if (activeTab !== "settings" || !settingsSection) {
+      return;
+    }
+
+    const targetBySection: Record<string, string> = {
+      "weekly-review": "weekly-review-panel",
+      integrations: "integration-status-panel"
+    };
+    const targetId = targetBySection[settingsSection];
+    if (!targetId) {
       return;
     }
 
     const frame = window.requestAnimationFrame(() => {
-      const target = document.getElementById("weekly-review-panel");
+      const target = document.getElementById(targetId);
       target?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
 
@@ -182,6 +195,10 @@ export default function App(): JSX.Element {
 
     if (tab !== "schedule") {
       setFocusDeadlineId(null);
+      setFocusLectureId(null);
+    }
+    if (tab !== "journal") {
+      setFocusJournalId(null);
     }
     if (tab !== "settings") {
       setSettingsSection(null);
@@ -240,14 +257,18 @@ export default function App(): JSX.Element {
               />
             )}
             {activeTab === "schedule" && (
-              <ScheduleTab scheduleKey={`schedule-${scheduleRevision}`} focusDeadlineId={focusDeadlineId ?? undefined} />
+              <ScheduleTab
+                scheduleKey={`schedule-${scheduleRevision}`}
+                focusDeadlineId={focusDeadlineId ?? undefined}
+                focusLectureId={focusLectureId ?? undefined}
+              />
             )}
             {activeTab === "social" && (
               <SocialMediaView />
             )}
             {activeTab === "journal" && (
               <div className="journal-tab-container">
-                <JournalView />
+                <JournalView focusJournalId={focusJournalId ?? undefined} />
                 <HabitsGoalsView />
                 <FocusTimer onUpdated={refresh} />
               </div>

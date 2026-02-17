@@ -20,7 +20,11 @@ function formatCachedLabel(cachedAt: string | null): string {
   return `Cached ${timestamp.toLocaleString()}`;
 }
 
-export function ScheduleView(): JSX.Element {
+interface ScheduleViewProps {
+  focusLectureId?: string;
+}
+
+export function ScheduleView({ focusLectureId }: ScheduleViewProps): JSX.Element {
   const [schedule, setSchedule] = useState<LectureEvent[]>(() => loadSchedule());
   const [cachedAt, setCachedAt] = useState<string | null>(() => loadScheduleCachedAt());
   const [isOnline, setIsOnline] = useState<boolean>(() => navigator.onLine);
@@ -63,6 +67,21 @@ export function ScheduleView(): JSX.Element {
       window.removeEventListener("offline", handleOffline);
     };
   }, []);
+
+  useEffect(() => {
+    if (!focusLectureId) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      const target = document.getElementById(`lecture-${focusLectureId}`);
+      target?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 60);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [focusLectureId, schedule]);
 
   const formatTime = (isoString: string): string => {
     const date = new Date(isoString);
@@ -154,7 +173,10 @@ export function ScheduleView(): JSX.Element {
               return (
                 <li 
                   key={lecture.id} 
-                  className={`schedule-item ${isUpcoming ? "schedule-item-upcoming" : ""}`}
+                  id={`lecture-${lecture.id}`}
+                  className={`schedule-item ${isUpcoming ? "schedule-item-upcoming" : ""} ${
+                    focusLectureId === lecture.id ? "schedule-item-focused" : ""
+                  }`}
                 >
                   <div className="schedule-item-header">
                     <h3 className="schedule-item-title">{lecture.title}</h3>

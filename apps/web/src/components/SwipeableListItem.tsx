@@ -3,6 +3,7 @@ import { useSwipeAction } from "../hooks/useSwipeAction";
 
 interface SwipeableListItemProps {
   children: ReactNode;
+  itemId?: string;
   className?: string;
   disabled?: boolean;
   onSwipeLeft?: () => void;
@@ -13,6 +14,7 @@ interface SwipeableListItemProps {
 
 export function SwipeableListItem({
   children,
+  itemId,
   className,
   disabled = false,
   onSwipeLeft,
@@ -27,7 +29,7 @@ export function SwipeableListItem({
   });
 
   return (
-    <li className="swipeable-list-item">
+    <li id={itemId} className="swipeable-list-item">
       <div className="swipeable-actions-layer">
         <div className={`swipeable-action swipeable-action-right ${swipe.offsetX > 0 ? "swipeable-action-visible" : ""}`}>
           {rightActionLabel}

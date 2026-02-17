@@ -6,16 +6,17 @@ import { StudyPlanView } from "./StudyPlanView";
 interface ScheduleTabProps {
   scheduleKey: string;
   focusDeadlineId?: string;
+  focusLectureId?: string;
 }
 
-export function ScheduleTab({ scheduleKey, focusDeadlineId }: ScheduleTabProps): JSX.Element {
+export function ScheduleTab({ scheduleKey, focusDeadlineId, focusLectureId }: ScheduleTabProps): JSX.Element {
   const [activeView, setActiveView] = useState<"schedule" | "study-plan">("schedule");
 
   useEffect(() => {
-    if (focusDeadlineId) {
+    if (focusDeadlineId || focusLectureId) {
       setActiveView("schedule");
     }
-  }, [focusDeadlineId]);
+  }, [focusDeadlineId, focusLectureId]);
 
   return (
     <div className="schedule-tab-container">
@@ -45,7 +46,7 @@ export function ScheduleTab({ scheduleKey, focusDeadlineId }: ScheduleTabProps):
 
       {activeView === "schedule" ? (
         <div className="schedule-grid">
-          <ScheduleView key={scheduleKey} />
+          <ScheduleView key={scheduleKey} focusLectureId={focusLectureId} />
           <DeadlineList key={`deadline-${scheduleKey}`} focusDeadlineId={focusDeadlineId} />
         </div>
       ) : (
