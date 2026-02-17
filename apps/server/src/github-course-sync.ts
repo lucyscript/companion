@@ -8,6 +8,7 @@ export interface CourseRepo {
   owner: string;
   repo: string;
   courseCode: string;
+  deadlinePathHints?: string[];
 }
 
 export interface GitHubCourseSyncResult {
@@ -22,9 +23,24 @@ export interface GitHubCourseSyncResult {
 
 // Define the course repositories to sync
 const COURSE_REPOS: CourseRepo[] = [
-  { owner: "dat520-2026", repo: "info", courseCode: "DAT520" },
-  { owner: "dat520-2026", repo: "assignments", courseCode: "DAT520" },
-  { owner: "dat560-2026", repo: "info", courseCode: "DAT560" }
+  {
+    owner: "dat520-2026",
+    repo: "info",
+    courseCode: "DAT520",
+    deadlinePathHints: ["lab-plan.md", "assignments.md", "deadlines.md"]
+  },
+  {
+    owner: "dat520-2026",
+    repo: "assignments",
+    courseCode: "DAT520",
+    deadlinePathHints: ["README.md"]
+  },
+  {
+    owner: "dat560-2026",
+    repo: "info",
+    courseCode: "DAT560",
+    deadlinePathHints: ["assignments.md", "lab-plan.md", "deadlines.md", "project.md"]
+  }
 ];
 
 const COURSE_DOC_KEYWORDS = [
@@ -589,6 +605,12 @@ export class GitHubCourseSyncService {
         try {
           const readme = await this.client.getReadme(repo.owner, repo.repo);
           const deadlineSourcePaths = new Set<string>(["README.md"]);
+          (repo.deadlinePathHints ?? []).forEach((path) => {
+            const normalized = path.trim();
+            if (normalized) {
+              deadlineSourcePaths.add(normalized);
+            }
+          });
           try {
             const files = await this.client.listRepositoryFiles(repo.owner, repo.repo);
             files
