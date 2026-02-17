@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { RuntimeStore } from "./store.js";
-import { sendChatMessage } from "./chat.js";
+import { sendChatMessage, RateLimitError } from "./chat.js";
 import type { GeminiClient } from "./gemini.js";
 
 describe("chat service", () => {
@@ -467,6 +467,106 @@ describe("chat service", () => {
       expect.arrayContaining([
         expect.objectContaining({ id: "yt-1", type: "social-youtube" }),
         expect.objectContaining({ id: "tweet-1", type: "social-x" })
+      ])
+    );
+  });
+
+  it("compacts large tool responses before sending functionResponse payloads to Gemini", async () => {
+    const now = Date.now();
+    for (let index = 0; index < 12; index += 1) {
+      store.createDeadline({
+        course: "DAT560",
+        task: `Project task ${index + 1} with very long context details that are useful but should be bounded`,
+        dueDate: new Date(now + (index + 1) * 24 * 60 * 60 * 1000).toISOString(),
+        priority: "medium",
+        completed: false
+      });
+    }
+
+    generateChatResponse = vi
+      .fn()
+      .mockResolvedValueOnce({
+        text: "",
+        finishReason: "stop",
+        functionCalls: [
+          {
+            name: "getDeadlines",
+            args: { daysAhead: 30 }
+          }
+        ]
+      })
+      .mockResolvedValueOnce({
+        text: "You have multiple deadlines coming up.",
+        finishReason: "stop"
+      });
+    fakeGemini = {
+      generateChatResponse
+    } as unknown as GeminiClient;
+
+    await sendChatMessage(store, "Give me all upcoming deadlines", {
+      geminiClient: fakeGemini,
+      useFunctionCalling: true
+    });
+
+    expect(generateChatResponse).toHaveBeenCalledTimes(2);
+    const secondRequest = generateChatResponse.mock.calls[1][0] as {
+      messages: Array<{ role: string; parts: Array<Record<string, unknown>> }>;
+    };
+    const lastMessage = secondRequest.messages[secondRequest.messages.length - 1];
+    const fnResponse = lastMessage.parts[0]?.functionResponse as
+      | { name: string; response: Record<string, unknown> }
+      | undefined;
+
+    expect(lastMessage.role).toBe("user");
+    expect(fnResponse?.name).toBe("getDeadlines");
+    expect(fnResponse?.response?.total).toBe(12);
+    expect(fnResponse?.response?.truncated).toBe(true);
+
+    const deadlines = fnResponse?.response?.deadlines as unknown[];
+    expect(Array.isArray(deadlines)).toBe(true);
+    expect(deadlines.length).toBe(6);
+  });
+
+  it("returns a local fallback reply when second function-calling pass is rate limited", async () => {
+    const now = new Date();
+    store.createLectureEvent({
+      title: "DAT520 Lecture",
+      startTime: new Date(now.getTime() + 30 * 60 * 1000).toISOString(),
+      durationMinutes: 90,
+      workload: "medium"
+    });
+
+    generateChatResponse = vi
+      .fn()
+      .mockResolvedValueOnce({
+        text: "",
+        finishReason: "stop",
+        functionCalls: [
+          {
+            name: "getSchedule",
+            args: {}
+          }
+        ]
+      })
+      .mockRejectedValueOnce(new RateLimitError("Gemini API rate limit exceeded: provider 429"));
+    fakeGemini = {
+      generateChatResponse
+    } as unknown as GeminiClient;
+
+    const result = await sendChatMessage(store, "What's my schedule today?", {
+      geminiClient: fakeGemini,
+      useFunctionCalling: true
+    });
+
+    expect(generateChatResponse).toHaveBeenCalledTimes(2);
+    expect(result.finishReason).toBe("rate_limit_fallback");
+    expect(result.reply).toContain("temporary rate limit");
+    expect(result.reply).toContain("Schedule today");
+    expect(result.citations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "schedule"
+        })
       ])
     );
   });

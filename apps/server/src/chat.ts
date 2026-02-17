@@ -305,6 +305,12 @@ interface ParsedActionCommand {
   actionId: string;
 }
 
+interface ExecutedFunctionResponse {
+  name: string;
+  rawResponse: unknown;
+  modelResponse: unknown;
+}
+
 function parseActionCommand(input: string): ParsedActionCommand | null {
   const match = input.trim().match(/^(confirm|cancel)\s+([a-zA-Z0-9_-]+)$/i);
   if (!match) {
@@ -357,8 +363,206 @@ function buildPendingActionFallbackReply(actions: ChatPendingAction[]): string {
   return lines.join("\n");
 }
 
+function buildScheduleFallbackSection(response: unknown): string | null {
+  if (!Array.isArray(response)) {
+    return null;
+  }
+  if (response.length === 0) {
+    return "Schedule: no events found for today.";
+  }
+
+  const lines: string[] = [`Schedule today (${response.length}):`];
+  response.slice(0, 4).forEach((value) => {
+    const record = asRecord(value);
+    if (!record) {
+      return;
+    }
+    const title = asNonEmptyString(record.title) ?? "Untitled event";
+    const start = asNonEmptyString(record.startTime) ?? "unknown time";
+    lines.push(`- ${title} (${start})`);
+  });
+  if (response.length > 4) {
+    lines.push(`- +${response.length - 4} more`);
+  }
+  return lines.join("\n");
+}
+
+function buildDeadlinesFallbackSection(response: unknown): string | null {
+  if (!Array.isArray(response)) {
+    return null;
+  }
+  if (response.length === 0) {
+    return "Deadlines: no upcoming items found.";
+  }
+
+  const lines: string[] = [`Upcoming deadlines (${response.length}):`];
+  response.slice(0, 5).forEach((value) => {
+    const record = asRecord(value);
+    if (!record) {
+      return;
+    }
+    const course = asNonEmptyString(record.course) ?? "Course";
+    const task = asNonEmptyString(record.task) ?? "Task";
+    const dueDate = asNonEmptyString(record.dueDate) ?? "unknown due date";
+    lines.push(`- ${course}: ${textSnippet(task, 90)} (due ${dueDate})`);
+  });
+  if (response.length > 5) {
+    lines.push(`- +${response.length - 5} more`);
+  }
+  return lines.join("\n");
+}
+
+function buildEmailsFallbackSection(response: unknown): string | null {
+  if (!Array.isArray(response)) {
+    return null;
+  }
+  if (response.length === 0) {
+    return "Emails: no recent messages found.";
+  }
+
+  const lines: string[] = [`Recent emails (${response.length}):`];
+  response.slice(0, 4).forEach((value) => {
+    const record = asRecord(value);
+    if (!record) {
+      return;
+    }
+    const subject = asNonEmptyString(record.subject) ?? "No subject";
+    lines.push(`- ${textSnippet(subject, 100)}`);
+  });
+  if (response.length > 4) {
+    lines.push(`- +${response.length - 4} more`);
+  }
+  return lines.join("\n");
+}
+
+function buildSocialFallbackSection(response: unknown): string | null {
+  const payload = asRecord(response);
+  if (!payload) {
+    return null;
+  }
+
+  const youtube = asRecord(payload.youtube);
+  const videos = Array.isArray(youtube?.videos) ? youtube.videos : [];
+  const x = asRecord(payload.x);
+  const tweets = Array.isArray(x?.tweets) ? x.tweets : [];
+
+  const sections: string[] = [];
+  if (videos.length > 0) {
+    const lines = [`Recent YouTube videos (${videos.length}):`];
+    videos.slice(0, 3).forEach((value) => {
+      const record = asRecord(value);
+      if (!record) {
+        return;
+      }
+      const title = asNonEmptyString(record.title) ?? "Untitled video";
+      const channel = asNonEmptyString(record.channelTitle);
+      lines.push(`- ${channel ? `${channel}: ` : ""}${textSnippet(title, 100)}`);
+    });
+    if (videos.length > 3) {
+      lines.push(`- +${videos.length - 3} more`);
+    }
+    sections.push(lines.join("\n"));
+  }
+
+  if (tweets.length > 0) {
+    const lines = [`Recent X posts (${tweets.length}):`];
+    tweets.slice(0, 3).forEach((value) => {
+      const record = asRecord(value);
+      if (!record) {
+        return;
+      }
+      const author = asNonEmptyString(record.authorUsername);
+      const text = asNonEmptyString(record.text) ?? "";
+      lines.push(`- ${author ? `@${author}: ` : ""}${textSnippet(text, 100)}`);
+    });
+    if (tweets.length > 3) {
+      lines.push(`- +${tweets.length - 3} more`);
+    }
+    sections.push(lines.join("\n"));
+  }
+
+  if (sections.length === 0) {
+    return "Social media: no recent items found.";
+  }
+  return sections.join("\n");
+}
+
+function buildJournalFallbackSection(response: unknown): string | null {
+  if (!Array.isArray(response)) {
+    return null;
+  }
+  if (response.length === 0) {
+    return "Journal: no matching entries found.";
+  }
+
+  const lines: string[] = [`Journal matches (${response.length}):`];
+  response.slice(0, 3).forEach((value) => {
+    const record = asRecord(value);
+    if (!record) {
+      return;
+    }
+    const content = asNonEmptyString(record.content) ?? "";
+    lines.push(`- ${textSnippet(content, 110)}`);
+  });
+  if (response.length > 3) {
+    lines.push(`- +${response.length - 3} more`);
+  }
+  return lines.join("\n");
+}
+
+function buildToolRateLimitFallbackReply(
+  functionResponses: ExecutedFunctionResponse[],
+  pendingActions: ChatPendingAction[]
+): string {
+  if (pendingActions.length > 0) {
+    return buildPendingActionFallbackReply(pendingActions);
+  }
+
+  const sections: string[] = [];
+  functionResponses.forEach((result) => {
+    let section: string | null = null;
+    switch (result.name) {
+      case "getSchedule":
+        section = buildScheduleFallbackSection(result.rawResponse);
+        break;
+      case "getDeadlines":
+        section = buildDeadlinesFallbackSection(result.rawResponse);
+        break;
+      case "getEmails":
+        section = buildEmailsFallbackSection(result.rawResponse);
+        break;
+      case "getSocialDigest":
+        section = buildSocialFallbackSection(result.rawResponse);
+        break;
+      case "searchJournal":
+        section = buildJournalFallbackSection(result.rawResponse);
+        break;
+      default:
+        section = null;
+        break;
+    }
+
+    if (section) {
+      sections.push(section);
+    }
+  });
+
+  if (sections.length === 0) {
+    return "I hit a temporary Gemini rate limit and couldn't finish the response. Please try again in a moment.";
+  }
+
+  return [
+    "Gemini hit a temporary rate limit, but I fetched your data:",
+    "",
+    sections.join("\n\n")
+  ].join("\n");
+}
+
 const MAX_CHAT_CITATIONS = 8;
 const FUNCTION_CALL_HISTORY_LIMIT = 6;
+const TOOL_RESULT_ITEM_LIMIT = 6;
+const TOOL_RESULT_TEXT_MAX_CHARS = 220;
+const TOOL_RESULT_MAX_DEPTH = 3;
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
@@ -387,6 +591,216 @@ function addCitation(citations: Map<string, ChatCitation>, citation: ChatCitatio
   const key = citationKey(citation);
   if (!citations.has(key)) {
     citations.set(key, citation);
+  }
+}
+
+function compactTextValue(value: unknown, maxLength = TOOL_RESULT_TEXT_MAX_CHARS): unknown {
+  return typeof value === "string" ? textSnippet(value, maxLength) : value;
+}
+
+function compactGenericValue(value: unknown, depth = 0): unknown {
+  if (value === null || value === undefined) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    return compactTextValue(value);
+  }
+
+  if (typeof value === "number" || typeof value === "boolean") {
+    return value;
+  }
+
+  if (depth >= TOOL_RESULT_MAX_DEPTH) {
+    if (Array.isArray(value)) {
+      return `[truncated array length=${value.length}]`;
+    }
+    return "[truncated object]";
+  }
+
+  if (Array.isArray(value)) {
+    const limitedItems = value
+      .slice(0, TOOL_RESULT_ITEM_LIMIT)
+      .map((item) => compactGenericValue(item, depth + 1));
+    if (value.length > TOOL_RESULT_ITEM_LIMIT) {
+      limitedItems.push(`[${value.length - TOOL_RESULT_ITEM_LIMIT} more items omitted]`);
+    }
+    return limitedItems;
+  }
+
+  const record = asRecord(value);
+  if (!record) {
+    return "[unsupported value]";
+  }
+
+  const entries = Object.entries(record).slice(0, 14);
+  const compacted: Record<string, unknown> = {};
+  entries.forEach(([key, entryValue]) => {
+    compacted[key] = compactGenericValue(entryValue, depth + 1);
+  });
+  if (Object.keys(record).length > entries.length) {
+    compacted.__truncated = true;
+  }
+  return compacted;
+}
+
+function compactScheduleForModel(response: unknown): unknown {
+  if (!Array.isArray(response)) {
+    return compactGenericValue(response);
+  }
+
+  return {
+    total: response.length,
+    events: response.slice(0, TOOL_RESULT_ITEM_LIMIT).map((value) => {
+      const record = asRecord(value);
+      if (!record) {
+        return {};
+      }
+      return {
+        id: asNonEmptyString(record.id) ?? "",
+        title: compactTextValue(asNonEmptyString(record.title) ?? "", 120),
+        startTime: asNonEmptyString(record.startTime) ?? null,
+        durationMinutes: record.durationMinutes ?? null,
+        workload: asNonEmptyString(record.workload) ?? null,
+        source: asNonEmptyString(record.source) ?? null
+      };
+    }),
+    truncated: response.length > TOOL_RESULT_ITEM_LIMIT
+  };
+}
+
+function compactDeadlinesForModel(response: unknown): unknown {
+  if (!Array.isArray(response)) {
+    return compactGenericValue(response);
+  }
+
+  return {
+    total: response.length,
+    deadlines: response.slice(0, TOOL_RESULT_ITEM_LIMIT).map((value) => {
+      const record = asRecord(value);
+      if (!record) {
+        return {};
+      }
+      return {
+        id: asNonEmptyString(record.id) ?? "",
+        course: compactTextValue(asNonEmptyString(record.course) ?? "", 40),
+        task: compactTextValue(asNonEmptyString(record.task) ?? "", 120),
+        dueDate: asNonEmptyString(record.dueDate) ?? null,
+        priority: asNonEmptyString(record.priority) ?? null,
+        completed: Boolean(record.completed)
+      };
+    }),
+    truncated: response.length > TOOL_RESULT_ITEM_LIMIT
+  };
+}
+
+function compactJournalForModel(response: unknown): unknown {
+  if (!Array.isArray(response)) {
+    return compactGenericValue(response);
+  }
+
+  return {
+    total: response.length,
+    entries: response.slice(0, TOOL_RESULT_ITEM_LIMIT).map((value) => {
+      const record = asRecord(value);
+      if (!record) {
+        return {};
+      }
+      return {
+        id: asNonEmptyString(record.id) ?? "",
+        timestamp: asNonEmptyString(record.timestamp) ?? null,
+        contentSnippet: compactTextValue(asNonEmptyString(record.content) ?? "", 180)
+      };
+    }),
+    truncated: response.length > TOOL_RESULT_ITEM_LIMIT
+  };
+}
+
+function compactEmailsForModel(response: unknown): unknown {
+  if (!Array.isArray(response)) {
+    return compactGenericValue(response);
+  }
+
+  return {
+    total: response.length,
+    emails: response.slice(0, TOOL_RESULT_ITEM_LIMIT).map((value) => {
+      const record = asRecord(value);
+      if (!record) {
+        return {};
+      }
+      return {
+        id: asNonEmptyString(record.id) ?? "",
+        from: compactTextValue(asNonEmptyString(record.from) ?? "", 70),
+        subject: compactTextValue(asNonEmptyString(record.subject) ?? "", 120),
+        generatedAt: asNonEmptyString(record.generatedAt) ?? null,
+        snippet: compactTextValue(asNonEmptyString(record.snippet) ?? "", 180)
+      };
+    }),
+    truncated: response.length > TOOL_RESULT_ITEM_LIMIT
+  };
+}
+
+function compactSocialDigestForModel(response: unknown): unknown {
+  const payload = asRecord(response);
+  if (!payload) {
+    return compactGenericValue(response);
+  }
+
+  const youtube = asRecord(payload.youtube);
+  const youtubeVideos = Array.isArray(youtube?.videos) ? youtube.videos : [];
+  const x = asRecord(payload.x);
+  const xTweets = Array.isArray(x?.tweets) ? x.tweets : [];
+
+  return {
+    youtube: {
+      total: typeof youtube?.total === "number" ? youtube.total : youtubeVideos.length,
+      videos: youtubeVideos.slice(0, TOOL_RESULT_ITEM_LIMIT).map((value) => {
+        const record = asRecord(value);
+        if (!record) {
+          return {};
+        }
+        return {
+          id: asNonEmptyString(record.id) ?? "",
+          channelTitle: compactTextValue(asNonEmptyString(record.channelTitle) ?? "", 60),
+          title: compactTextValue(asNonEmptyString(record.title) ?? "", 120),
+          publishedAt: asNonEmptyString(record.publishedAt) ?? null
+        };
+      }),
+      truncated: youtubeVideos.length > TOOL_RESULT_ITEM_LIMIT
+    },
+    x: {
+      total: typeof x?.total === "number" ? x.total : xTweets.length,
+      tweets: xTweets.slice(0, TOOL_RESULT_ITEM_LIMIT).map((value) => {
+        const record = asRecord(value);
+        if (!record) {
+          return {};
+        }
+        return {
+          id: asNonEmptyString(record.id) ?? "",
+          authorUsername: asNonEmptyString(record.authorUsername) ?? null,
+          text: compactTextValue(asNonEmptyString(record.text) ?? "", 180),
+          createdAt: asNonEmptyString(record.createdAt) ?? null
+        };
+      }),
+      truncated: xTweets.length > TOOL_RESULT_ITEM_LIMIT
+    }
+  };
+}
+
+function compactFunctionResponseForModel(functionName: string, response: unknown): unknown {
+  switch (functionName) {
+    case "getSchedule":
+      return compactScheduleForModel(response);
+    case "getDeadlines":
+      return compactDeadlinesForModel(response);
+    case "searchJournal":
+      return compactJournalForModel(response);
+    case "getEmails":
+      return compactEmailsForModel(response);
+    case "getSocialDigest":
+      return compactSocialDigestForModel(response);
+    default:
+      return compactGenericValue(response);
   }
 }
 
@@ -683,27 +1097,29 @@ Keep responses concise, encouraging, and conversational.`
       }
     : undefined;
   let pendingActionsFromTooling: ChatPendingAction[] = [];
+  let executedFunctionResponses: ExecutedFunctionResponse[] = [];
   const citations = new Map<string, ChatCitation>();
 
   // Handle function calls if present
   if (response.functionCalls && response.functionCalls.length > 0) {
     // Execute all function calls
-    const functionResponses = response.functionCalls.map((fnCall) => {
+    executedFunctionResponses = response.functionCalls.map((fnCall) => {
       const result = executeFunctionCall(fnCall.name, fnCall.args as Record<string, unknown>, store);
       const nextCitations = collectToolCitations(store, result.name, result.response);
       nextCitations.forEach((citation) => addCitation(citations, citation));
       return {
         name: result.name,
-        response: result.response
+        rawResponse: result.response,
+        modelResponse: compactFunctionResponseForModel(result.name, result.response)
       };
     });
-    pendingActionsFromTooling = functionResponses.flatMap((fnResp) => extractPendingActions(fnResp.response));
+    pendingActionsFromTooling = executedFunctionResponses.flatMap((fnResp) => extractPendingActions(fnResp.rawResponse));
 
     // Build function response messages
-    const functionResponseParts = functionResponses.map((fnResp) => ({
+    const functionResponseParts = executedFunctionResponses.map((fnResp) => ({
       functionResponse: {
         name: fnResp.name,
-        response: fnResp.response
+        response: fnResp.modelResponse
       }
     })) as Part[];
 
@@ -721,11 +1137,39 @@ Keep responses concise, encouraging, and conversational.`
     });
 
     // Get final response from Gemini with function results
-    response = await gemini.generateChatResponse({
-      messages,
-      systemInstruction,
-      tools: useFunctionCalling ? functionDeclarations : undefined
-    });
+    try {
+      response = await gemini.generateChatResponse({
+        messages,
+        systemInstruction,
+        tools: useFunctionCalling ? functionDeclarations : undefined
+      });
+    } catch (error) {
+      if (error instanceof RateLimitError) {
+        const fallbackReply = buildToolRateLimitFallbackReply(executedFunctionResponses, pendingActionsFromTooling);
+        const assistantMetadata: ChatMessageMetadata = {
+          contextWindow,
+          finishReason: "rate_limit_fallback",
+          usage: totalUsage,
+          ...(pendingActionsFromTooling.length > 0 ? { pendingActions: store.getPendingChatActions(now) } : {}),
+          ...(citations.size > 0
+            ? { citations: Array.from(citations.values()).slice(0, MAX_CHAT_CITATIONS) }
+            : {})
+        };
+        const assistantMessage = store.recordChatMessage("assistant", fallbackReply, assistantMetadata);
+        const historyPage = store.getChatHistory({ page: 1, pageSize: 20 });
+
+        return {
+          reply: assistantMessage.content,
+          userMessage,
+          assistantMessage,
+          finishReason: assistantMetadata.finishReason,
+          usage: assistantMetadata.usage,
+          citations: assistantMetadata.citations ?? [],
+          history: historyPage
+        };
+      }
+      throw error;
+    }
 
     // Accumulate usage metrics
     if (response.usageMetadata && totalUsage) {
