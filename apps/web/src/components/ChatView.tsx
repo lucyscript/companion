@@ -206,7 +206,6 @@ export function ChatView(): JSX.Element {
   const lastSpokenAssistantIdRef = useRef<string | null>(null);
   const scrollFrameRef = useRef<number | null>(null);
   const scrollTimeoutRef = useRef<number | null>(null);
-  const pendingTopMessageIdRef = useRef<string | null>(null);
 
   const recognitionCtor = getSpeechRecognitionCtor();
   const speechRecognitionSupported = Boolean(recognitionCtor);
@@ -248,58 +247,7 @@ export function ChatView(): JSX.Element {
     });
   };
 
-  const scrollMessageToTop = (messageId: string, behavior: ScrollBehavior = "auto"): void => {
-    const container = messagesContainerRef.current;
-    if (!container) {
-      scheduleScrollToBottom(behavior);
-      return;
-    }
-
-    const messageElement = container.querySelector<HTMLElement>(`[data-message-id="${messageId}"]`);
-    if (!messageElement) {
-      scheduleScrollToBottom(behavior);
-      return;
-    }
-
-    container.scrollTo({
-      top: Math.max(0, messageElement.offsetTop - 8),
-      behavior
-    });
-  };
-
-  const scheduleScrollMessageToTop = (messageId: string): void => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    if (scrollFrameRef.current !== null) {
-      window.cancelAnimationFrame(scrollFrameRef.current);
-      scrollFrameRef.current = null;
-    }
-
-    if (scrollTimeoutRef.current !== null) {
-      window.clearTimeout(scrollTimeoutRef.current);
-      scrollTimeoutRef.current = null;
-    }
-
-    scrollFrameRef.current = window.requestAnimationFrame(() => {
-      scrollMessageToTop(messageId, "auto");
-      scrollFrameRef.current = null;
-
-      // Run a second pass after layout settles (mobile keyboard + viewport resize).
-      scrollTimeoutRef.current = window.setTimeout(() => {
-        scrollMessageToTop(messageId, "auto");
-        scrollTimeoutRef.current = null;
-      }, 120);
-    });
-  };
-
   useEffect(() => {
-    if (pendingTopMessageIdRef.current) {
-      scheduleScrollMessageToTop(pendingTopMessageIdRef.current);
-      return;
-    }
-
     scheduleScrollToBottom("auto");
   }, [messages]);
 
@@ -459,7 +407,6 @@ export function ChatView(): JSX.Element {
     };
 
     setMessages((prev) => [...prev, userMessage]);
-    pendingTopMessageIdRef.current = userMessage.id;
     setIsSending(true);
     setError(null);
 
@@ -471,7 +418,7 @@ export function ChatView(): JSX.Element {
       streaming: true
     };
     setMessages((prev) => [...prev, assistantPlaceholder]);
-    scheduleScrollMessageToTop(userMessage.id);
+    scheduleScrollToBottom("auto");
     if (typeof window !== "undefined" && window.matchMedia("(max-width: 820px)").matches) {
       window.requestAnimationFrame(() => inputRef.current?.blur());
     }
@@ -488,7 +435,6 @@ export function ChatView(): JSX.Element {
       console.error(err);
       setMessages((prev) => prev.filter((msg) => !msg.streaming));
     } finally {
-      pendingTopMessageIdRef.current = null;
       setIsSending(false);
     }
   };
