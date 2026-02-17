@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { GitHubCourseSyncService } from "./github-course-sync.js";
 import { RuntimeStore } from "./store.js";
 import { GitHubCourseClient } from "./github-course-client.js";
@@ -11,6 +11,10 @@ describe("GitHubCourseSyncService", () => {
   beforeEach(() => {
     // Create a fresh store for each test
     store = new RuntimeStore();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   describe("parseDeadlines", () => {
@@ -194,12 +198,44 @@ describe("GitHubCourseSyncService", () => {
         dueDate: "2026-02-18"
       });
     });
+
+    it("parses DAT560 assignment rows when the week column is blank", () => {
+      const markdown = `
+# Schedule
+
+| Week | Date       | Topic                     | Lecturer |
+|------|------------|---------------------------|----------|
+| 5    | 28.01.2026 | Language Models – part 1  | VS       |
+|      | 28.01.2026 | **Assignment 1 deadline** |          |
+| 8    | 18.02.2026 | LLM fine-tuning - part 1  | VS       |
+|      | 18.02.2026 | **Assignment 2 deadline** |          |
+`;
+
+      const service = new GitHubCourseSyncService(store);
+      const deadlines = service.parseDeadlines(markdown, "DAT560");
+
+      expect(deadlines).toHaveLength(2);
+      expect(deadlines[0]).toMatchObject({
+        course: "DAT560",
+        task: "Assignment 1 deadline",
+        dueDate: "2026-01-28"
+      });
+      expect(deadlines[1]).toMatchObject({
+        course: "DAT560",
+        task: "Assignment 2 deadline",
+        dueDate: "2026-02-18"
+      });
+    });
   });
 
   describe("sync", () => {
     it("should create new deadlines from parsed README", async () => {
       // Create a fresh store with in-memory database to avoid seed data
       const freshStore = new RuntimeStore(":memory:");
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => ({ ok: false, status: 404, statusText: "Not Found", text: async () => "" } as Response))
+      );
       
       const mockReadme = `
 | Assignment | Deadline |
@@ -334,6 +370,68 @@ describe("GitHubCourseSyncService", () => {
       expect(deadlines.some((deadline) => deadline.dueDate === `${currentYear}-02-12`)).toBe(true);
     });
 
+    it("falls back to DAT520 public course pages when info repo files are unavailable", async () => {
+      const freshStore = new RuntimeStore(":memory:");
+      const currentYear = new Date().getUTCFullYear();
+      const labPlanMarkdown = `
+|  Lab  | Topic                                         | Deadline    |
+| :---: | --------------------------------------------- | ----------- |
+|   1   | [Getting Started with Network Programming][1] | January 15  |
+|   2   | [Network Programming with gRPC][2]            | February 12 |
+`;
+
+      mockClient = {
+        getReadme: async (owner: string, repo: string) => {
+          if (owner === "dat520-2026" && repo === "info") {
+            throw new Error("403 Forbidden");
+          }
+          return "";
+        },
+        listRepositoryFiles: async () => {
+          throw new Error("Repository tree unavailable");
+        },
+        getFileContent: async () => {
+          throw new Error("File access denied");
+        }
+      } as unknown as GitHubCourseClient;
+
+      const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+        const url = typeof input === "string" ? input : input.toString();
+        if (url === "https://dat520.github.io/README.md") {
+          return {
+            ok: true,
+            status: 200,
+            statusText: "OK",
+            text: async () => "# DAT520"
+          } as Response;
+        }
+        if (url === "https://dat520.github.io/lab-plan.md") {
+          return {
+            ok: true,
+            status: 200,
+            statusText: "OK",
+            text: async () => labPlanMarkdown
+          } as Response;
+        }
+        return {
+          ok: false,
+          status: 404,
+          statusText: "Not Found",
+          text: async () => ""
+        } as Response;
+      });
+      vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
+
+      service = new GitHubCourseSyncService(freshStore, mockClient);
+      const result = await service.sync();
+
+      expect(result.success).toBe(true);
+      const deadlines = freshStore.getAcademicDeadlines(new Date(), false).filter((deadline) => deadline.course === "DAT520");
+      expect(deadlines.some((deadline) => deadline.task.includes("Lab 1"))).toBe(true);
+      expect(deadlines.some((deadline) => deadline.dueDate === `${currentYear}-01-15`)).toBe(true);
+      expect(deadlines.some((deadline) => deadline.dueDate === `${currentYear}-02-12`)).toBe(true);
+    });
+
     it("should update existing deadlines if date changes", async () => {
       // Create initial deadline
       const initialDeadline = store.createDeadline({
@@ -408,6 +506,10 @@ describe("GitHubCourseSyncService", () => {
     });
 
     it("should handle GitHub API errors gracefully", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => ({ ok: false, status: 404, statusText: "Not Found", text: async () => "" } as Response))
+      );
       mockClient = {
         getReadme: async (owner: string, repo: string) => {
           throw new Error("GitHub API error: 404 Not Found");
