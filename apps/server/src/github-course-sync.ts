@@ -9,6 +9,7 @@ export interface CourseRepo {
   repo: string;
   courseCode: string;
   deadlinePathHints?: string[];
+  publicPagesBaseUrl?: string;
 }
 
 export interface GitHubCourseSyncResult {
@@ -27,7 +28,8 @@ const COURSE_REPOS: CourseRepo[] = [
     owner: "dat520-2026",
     repo: "info",
     courseCode: "DAT520",
-    deadlinePathHints: ["lab-plan.md", "assignments.md", "deadlines.md"]
+    deadlinePathHints: ["lab-plan.md", "assignments.md", "deadlines.md"],
+    publicPagesBaseUrl: "https://dat520.github.io"
   },
   {
     owner: "dat520-2026",
@@ -141,12 +143,15 @@ export class GitHubCourseSyncService {
         continue;
       }
 
-      const cells = line.split("|").map(cell => cell.trim()).filter(cell => cell.length > 0);
+      const cells = line
+        .split("|")
+        .slice(1, -1)
+        .map((cell) => cell.trim());
 
       if (cells.length === 0) continue;
 
       // Check if this is a separator row (e.g., |-----|------|)
-      if (cells.every(cell => /^-+$/.test(cell))) {
+      if (cells.every((cell) => /^:?-+:?$/.test(cell))) {
         continue; // Skip separator rows
       }
 
@@ -389,6 +394,49 @@ export class GitHubCourseSyncService {
     return hasAssignmentOrExamKeyword(normalized);
   }
 
+  private async fetchPublicPageMarkdown(repo: CourseRepo, path: string): Promise<string> {
+    if (!repo.publicPagesBaseUrl) {
+      throw new Error("Public course page fallback is not configured.");
+    }
+
+    const normalizedPath = path.replace(/^\/+/, "");
+    const base = repo.publicPagesBaseUrl.replace(/\/+$/, "");
+    const url = `${base}/${normalizedPath}`;
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent": "Companion-App"
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Public course page fetch failed (${response.status}) for ${url}`);
+    }
+
+    return response.text();
+  }
+
+  private async getRepoReadme(repo: CourseRepo): Promise<string> {
+    try {
+      return await this.client.getReadme(repo.owner, repo.repo);
+    } catch (primaryError) {
+      if (!repo.publicPagesBaseUrl) {
+        throw primaryError;
+      }
+      return this.fetchPublicPageMarkdown(repo, "README.md");
+    }
+  }
+
+  private async getRepoFileContent(repo: CourseRepo, path: string): Promise<string> {
+    try {
+      return await this.client.getFileContent(repo.owner, repo.repo, path);
+    } catch (primaryError) {
+      if (!repo.publicPagesBaseUrl) {
+        throw primaryError;
+      }
+      return this.fetchPublicPageMarkdown(repo, path);
+    }
+  }
+
   /**
    * Generate a unique key for a deadline based on course and task
    * Uses robust slugification to avoid collisions
@@ -606,8 +654,8 @@ export class GitHubCourseSyncService {
           path === "README.md" && readmeMarkdown !== undefined
             ? readmeMarkdown
             : path === "README.md"
-              ? await this.client.getReadme(repo.owner, repo.repo)
-            : await this.client.getFileContent(repo.owner, repo.repo, path);
+              ? await this.getRepoReadme(repo)
+              : await this.getRepoFileContent(repo, path);
         const doc = this.buildCourseDocument(repo, path, markdown, syncedAt);
         if (doc) {
           docs.push(doc);
@@ -635,7 +683,7 @@ export class GitHubCourseSyncService {
     try {
       for (const repo of COURSE_REPOS) {
         try {
-          const readme = await this.client.getReadme(repo.owner, repo.repo);
+          const readme = await this.getRepoReadme(repo);
           const deadlineSourcePaths = new Set<string>(["README.md"]);
           (repo.deadlinePathHints ?? []).forEach((path) => {
             const normalized = path.trim();
@@ -660,7 +708,7 @@ export class GitHubCourseSyncService {
               const markdown =
                 path.toLowerCase() === "readme.md"
                   ? readme
-                  : await this.client.getFileContent(repo.owner, repo.repo, path);
+                  : await this.getRepoFileContent(repo, path);
               parsedDeadlines.push(...this.parseDeadlines(markdown, repo.courseCode));
             } catch {
               // Continue with remaining files when one file cannot be fetched.
