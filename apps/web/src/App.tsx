@@ -139,10 +139,42 @@ export default function App(): JSX.Element {
     const KEYBOARD_GAP_THRESHOLD_PX = 40;
     const VIEWPORT_DROP_THRESHOLD_PX = 70;
     let baselineViewportHeight = Math.round(window.visualViewport?.height ?? window.innerHeight);
+    let bodyLocked = false;
+    let lockedScrollY = 0;
     const isCoarsePointer = window.matchMedia?.("(pointer: coarse)")?.matches ?? false;
     const isIOS =
       /iPad|iPhone|iPod/i.test(navigator.userAgent) ||
       (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+    const lockBodyForKeyboard = (): void => {
+      if (bodyLocked) {
+        return;
+      }
+
+      lockedScrollY = window.scrollY || window.pageYOffset || 0;
+      document.body.style.position = "fixed";
+      document.body.style.top = `-${lockedScrollY}px`;
+      document.body.style.left = "0";
+      document.body.style.right = "0";
+      document.body.style.width = "100%";
+      document.body.style.overflow = "hidden";
+      bodyLocked = true;
+    };
+
+    const unlockBodyForKeyboard = (): void => {
+      if (!bodyLocked) {
+        return;
+      }
+
+      document.body.style.position = "";
+      document.body.style.top = "";
+      document.body.style.left = "";
+      document.body.style.right = "";
+      document.body.style.width = "";
+      document.body.style.overflow = "";
+      window.scrollTo(0, lockedScrollY);
+      bodyLocked = false;
+    };
 
     const hasEditableFocus = (): boolean => {
       const active = document.activeElement;
@@ -178,6 +210,12 @@ export default function App(): JSX.Element {
       const effectiveKeyboardGap = keyboardOpen ? Math.max(keyboardGap, viewportDrop) : 0;
       root.style.setProperty("--keyboard-gap", `${effectiveKeyboardGap}px`);
       document.body.classList.toggle("keyboard-open", keyboardOpen);
+
+      if (keyboardOpen) {
+        lockBodyForKeyboard();
+      } else {
+        unlockBodyForKeyboard();
+      }
     };
 
     const handleFocusEvent = (): void => {
@@ -208,6 +246,7 @@ export default function App(): JSX.Element {
       root.style.removeProperty("--app-viewport-offset-top");
       root.style.removeProperty("--keyboard-gap");
       document.body.classList.remove("keyboard-open");
+      unlockBodyForKeyboard();
     };
   }, []);
 
