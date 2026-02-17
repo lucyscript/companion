@@ -57,9 +57,9 @@ export function parseICS(icsContent: string): ImportedCalendarEvent[] {
     const value = rest.join(":").trim();
 
     if (keyWithParams.startsWith("SUMMARY")) {
-      current.summary = value;
+      current.summary = normalizeCalendarSummary(decodeICSText(value));
     } else if (keyWithParams.startsWith("DESCRIPTION")) {
-      current.description = value;
+      current.description = normalizeCalendarDescription(decodeICSText(value));
     } else if (keyWithParams.startsWith("DTSTART")) {
       const parsed = parseICSTimestamp(value);
       if (parsed) {
@@ -194,6 +194,52 @@ function unfoldICSLines(content: string): string[] {
   }
 
   return unfolded;
+}
+
+function decodeICSText(value: string): string {
+  let decoded = value;
+
+  for (let pass = 0; pass < 4; pass += 1) {
+    const next = decoded.replace(/\\([nN,;\\])/g, (_match, token: string) => {
+      if (token === "n" || token === "N") {
+        return "\n";
+      }
+      if (token === ",") {
+        return ",";
+      }
+      if (token === ";") {
+        return ";";
+      }
+      return "\\";
+    });
+
+    if (next === decoded) {
+      break;
+    }
+    decoded = next;
+  }
+
+  return decoded;
+}
+
+function normalizeCalendarSummary(value: string): string {
+  return value
+    .replace(/\\[nN]/g, "\n")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .replace(/\s*\n+\s*/g, " / ")
+    .replace(/\s+/g, " ")
+    .replace(/\s*\/\s*/g, " / ")
+    .replace(/^\/+\s*|\s*\/+$/g, "")
+    .trim();
+}
+
+function normalizeCalendarDescription(value: string): string {
+  return value
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function parseICSTimestamp(value: string): string | null {
