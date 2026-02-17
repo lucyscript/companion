@@ -273,11 +273,6 @@ export interface OnboardingProfile {
   timezone: string;
   baselineSchedule: string;
   nudgeTone: "gentle" | "balanced" | "direct";
-  canvasToken?: string;
-  tpCredentials?: {
-    courseIds: string[];
-    semester: string;
-  };
   completedAt: string;
 }
 

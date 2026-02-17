@@ -392,4 +392,4 @@ Features are built in priority order. The orchestrator reads this section to dec
 | ⬜ todo | `schedule-day-timeline-ui` | frontend-engineer | Add a compact day-timeline view (lecture blocks, free gaps, upcoming deadline markers) optimized for one-glance planning on iPhone. |
 | ⬜ todo | `analytics-gemini-coach` | fullstack-engineer | Replace chart-first analytics with Gemini narrative coaching over selectable windows (7/14/30 days), with strengths, risks, and steering recommendations. |
 | ⬜ todo | `pwa-icon-surface-fix` | frontend-engineer | Ensure favicon/manifest/apple-touch assets resolve correctly under GitHub Pages `/companion/` base so custom Companion icon appears in tab and installed PWA surfaces. |
-| ⬜ todo | `onboarding-env-config-simplification` | frontend-engineer | Simplify onboarding to profile/preferences only and remove API token/key prompts that are already provided via Railway environment variables. |
+| ✅ done | `onboarding-env-config-simplification` | frontend-engineer | Simplify onboarding to profile/preferences only and remove API token/key prompts that are already provided via Railway environment variables. |
