@@ -603,6 +603,28 @@ describe("chat service", () => {
     expect(firstRequest.systemInstruction).toContain("Detected intent: general");
   });
 
+  it("detects integration intent for sync/status questions", async () => {
+    await sendChatMessage(store, "Is Canvas sync working and is Gmail connected?", {
+      geminiClient: fakeGemini,
+      useFunctionCalling: true
+    });
+
+    const firstRequest = generateChatResponse.mock.calls[0][0] as { systemInstruction: string };
+    expect(firstRequest.systemInstruction).toContain("Detected intent: integrations");
+    expect(firstRequest.systemInstruction).toContain("sync status");
+  });
+
+  it("detects data-management intent for export/import requests", async () => {
+    await sendChatMessage(store, "How do I export a backup and restore it later?", {
+      geminiClient: fakeGemini,
+      useFunctionCalling: true
+    });
+
+    const firstRequest = generateChatResponse.mock.calls[0][0] as { systemInstruction: string };
+    expect(firstRequest.systemInstruction).toContain("Detected intent: data-management");
+    expect(firstRequest.systemInstruction).toContain("import/export/backup/restore");
+  });
+
   it("compacts large tool responses before sending functionResponse payloads to Gemini", async () => {
     const now = Date.now();
     for (let index = 0; index < 12; index += 1) {
@@ -649,7 +671,7 @@ describe("chat service", () => {
       | { name: string; response: Record<string, unknown> }
       | undefined;
 
-    expect(lastMessage.role).toBe("user");
+    expect(lastMessage.role).toBe("function");
     expect(fnResponse?.name).toBe("getDeadlines");
     expect(fnResponse?.response?.total).toBe(12);
     expect(fnResponse?.response?.truncated).toBe(true);

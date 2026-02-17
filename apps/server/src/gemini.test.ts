@@ -37,32 +37,30 @@ describe("GeminiClient", () => {
   });
 
   describe("request validation", () => {
-    it("should throw error when last message is not from user", async () => {
+    it("should throw error when message list is empty", async () => {
       const client = new GeminiClient("test-api-key");
       const request: GeminiChatRequest = {
-        messages: [{ role: "model", parts: [{ text: "Hello" }] }]
+        messages: []
       };
 
       await expect(client.generateChatResponse(request)).rejects.toThrow(
-        "Last message must be from user"
+        "At least one message is required"
       );
     });
 
-    it("should pass system instruction via model config for chat requests", async () => {
+    it("should pass system instruction via model config for content requests", async () => {
       const client = new GeminiClient("test-api-key");
 
-      const startChatMock = vi.fn().mockReturnValue({
-        sendMessage: vi.fn().mockResolvedValue({
-          response: {
-            functionCalls: () => [],
-            text: () => "Hello",
-            candidates: [{ finishReason: "STOP" }]
-          }
-        })
+      const generateContentMock = vi.fn().mockResolvedValue({
+        response: {
+          functionCalls: () => [],
+          text: () => "Hello",
+          candidates: [{ finishReason: "STOP" }]
+        }
       });
 
       const getGenerativeModelMock = vi.fn().mockReturnValue({
-        startChat: startChatMock
+        generateContent: generateContentMock
       });
 
       (client as unknown as { client: { getGenerativeModel: typeof getGenerativeModelMock } }).client = {
@@ -80,15 +78,18 @@ describe("GeminiClient", () => {
       expect(getGenerativeModelMock).toHaveBeenCalledWith(
         expect.objectContaining({ systemInstruction: "Use tools when needed." })
       );
-      expect(startChatMock).toHaveBeenCalledWith(expect.objectContaining({ history: [] }));
-      expect(startChatMock.mock.calls[0]?.[0]).not.toHaveProperty("systemInstruction");
+      expect(generateContentMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          contents: [{ role: "user", parts: [{ text: "Hello" }] }]
+        })
+      );
     });
 
     it("should retry transient 429 responses and return the recovered result", async () => {
       const client = new GeminiClient("test-api-key");
 
       const retryableError = Object.assign(new Error("429 Too Many Requests"), { status: 429 });
-      const sendMessageMock = vi
+      const generateContentMock = vi
         .fn()
         .mockRejectedValueOnce(retryableError)
         .mockResolvedValue({
@@ -99,12 +100,8 @@ describe("GeminiClient", () => {
           }
         });
 
-      const startChatMock = vi.fn().mockReturnValue({
-        sendMessage: sendMessageMock
-      });
-
       const getGenerativeModelMock = vi.fn().mockReturnValue({
-        startChat: startChatMock
+        generateContent: generateContentMock
       });
 
       const timeoutSpy = vi
@@ -127,7 +124,7 @@ describe("GeminiClient", () => {
       });
 
       expect(response.text).toBe("Recovered");
-      expect(sendMessageMock).toHaveBeenCalledTimes(2);
+      expect(generateContentMock).toHaveBeenCalledTimes(2);
       timeoutSpy.mockRestore();
     });
   });

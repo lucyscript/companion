@@ -305,7 +305,20 @@ interface ParsedActionCommand {
   actionId: string;
 }
 
-type ChatIntent = "schedule" | "deadlines" | "journal" | "emails" | "social" | "actions" | "general";
+type ChatIntent =
+  | "schedule"
+  | "deadlines"
+  | "study-plan"
+  | "journal"
+  | "emails"
+  | "social"
+  | "habits-goals"
+  | "notifications"
+  | "integrations"
+  | "context-state"
+  | "data-management"
+  | "actions"
+  | "general";
 
 interface ExecutedFunctionResponse {
   name: string;
@@ -348,6 +361,16 @@ const INTENT_PATTERNS: Array<{ intent: Exclude<ChatIntent, "general">; patterns:
     ]
   },
   {
+    intent: "study-plan",
+    patterns: [
+      /\bstudy plan\b/i,
+      /\bweekly plan\b/i,
+      /\bplan my week\b/i,
+      /\bstudy session(s)?\b/i,
+      /\bfocus block(s)?\b/i
+    ]
+  },
+  {
     intent: "journal",
     patterns: [
       /\bjournal\b/i,
@@ -373,9 +396,58 @@ const INTENT_PATTERNS: Array<{ intent: Exclude<ChatIntent, "general">; patterns:
       /\byoutube\b/i,
       /\bvideo(s)?\b/i,
       /\btwitter\b/i,
-      /\bx\b/i,
+      /\bx thread(s)?\b/i,
+      /\bx\/twitter\b/i,
       /\bthread(s)?\b/i,
       /\bsocial\b/i
+    ]
+  },
+  {
+    intent: "habits-goals",
+    patterns: [
+      /\bhabit(s)?\b/i,
+      /\bgoal(s)?\b/i,
+      /\bstreak(s)?\b/i,
+      /\bcheck-?in(s)?\b/i
+    ]
+  },
+  {
+    intent: "notifications",
+    patterns: [
+      /\bnotification(s)?\b/i,
+      /\breminder(s)?\b/i,
+      /\bnudge(s)?\b/i,
+      /\bpush\b/i
+    ]
+  },
+  {
+    intent: "integrations",
+    patterns: [
+      /\bintegration(s)?\b/i,
+      /\bcanvas\b/i,
+      /\btp\b/i,
+      /\beducloud\b/i,
+      /\bgmail\b/i,
+      /\bsync\b/i
+    ]
+  },
+  {
+    intent: "context-state",
+    patterns: [
+      /\benergy\b/i,
+      /\bstress\b/i,
+      /\bfocus mode\b/i,
+      /\bmood\b/i,
+      /\bcontext\b/i
+    ]
+  },
+  {
+    intent: "data-management",
+    patterns: [
+      /\bexport\b/i,
+      /\bimport\b/i,
+      /\bbackup\b/i,
+      /\brestore\b/i
     ]
   },
   {
@@ -386,9 +458,9 @@ const INTENT_PATTERNS: Array<{ intent: Exclude<ChatIntent, "general">; patterns:
       /\bmark\b/i,
       /\barchive\b/i,
       /\bdelete\b/i,
-      /\badd\b/i,
-      /\bcreate\b/i,
-      /\bupdate\b/i
+      /\bsave to journal\b/i,
+      /\bcreate schedule block\b/i,
+      /\breschedule\b/i
     ]
   }
 ];
@@ -414,12 +486,24 @@ function buildIntentGuidance(intent: ChatIntent): string {
       return "Intent hint: schedule. Prefer getSchedule first and answer with specific times.";
     case "deadlines":
       return "Intent hint: deadlines. Prefer getDeadlines and highlight urgency/order clearly.";
+    case "study-plan":
+      return "Intent hint: study planning. Use getDeadlines/getSchedule to propose realistic weekly blocks.";
     case "journal":
       return "Intent hint: journal. Prefer searchJournal before answering memory/reflection questions.";
     case "emails":
       return "Intent hint: emails. Prefer getEmails for inbox-related requests.";
     case "social":
       return "Intent hint: social. Prefer getSocialDigest for YouTube/X requests.";
+    case "habits-goals":
+      return "Intent hint: habits/goals. Answer with streak/check-in guidance and concrete next actions.";
+    case "notifications":
+      return "Intent hint: notifications. Explain reminders/nudges and suggest direct follow-up actions.";
+    case "integrations":
+      return "Intent hint: integrations. Focus on sync status, data freshness, and setup/troubleshooting steps.";
+    case "context-state":
+      return "Intent hint: user state. Focus on energy/stress/mode-aware recommendations.";
+    case "data-management":
+      return "Intent hint: data management. Focus on import/export/backup/restore safety and exact steps.";
     case "actions":
       return "Intent hint: action request. Use queue* action tools and require explicit confirmation.";
     case "general":
@@ -1260,7 +1344,7 @@ ${buildIntentGuidance(intent)}`
     });
 
     messages.push({
-      role: "user" as const,
+      role: "function" as const,
       parts: functionResponseParts
     });
 

@@ -3,7 +3,7 @@ import { config } from "./config.js";
 import { Deadline, JournalEntry, LectureEvent, UserContext } from "./types.js";
 
 export interface GeminiMessage {
-  role: "user" | "model";
+  role: "user" | "model" | "function";
   parts: Part[];
 }
 
@@ -117,22 +117,18 @@ export class GeminiClient {
       // Build a per-request model so SDK-normalized system instructions and tools are always valid.
       const model = this.client!.getGenerativeModel(modelConfig);
 
-      const chat = model.startChat({
-        history: request.messages.slice(0, -1)
-      });
-
-      const lastMessage = request.messages[request.messages.length - 1];
-      if (!lastMessage || lastMessage.role !== "user") {
-        throw new GeminiError("Last message must be from user");
+      if (request.messages.length === 0) {
+        throw new GeminiError("At least one message is required");
       }
 
-      const prompt = lastMessage.parts[0]?.text ?? "";
       const maxAttempts = 3;
       let result: GenerateContentResult | null = null;
 
       for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
         try {
-          result = await chat.sendMessage(prompt);
+          result = await model.generateContent({
+            contents: request.messages
+          });
           break;
         } catch (error) {
           const statusCode = this.extractStatusCode(error);
