@@ -31,6 +31,7 @@ import { buildStudyPlanCalendarIcs } from "./study-plan-export.js";
 import { generateWeeklyStudyPlan } from "./study-plan.js";
 import { generateContentRecommendations } from "./content-recommendations.js";
 import { Notification, NotificationPreferencesPatch } from "./types.js";
+import { nowIso } from "./utils.js";
 
 const app = express();
 const store = new RuntimeStore();
@@ -468,6 +469,23 @@ const studyPlanExportQuerySchema = z
   .refine((value) => value.maxSessionMinutes >= value.minSessionMinutes, {
     message: "maxSessionMinutes must be greater than or equal to minSessionMinutes"
   });
+
+const studyPlanSessionCheckInSchema = z.object({
+  status: z.enum(["done", "skipped"]),
+  checkedAt: z.string().datetime().optional()
+});
+
+const studyPlanSessionsQuerySchema = z.object({
+  windowStart: z.string().datetime().optional(),
+  windowEnd: z.string().datetime().optional(),
+  status: z.enum(["pending", "done", "skipped"]).optional(),
+  limit: z.coerce.number().int().min(1).max(500).optional()
+});
+
+const studyPlanAdherenceQuerySchema = z.object({
+  windowStart: z.string().datetime().optional(),
+  windowEnd: z.string().datetime().optional()
+});
 
 const contentRecommendationsQuerySchema = z.object({
   horizonDays: z.coerce.number().int().min(1).max(14).optional().default(7),
@@ -944,7 +962,64 @@ app.post("/api/study-plan/generate", (req, res) => {
     now: new Date()
   });
 
-  return res.json({ plan });
+  store.upsertStudyPlanSessions(plan.sessions, plan.generatedAt, {
+    windowStart: plan.windowStart,
+    windowEnd: plan.windowEnd
+  });
+  const adherence = store.getStudyPlanAdherenceMetrics({
+    windowStart: plan.windowStart,
+    windowEnd: plan.windowEnd
+  });
+
+  return res.json({ plan, adherence });
+});
+
+app.get("/api/study-plan/sessions", (req, res) => {
+  const parsed = studyPlanSessionsQuerySchema.safeParse(req.query ?? {});
+
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid study plan sessions query", issues: parsed.error.issues });
+  }
+
+  const sessions = store.getStudyPlanSessions({
+    windowStart: parsed.data.windowStart,
+    windowEnd: parsed.data.windowEnd,
+    status: parsed.data.status,
+    limit: parsed.data.limit
+  });
+
+  return res.json({ sessions });
+});
+
+app.post("/api/study-plan/sessions/:id/check-in", (req, res) => {
+  const parsed = studyPlanSessionCheckInSchema.safeParse(req.body ?? {});
+
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid study plan session check-in payload", issues: parsed.error.issues });
+  }
+
+  const session = store.setStudyPlanSessionStatus(req.params.id, parsed.data.status, parsed.data.checkedAt ?? nowIso());
+
+  if (!session) {
+    return res.status(404).json({ error: "Study plan session not found" });
+  }
+
+  return res.json({ session });
+});
+
+app.get("/api/study-plan/adherence", (req, res) => {
+  const parsed = studyPlanAdherenceQuerySchema.safeParse(req.query ?? {});
+
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid study plan adherence query", issues: parsed.error.issues });
+  }
+
+  const metrics = store.getStudyPlanAdherenceMetrics({
+    windowStart: parsed.data.windowStart,
+    windowEnd: parsed.data.windowEnd
+  });
+
+  return res.json({ metrics });
 });
 
 app.get("/api/study-plan/export", (req, res) => {

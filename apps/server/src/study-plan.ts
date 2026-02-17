@@ -134,7 +134,6 @@ export function generateWeeklyStudyPlan(
   );
 
   const sessions: StudyPlanSession[] = [];
-  let sessionCounter = 0;
 
   for (const gap of gaps) {
     let cursor = new Date(gap.startTime);
@@ -169,10 +168,10 @@ export function generateWeeklyStudyPlan(
 
       const startTime = new Date(cursor);
       const endTime = new Date(startTime.getTime() + durationMinutes * 60 * 1000);
-      sessionCounter += 1;
+      const sessionTimeKey = startTime.toISOString().replace(/[-:.TZ]/g, "");
 
       sessions.push({
-        id: `study-session-${candidate.deadline.id}-${sessionCounter}`,
+        id: `study-session-${candidate.deadline.id}-${sessionTimeKey}`,
         deadlineId: candidate.deadline.id,
         course: candidate.deadline.course,
         task: candidate.deadline.task,

@@ -813,7 +813,7 @@ Response `200`:
     },
     "sessions": [
       {
-        "id": "study-session-deadline-1739700000000-1",
+        "id": "study-session-deadline-1739700000000-1-20260217110000000",
         "deadlineId": "deadline-1739700000000-1",
         "course": "DAT560",
         "task": "Assignment 3",
@@ -826,6 +826,112 @@ Response `200`:
       }
     ],
     "unallocated": []
+  },
+  "adherence": {
+    "windowStart": "2026-02-17T10:00:00.000Z",
+    "windowEnd": "2026-02-24T10:00:00.000Z",
+    "sessionsPlanned": 4,
+    "sessionsDone": 1,
+    "sessionsSkipped": 1,
+    "sessionsPending": 2,
+    "completionRate": 25,
+    "adherenceRate": 50,
+    "totalPlannedMinutes": 360,
+    "completedMinutes": 90,
+    "skippedMinutes": 60,
+    "pendingMinutes": 210
+  }
+}
+```
+
+### `GET /api/study-plan/sessions`
+
+Returns stored study-plan sessions with status (`pending`, `done`, `skipped`).
+
+Query params (all optional):
+- `windowStart`: ISO datetime
+- `windowEnd`: ISO datetime
+- `status`: `pending | done | skipped`
+- `limit`: integer `1..500`
+
+Response `200`:
+
+```json
+{
+  "sessions": [
+    {
+      "id": "study-session-deadline-1739700000000-1-20260217110000000",
+      "deadlineId": "deadline-1739700000000-1",
+      "course": "DAT560",
+      "task": "Assignment 3",
+      "priority": "high",
+      "startTime": "2026-02-17T11:00:00.000Z",
+      "endTime": "2026-02-17T12:30:00.000Z",
+      "durationMinutes": 90,
+      "score": 680,
+      "rationale": "Due soon (32h). This block is prioritized to reduce deadline risk.",
+      "generatedAt": "2026-02-17T10:00:00.000Z",
+      "status": "done",
+      "checkedAt": "2026-02-17T12:35:00.000Z"
+    }
+  ]
+}
+```
+
+### `POST /api/study-plan/sessions/:id/check-in`
+
+Mark a stored study-plan session as completed or skipped.
+
+Request:
+
+```json
+{
+  "status": "done",
+  "checkedAt": "2026-02-17T12:35:00.000Z"
+}
+```
+
+Validation:
+- `status`: `done | skipped`
+- `checkedAt`: optional ISO datetime (defaults to current server time)
+
+Response `200`:
+
+```json
+{
+  "session": {
+    "id": "study-session-deadline-1739700000000-1-20260217110000000",
+    "status": "done",
+    "checkedAt": "2026-02-17T12:35:00.000Z"
+  }
+}
+```
+
+### `GET /api/study-plan/adherence`
+
+Returns aggregated adherence metrics for stored study-plan sessions.
+
+Query params (optional):
+- `windowStart`: ISO datetime
+- `windowEnd`: ISO datetime
+
+Response `200`:
+
+```json
+{
+  "metrics": {
+    "windowStart": "2026-02-17T00:00:00.000Z",
+    "windowEnd": "2026-02-24T00:00:00.000Z",
+    "sessionsPlanned": 6,
+    "sessionsDone": 3,
+    "sessionsSkipped": 1,
+    "sessionsPending": 2,
+    "completionRate": 50,
+    "adherenceRate": 75,
+    "totalPlannedMinutes": 510,
+    "completedMinutes": 270,
+    "skippedMinutes": 90,
+    "pendingMinutes": 150
   }
 }
 ```

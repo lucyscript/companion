@@ -36,6 +36,10 @@ import {
   Goal,
   GoalCheckIn,
   GoalWithStatus,
+  StudyPlanSession,
+  StudyPlanSessionRecord,
+  StudyPlanSessionStatus,
+  StudyPlanAdherenceMetrics,
   Tag,
   Location,
   LocationHistory,
@@ -69,6 +73,7 @@ export class RuntimeStore {
   private readonly maxGoals = 100;
   private readonly maxContextHistory = 500;
   private readonly maxCheckInsPerItem = 400;
+  private readonly maxStudyPlanSessions = 5000;
   private readonly maxPushSubscriptions = 50;
   private readonly maxPushFailures = 100;
   private readonly maxEmailDigests = 50;
@@ -226,6 +231,28 @@ export class RuntimeStore {
         insertOrder INTEGER NOT NULL DEFAULT (unixepoch('subsec') * 1000000),
         UNIQUE(goalId, checkInDate)
       );
+
+      CREATE TABLE IF NOT EXISTS study_plan_sessions (
+        sessionId TEXT PRIMARY KEY,
+        deadlineId TEXT NOT NULL,
+        course TEXT NOT NULL,
+        task TEXT NOT NULL,
+        priority TEXT NOT NULL,
+        startTime TEXT NOT NULL,
+        endTime TEXT NOT NULL,
+        durationMinutes INTEGER NOT NULL,
+        score REAL NOT NULL,
+        rationale TEXT NOT NULL,
+        generatedAt TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        checkedAt TEXT,
+        insertOrder INTEGER NOT NULL DEFAULT (unixepoch('subsec') * 1000000)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_study_plan_sessions_startTime
+        ON study_plan_sessions(startTime);
+      CREATE INDEX IF NOT EXISTS idx_study_plan_sessions_status
+        ON study_plan_sessions(status);
 
       CREATE TABLE IF NOT EXISTS deadline_reminder_state (
         deadlineId TEXT PRIMARY KEY,
@@ -2182,6 +2209,254 @@ export class RuntimeStore {
     }));
   }
 
+  upsertStudyPlanSessions(
+    sessions: StudyPlanSession[],
+    generatedAt: string,
+    options?: {
+      windowStart?: string;
+      windowEnd?: string;
+    }
+  ): void {
+    const transaction = this.db.transaction(() => {
+      if (options?.windowStart && options?.windowEnd) {
+        this.db
+          .prepare(
+            `DELETE FROM study_plan_sessions
+             WHERE status = 'pending'
+               AND startTime >= ?
+               AND startTime <= ?`
+          )
+          .run(options.windowStart, options.windowEnd);
+      }
+
+      const upsert = this.db.prepare(
+        `INSERT INTO study_plan_sessions (
+          sessionId,
+          deadlineId,
+          course,
+          task,
+          priority,
+          startTime,
+          endTime,
+          durationMinutes,
+          score,
+          rationale,
+          generatedAt,
+          status,
+          checkedAt
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NULL)
+        ON CONFLICT(sessionId) DO UPDATE SET
+          deadlineId = excluded.deadlineId,
+          course = excluded.course,
+          task = excluded.task,
+          priority = excluded.priority,
+          startTime = excluded.startTime,
+          endTime = excluded.endTime,
+          durationMinutes = excluded.durationMinutes,
+          score = excluded.score,
+          rationale = excluded.rationale,
+          generatedAt = excluded.generatedAt`
+      );
+
+      for (const session of sessions) {
+        upsert.run(
+          session.id,
+          session.deadlineId,
+          session.course,
+          session.task,
+          session.priority,
+          session.startTime,
+          session.endTime,
+          session.durationMinutes,
+          session.score,
+          session.rationale,
+          generatedAt
+        );
+      }
+    });
+
+    transaction();
+    this.trimStudyPlanSessions();
+  }
+
+  getStudyPlanSessionById(sessionId: string): StudyPlanSessionRecord | null {
+    const row = this.db
+      .prepare("SELECT * FROM study_plan_sessions WHERE sessionId = ?")
+      .get(sessionId) as
+      | {
+          sessionId: string;
+          deadlineId: string;
+          course: string;
+          task: string;
+          priority: string;
+          startTime: string;
+          endTime: string;
+          durationMinutes: number;
+          score: number;
+          rationale: string;
+          generatedAt: string;
+          status: string;
+          checkedAt: string | null;
+        }
+      | undefined;
+
+    if (!row) {
+      return null;
+    }
+
+    return {
+      id: row.sessionId,
+      deadlineId: row.deadlineId,
+      course: row.course,
+      task: row.task,
+      priority: row.priority as StudyPlanSession["priority"],
+      startTime: row.startTime,
+      endTime: row.endTime,
+      durationMinutes: row.durationMinutes,
+      score: row.score,
+      rationale: row.rationale,
+      generatedAt: row.generatedAt,
+      status: row.status as StudyPlanSessionStatus,
+      checkedAt: row.checkedAt
+    };
+  }
+
+  getStudyPlanSessions(options?: {
+    windowStart?: string;
+    windowEnd?: string;
+    status?: StudyPlanSessionStatus;
+    limit?: number;
+  }): StudyPlanSessionRecord[] {
+    let query = "SELECT * FROM study_plan_sessions WHERE 1=1";
+    const params: unknown[] = [];
+
+    if (options?.windowStart) {
+      query += " AND startTime >= ?";
+      params.push(options.windowStart);
+    }
+
+    if (options?.windowEnd) {
+      query += " AND startTime <= ?";
+      params.push(options.windowEnd);
+    }
+
+    if (options?.status) {
+      query += " AND status = ?";
+      params.push(options.status);
+    }
+
+    query += " ORDER BY startTime ASC";
+
+    if (options?.limit) {
+      query += " LIMIT ?";
+      params.push(options.limit);
+    }
+
+    const rows = this.db.prepare(query).all(...params) as Array<{
+      sessionId: string;
+      deadlineId: string;
+      course: string;
+      task: string;
+      priority: string;
+      startTime: string;
+      endTime: string;
+      durationMinutes: number;
+      score: number;
+      rationale: string;
+      generatedAt: string;
+      status: string;
+      checkedAt: string | null;
+    }>;
+
+    return rows.map((row) => ({
+      id: row.sessionId,
+      deadlineId: row.deadlineId,
+      course: row.course,
+      task: row.task,
+      priority: row.priority as StudyPlanSession["priority"],
+      startTime: row.startTime,
+      endTime: row.endTime,
+      durationMinutes: row.durationMinutes,
+      score: row.score,
+      rationale: row.rationale,
+      generatedAt: row.generatedAt,
+      status: row.status as StudyPlanSessionStatus,
+      checkedAt: row.checkedAt
+    }));
+  }
+
+  setStudyPlanSessionStatus(
+    sessionId: string,
+    status: Exclude<StudyPlanSessionStatus, "pending">,
+    checkedAt: string = nowIso()
+  ): StudyPlanSessionRecord | null {
+    const result = this.db
+      .prepare("UPDATE study_plan_sessions SET status = ?, checkedAt = ? WHERE sessionId = ?")
+      .run(status, checkedAt, sessionId);
+
+    if (result.changes === 0) {
+      return null;
+    }
+
+    return this.getStudyPlanSessionById(sessionId);
+  }
+
+  getStudyPlanAdherenceMetrics(options?: {
+    windowStart?: string;
+    windowEnd?: string;
+  }): StudyPlanAdherenceMetrics {
+    const defaultEnd = new Date();
+    const defaultStart = new Date(defaultEnd.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    const parsedStart = options?.windowStart ? new Date(options.windowStart) : defaultStart;
+    const parsedEnd = options?.windowEnd ? new Date(options.windowEnd) : defaultEnd;
+
+    const start = Number.isNaN(parsedStart.getTime()) ? defaultStart : parsedStart;
+    const end = Number.isNaN(parsedEnd.getTime()) ? defaultEnd : parsedEnd;
+    const normalizedStart = start.getTime() <= end.getTime() ? start : end;
+    const normalizedEnd = start.getTime() <= end.getTime() ? end : start;
+
+    const sessions = this.getStudyPlanSessions({
+      windowStart: normalizedStart.toISOString(),
+      windowEnd: normalizedEnd.toISOString()
+    });
+
+    const sessionsPlanned = sessions.length;
+    const sessionsDone = sessions.filter((session) => session.status === "done").length;
+    const sessionsSkipped = sessions.filter((session) => session.status === "skipped").length;
+    const sessionsPending = sessions.filter((session) => session.status === "pending").length;
+
+    const totalPlannedMinutes = sessions.reduce((total, session) => total + session.durationMinutes, 0);
+    const completedMinutes = sessions
+      .filter((session) => session.status === "done")
+      .reduce((total, session) => total + session.durationMinutes, 0);
+    const skippedMinutes = sessions
+      .filter((session) => session.status === "skipped")
+      .reduce((total, session) => total + session.durationMinutes, 0);
+    const pendingMinutes = sessions
+      .filter((session) => session.status === "pending")
+      .reduce((total, session) => total + session.durationMinutes, 0);
+
+    const trackedSessions = sessionsDone + sessionsSkipped;
+    const completionRate = sessionsPlanned === 0 ? 0 : Math.round((sessionsDone / sessionsPlanned) * 100);
+    const adherenceRate = trackedSessions === 0 ? 0 : Math.round((sessionsDone / trackedSessions) * 100);
+
+    return {
+      windowStart: normalizedStart.toISOString(),
+      windowEnd: normalizedEnd.toISOString(),
+      sessionsPlanned,
+      sessionsDone,
+      sessionsSkipped,
+      sessionsPending,
+      completionRate,
+      adherenceRate,
+      totalPlannedMinutes,
+      completedMinutes,
+      skippedMinutes,
+      pendingMinutes
+    };
+  }
+
   getOverdueDeadlinesRequiringReminder(referenceDate: string = nowIso(), cooldownMinutes = 180): Deadline[] {
     const reference = new Date(referenceDate);
     const nowMs = reference.getTime();
@@ -3149,6 +3424,22 @@ export class RuntimeStore {
         )`
       )
       .run(id, count - this.maxCheckInsPerItem);
+  }
+
+  private trimStudyPlanSessions(): void {
+    const count = (this.db.prepare("SELECT COUNT(*) as count FROM study_plan_sessions").get() as { count: number }).count;
+
+    if (count <= this.maxStudyPlanSessions) {
+      return;
+    }
+
+    this.db
+      .prepare(
+        `DELETE FROM study_plan_sessions WHERE sessionId IN (
+          SELECT sessionId FROM study_plan_sessions ORDER BY insertOrder ASC LIMIT ?
+        )`
+      )
+      .run(count - this.maxStudyPlanSessions);
   }
 
   /**

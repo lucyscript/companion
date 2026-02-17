@@ -354,7 +354,7 @@ Features are built in priority order. The orchestrator reads this section to dec
 | ✅ done | `offline-readonly-cache-ui` | frontend-engineer | Cache last-known schedule, deadlines, study plan, and social digest snapshots for offline viewing with stale-data indicators and one-tap refresh when back online. |
 | | | | |
 | | **— Phase 7: Execution Feedback & Trust —** | | |
-| ⬜ todo | `study-plan-session-checkins-api` | backend-engineer | Add API + storage for marking generated study-plan sessions as done/skipped, with completion timestamps and per-week adherence metrics for replanning. |
+| ✅ done | `study-plan-session-checkins-api` | backend-engineer | Add API + storage for marking generated study-plan sessions as done/skipped, with completion timestamps and per-week adherence metrics for replanning. |
 | ⬜ todo | `study-plan-session-checkins-ui` | frontend-engineer | Add tap-to-complete controls on Study Plan sessions, show daily completion progress, and support quick skip/reschedule actions optimized for iPhone touch input. |
 | ⬜ todo | `chat-citations` | backend-engineer | Extend chat responses with structured citations to schedule/deadline/journal/email/social records so guidance is traceable to concrete data. |
 | ⬜ todo | `chat-citation-chips-ui` | frontend-engineer | Render citation chips under assistant messages and deep-link taps to referenced deadlines, schedule blocks, journal entries, or settings screens. |
