@@ -72,6 +72,18 @@ function formatDuration(minutes: number): string {
   return remainder === 0 ? `${hours}h` : `${hours}h ${remainder}m`;
 }
 
+function formatLectureTitle(value: string): string {
+  return value
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .replace(/\\[nN]/g, "\n")
+    .replace(/\s*\n+\s*/g, " / ")
+    .replace(/\s+/g, " ")
+    .replace(/\s*\/\s*/g, " / ")
+    .replace(/^\/+\s*|\s*\/+$/g, "")
+    .trim();
+}
+
 function buildDayTimeline(lectures: LectureEvent[], referenceDate: Date): DayTimelineSegment[] {
   if (lectures.length === 0) {
     return [];
@@ -299,7 +311,7 @@ export function ScheduleView({ focusLectureId }: ScheduleViewProps): JSX.Element
                   <span>{formatDuration(minutesBetween(segment.start, segment.end))}</span>
                 </div>
                 <p className="day-timeline-item-label">
-                  {segment.type === "lecture" ? segment.lecture?.title ?? "Lecture" : "Free gap"}
+                  {segment.type === "lecture" ? formatLectureTitle(segment.lecture?.title ?? "Lecture") : "Free gap"}
                 </p>
               </li>
             ))}
@@ -350,7 +362,7 @@ export function ScheduleView({ focusLectureId }: ScheduleViewProps): JSX.Element
                   }`}
                 >
                   <div className="schedule-item-header">
-                    <h3 className="schedule-item-title">{lecture.title}</h3>
+                    <h3 className="schedule-item-title">{formatLectureTitle(lecture.title)}</h3>
                   </div>
                   <div className="schedule-item-details">
                     <span className="schedule-date">{formatDate(lecture.startTime)}</span>

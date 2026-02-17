@@ -33,6 +33,24 @@ describe("calendar import helpers", () => {
     expect(events[1].description).toContain("deadline");
   });
 
+  it("decodes escaped ICS text and normalizes bilingual summary formatting", () => {
+    const ics = [
+      "BEGIN:VCALENDAR",
+      "BEGIN:VEVENT",
+      "SUMMARY:DAT520 Forelesning \\\\nLecture",
+      "DESCRIPTION:Room A\\\\, Building B\\\\; bring laptop",
+      "DTSTART:20260301T100000Z",
+      "DTEND:20260301T113000Z",
+      "END:VEVENT",
+      "END:VCALENDAR"
+    ].join("\n");
+
+    const events = parseICS(ics);
+    expect(events).toHaveLength(1);
+    expect(events[0].summary).toBe("DAT520 Forelesning / Lecture");
+    expect(events[0].description).toBe("Room A, Building B; bring laptop");
+  });
+
   it("classifies deadlines and computes metadata", () => {
     const event = {
       summary: "Databases Project Deadline",
