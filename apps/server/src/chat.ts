@@ -512,6 +512,91 @@ function buildIntentGuidance(intent: ChatIntent): string {
   }
 }
 
+interface IntentFewShotExample {
+  user: string;
+  intent: ChatIntent;
+  toolPlan: string;
+  responseStyle: string;
+}
+
+const INTENT_FEW_SHOT_EXAMPLES: IntentFewShotExample[] = [
+  {
+    user: "How is my schedule looking today?",
+    intent: "schedule",
+    toolPlan: "Call getSchedule with {} first.",
+    responseStyle: "Return concrete lecture names and times, then next free gap."
+  },
+  {
+    user: "What is due this week?",
+    intent: "deadlines",
+    toolPlan: "Call getDeadlines with { daysAhead: 7 }.",
+    responseStyle: "Sort by urgency and highlight high-risk items first."
+  },
+  {
+    user: "What have I written in my journal about DAT560?",
+    intent: "journal",
+    toolPlan: "Call searchJournal with a focused query and small limit.",
+    responseStyle: "Quote short snippets and summarize trends."
+  },
+  {
+    user: "Any important emails I should read now?",
+    intent: "emails",
+    toolPlan: "Call getEmails with a practical limit.",
+    responseStyle: "Prioritize actionable/urgent messages."
+  },
+  {
+    user: "What did I miss on YouTube and X?",
+    intent: "social",
+    toolPlan: "Call getSocialDigest with recent window.",
+    responseStyle: "Group by platform and mention most relevant items."
+  },
+  {
+    user: "Mark DAT520 Lab 5 as complete.",
+    intent: "actions",
+    toolPlan: "Use queueDeadlineAction, then require explicit confirm/cancel.",
+    responseStyle: "Never execute side effects without confirmation."
+  },
+  {
+    user: "Is Canvas sync failing again?",
+    intent: "integrations",
+    toolPlan: "If integration data is needed, fetch supporting context first.",
+    responseStyle: "Explain likely cause and concrete troubleshooting steps."
+  },
+  {
+    user: "How should I plan my week?",
+    intent: "study-plan",
+    toolPlan: "Use schedule/deadline tools together before recommending blocks.",
+    responseStyle: "Give realistic, time-bounded plan suggestions."
+  }
+];
+
+function buildFewShotIntentExamplesPrompt(): string {
+  const lines = ["Few-shot intent routing examples:"];
+  INTENT_FEW_SHOT_EXAMPLES.forEach((example, index) => {
+    lines.push(`${index + 1}. User: "${example.user}"`);
+    lines.push(`   Intent: ${example.intent}`);
+    lines.push(`   Tool plan: ${example.toolPlan}`);
+    lines.push(`   Reply style: ${example.responseStyle}`);
+  });
+  return lines.join("\n");
+}
+
+function buildFunctionCallingSystemInstruction(userName: string, intent: ChatIntent): string {
+  return `You are Companion, a personal AI assistant for ${userName}, a university student at UiS (University of Stavanger).
+
+Core behavior:
+- For factual questions about schedule, deadlines, journal, email, or social updates, use tools before answering.
+- Do not hallucinate user-specific data. If data is unavailable, say so explicitly and suggest the next sync step.
+- For mutating requests, always use queue* action tools and require explicit user confirmation.
+- Keep replies concise, practical, and conversational.
+- If multiple intents are present, choose the smallest useful set of tools and then synthesize one clear answer.
+
+Detected intent: ${intent}
+${buildIntentGuidance(intent)}
+
+${buildFewShotIntentExamplesPrompt()}`;
+}
+
 function extractPendingActions(value: unknown): ChatPendingAction[] {
   if (!value || typeof value !== "object") {
     return [];
@@ -1275,14 +1360,7 @@ export async function sendChatMessage(
     : buildChatContext(store, now);
 
   const systemInstruction = useFunctionCalling
-    ? `You are Companion, a personal AI assistant for ${config.USER_NAME}, a university student at UiS (University of Stavanger). 
-
-When you need information about the user's schedule, deadlines, journal entries, emails, or social media, use the available tools to fetch that data on demand.
-For actions that change data, use queue* action tools and clearly request explicit user confirmation.
-Keep responses concise, encouraging, and conversational.
-
-Detected intent: ${intent}
-${buildIntentGuidance(intent)}`
+    ? buildFunctionCallingSystemInstruction(config.USER_NAME, intent)
     : buildSystemPrompt(config.USER_NAME, contextWindow);
 
   const messages = toGeminiMessages(history, userInput);

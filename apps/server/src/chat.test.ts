@@ -625,6 +625,18 @@ describe("chat service", () => {
     expect(firstRequest.systemInstruction).toContain("import/export/backup/restore");
   });
 
+  it("injects few-shot routing examples into function-calling instruction", async () => {
+    await sendChatMessage(store, "How is my schedule looking today?", {
+      geminiClient: fakeGemini,
+      useFunctionCalling: true
+    });
+
+    const firstRequest = generateChatResponse.mock.calls[0][0] as { systemInstruction: string };
+    expect(firstRequest.systemInstruction).toContain("Few-shot intent routing examples");
+    expect(firstRequest.systemInstruction).toContain("User: \"How is my schedule looking today?\"");
+    expect(firstRequest.systemInstruction).toContain("Tool plan: Call getSchedule");
+  });
+
   it("compacts large tool responses before sending functionResponse payloads to Gemini", async () => {
     const now = Date.now();
     for (let index = 0; index < 12; index += 1) {
