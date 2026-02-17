@@ -2,6 +2,7 @@ import cors from "cors";
 import express from "express";
 import { resolve } from "path";
 import { z } from "zod";
+import { AuthService, parseBearerToken } from "./auth.js";
 import { BackgroundSyncService } from "./background-sync.js";
 import { buildCalendarImportPreview, parseICS } from "./calendar-import.js";
 import { config } from "./config.js";
@@ -39,6 +40,7 @@ import type { PostgresPersistenceDiagnostics } from "./postgres-persistence.js";
 import { Notification, NotificationPreferencesPatch } from "./types.js";
 import type {
   AnalyticsCoachInsight,
+  AuthUser,
   DailyJournalSummary,
   Goal,
   Habit,
@@ -104,6 +106,16 @@ async function initializeRuntimeStore(): Promise<RuntimePersistenceContext> {
 
 const persistenceContext = await initializeRuntimeStore();
 const store = persistenceContext.store;
+const authService = new AuthService(store, {
+  required: config.AUTH_REQUIRED,
+  adminEmail: config.AUTH_ADMIN_EMAIL,
+  adminPassword: config.AUTH_ADMIN_PASSWORD,
+  sessionTtlHours: config.AUTH_SESSION_TTL_HOURS
+});
+const bootstrappedAdmin = authService.bootstrapAdminUser();
+if (config.AUTH_REQUIRED && bootstrappedAdmin) {
+  console.info(`[auth] Admin user ready: ${bootstrappedAdmin.email}`);
+}
 const prunedNonAcademicDeadlines = store.purgeNonAcademicDeadlines();
 if (prunedNonAcademicDeadlines > 0) {
   if (persistenceContext.postgresSnapshotStore) {
@@ -429,14 +441,95 @@ function recordIntegrationAttempt(
   });
 }
 
+interface AuthenticatedRequest extends express.Request {
+  authUser?: AuthUser;
+  authToken?: string;
+}
+
+function isPublicApiRoute(method: string, path: string): boolean {
+  return (
+    (method === "GET" && path === "/api/health") ||
+    (method === "POST" && path === "/api/auth/login") ||
+    (method === "GET" && path === "/api/auth/status") ||
+    (method === "GET" && path === "/api/auth/gmail") ||
+    (method === "GET" && path === "/api/auth/gmail/callback")
+  );
+}
+
 app.use(cors());
 app.use(express.json());
+
+app.use((req, res, next) => {
+  if (!req.path.startsWith("/api")) {
+    return next();
+  }
+
+  if (!authService.isRequired()) {
+    return next();
+  }
+
+  if (isPublicApiRoute(req.method, req.path)) {
+    return next();
+  }
+
+  const authContext = authService.authenticateFromAuthorizationHeader(req.headers.authorization);
+  if (!authContext) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  (req as AuthenticatedRequest).authUser = authContext.user;
+  (req as AuthenticatedRequest).authToken = authContext.token;
+  return next();
+});
 
 app.get("/api/health", (_req, res) => {
   res.json({
     status: "ok",
     storage: storageDiagnostics()
   });
+});
+
+app.get("/api/auth/status", (_req, res) => {
+  return res.json({
+    required: authService.isRequired()
+  });
+});
+
+app.post("/api/auth/login", (req, res) => {
+  const parsed = authLoginSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid login payload", issues: parsed.error.issues });
+  }
+
+  const session = authService.login(parsed.data.email, parsed.data.password);
+  if (!session) {
+    return res.status(401).json({ error: "Invalid email or password" });
+  }
+
+  return res.status(200).json({
+    token: session.token,
+    expiresAt: session.expiresAt,
+    user: session.user
+  });
+});
+
+app.get("/api/auth/me", (req, res) => {
+  const authReq = req as AuthenticatedRequest;
+  if (!authReq.authUser) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  return res.json({ user: authReq.authUser });
+});
+
+app.post("/api/auth/logout", (req, res) => {
+  const token = parseBearerToken(req.headers.authorization);
+  if (!token) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  authService.logout(token);
+  return res.status(204).send();
 });
 
 app.get("/api/dashboard", (_req, res) => {
@@ -716,6 +809,11 @@ const chatRequestSchema = z.object({
 const chatHistoryQuerySchema = z.object({
   page: z.coerce.number().int().min(1).optional(),
   pageSize: z.coerce.number().int().min(1).max(50).optional()
+});
+
+const authLoginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1)
 });
 
 const analyticsCoachQuerySchema = z

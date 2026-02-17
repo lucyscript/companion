@@ -62,6 +62,13 @@ describe("config", () => {
       expect(config.NOTIFICATION_DIGEST_MORNING_HOUR).toBe(8);
       expect(config.NOTIFICATION_DIGEST_EVENING_HOUR).toBe(18);
     });
+
+    it("should default AUTH_REQUIRED to false outside production", async () => {
+      delete process.env.AUTH_REQUIRED;
+      process.env.NODE_ENV = "test";
+      const { config } = await import("./config.js");
+      expect(config.AUTH_REQUIRED).toBe(false);
+    });
   });
 
   describe("custom values", () => {
@@ -97,6 +104,18 @@ describe("config", () => {
       expect(config.FOOD_PROVIDER).toBe("manual");
       expect(config.SOCIAL_PROVIDER).toBe("manual");
       expect(config.VIDEO_PROVIDER).toBe("manual");
+    });
+
+    it("should parse auth env vars", async () => {
+      process.env.AUTH_REQUIRED = "true";
+      process.env.AUTH_ADMIN_EMAIL = "admin@example.com";
+      process.env.AUTH_ADMIN_PASSWORD = "supersecurepassword";
+      process.env.AUTH_SESSION_TTL_HOURS = "48";
+      const { config } = await import("./config.js");
+      expect(config.AUTH_REQUIRED).toBe(true);
+      expect(config.AUTH_ADMIN_EMAIL).toBe("admin@example.com");
+      expect(config.AUTH_ADMIN_PASSWORD).toBe("supersecurepassword");
+      expect(config.AUTH_SESSION_TTL_HOURS).toBe(48);
     });
 
     it("should handle all custom values at once", async () => {

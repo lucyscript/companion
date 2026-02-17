@@ -4,14 +4,14 @@ import { DashboardSnapshot } from "../types";
 
 const pollIntervalMs = 6000;
 
-export function useDashboard(): {
+export function useDashboard(enabled = true): {
   data: DashboardSnapshot | null;
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
 } {
   const [data, setData] = useState<DashboardSnapshot | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useMemo(
@@ -31,13 +31,21 @@ export function useDashboard(): {
   );
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false);
+      setData(null);
+      setError(null);
+      return;
+    }
+
+    setLoading(true);
     void refresh();
     const timer = setInterval(() => {
       void refresh();
     }, pollIntervalMs);
 
     return () => clearInterval(timer);
-  }, [refresh]);
+  }, [enabled, refresh]);
 
   return {
     data,

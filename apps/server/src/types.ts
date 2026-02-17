@@ -113,6 +113,29 @@ export interface ChatHistoryPage {
   hasMore: boolean;
 }
 
+export type AuthRole = "admin" | "user";
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  role: AuthRole;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AuthUserWithPassword extends AuthUser {
+  passwordHash: string;
+}
+
+export interface AuthSession {
+  id: string;
+  userId: string;
+  tokenHash: string;
+  expiresAt: string;
+  createdAt: string;
+  lastSeenAt: string;
+}
+
 export type EmailDigestType = "daily" | "weekly";
 
 export type EmailDigestReason = "push-failures" | "inactivity";

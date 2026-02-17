@@ -19,6 +19,22 @@ const env = {
   GITHUB_PAT: process.env.GITHUB_PAT
 };
 
+function parseBooleanEnv(value: unknown): boolean | undefined {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["1", "true", "yes", "on"].includes(normalized)) {
+      return true;
+    }
+    if (["0", "false", "no", "off"].includes(normalized)) {
+      return false;
+    }
+  }
+  return undefined;
+}
+
 const schema = z.object({
   PORT: z.coerce.number().default(8787),
   DATABASE_URL: z.string().url().optional(),
@@ -54,7 +70,13 @@ const schema = z.object({
   INTEGRATION_WINDOW_PAST_DAYS: z.coerce.number().int().min(0).default(30),
   INTEGRATION_WINDOW_FUTURE_DAYS: z.coerce.number().int().min(1).default(180),
   NOTIFICATION_DIGEST_MORNING_HOUR: z.coerce.number().int().min(0).max(23).default(8),
-  NOTIFICATION_DIGEST_EVENING_HOUR: z.coerce.number().int().min(0).max(23).default(18)
+  NOTIFICATION_DIGEST_EVENING_HOUR: z.coerce.number().int().min(0).max(23).default(18),
+  AUTH_REQUIRED: z
+    .preprocess((value) => parseBooleanEnv(value), z.boolean())
+    .default((process.env.NODE_ENV ?? "development") === "production"),
+  AUTH_ADMIN_EMAIL: z.string().email().optional(),
+  AUTH_ADMIN_PASSWORD: z.string().min(8).optional(),
+  AUTH_SESSION_TTL_HOURS: z.coerce.number().int().min(1).max(24 * 90).default(24 * 30)
 });
 
 export const config = schema.parse(env);

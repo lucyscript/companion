@@ -52,7 +52,8 @@ const STORAGE_KEYS = {
   talkModeEnabled: "companion:talk-mode-enabled",
   canvasSettings: "companion:canvas-settings",
   canvasStatus: "companion:canvas-status",
-  integrationScopeSettings: "companion:integration-scope-settings"
+  integrationScopeSettings: "companion:integration-scope-settings",
+  authToken: "companion:auth-token"
 } as const;
 
 export interface JournalQueueItem {
@@ -154,6 +155,44 @@ export function loadTalkModeEnabled(): boolean {
 
 export function saveTalkModeEnabled(enabled: boolean): void {
   localStorage.setItem(STORAGE_KEYS.talkModeEnabled, enabled ? "true" : "false");
+}
+
+export function loadAuthToken(): string | null {
+  try {
+    const token = localStorage.getItem(STORAGE_KEYS.authToken);
+    if (!token || token.trim().length === 0) {
+      return null;
+    }
+    return token.trim();
+  } catch {
+    return null;
+  }
+}
+
+export function saveAuthToken(token: string): void {
+  localStorage.setItem(STORAGE_KEYS.authToken, token.trim());
+}
+
+export function clearAuthToken(): void {
+  localStorage.removeItem(STORAGE_KEYS.authToken);
+}
+
+export function clearCompanionSessionData(options: { keepTheme?: boolean } = {}): void {
+  const keepTheme = options.keepTheme ?? true;
+  const themeValue = keepTheme ? localStorage.getItem(STORAGE_KEYS.theme) : null;
+
+  Object.values(STORAGE_KEYS).forEach((key) => {
+    if (keepTheme && key === STORAGE_KEYS.theme) {
+      return;
+    }
+    localStorage.removeItem(key);
+  });
+
+  if (keepTheme && themeValue) {
+    localStorage.setItem(STORAGE_KEYS.theme, themeValue);
+  }
+
+  localStorage.setItem(VERSION_KEY, STORAGE_VERSION);
 }
 
 export function loadCanvasSettings(): CanvasSettings {
