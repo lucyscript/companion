@@ -637,6 +637,23 @@ export interface AnalyticsCoachInsight {
   metrics: AnalyticsCoachMetrics;
 }
 
+export interface WeeklyGrowthReview {
+  periodDays: 7;
+  windowStart: string;
+  windowEnd: string;
+  generatedAt: string;
+  source: "gemini" | "fallback";
+  summary: string;
+  strengths: string[];
+  risks: string[];
+  commitments: string[];
+  momentum: {
+    scheduleAdherence: number;
+    deadlineCompletionRate: number;
+    habitCompletionRate: number;
+  };
+}
+
 export interface ContextTrendBucket {
   total: number;
   energyLevels: Record<UserContext["energyLevel"], number>;

@@ -35,6 +35,11 @@ import { generateWeeklyStudyPlan } from "./study-plan.js";
 import { generateContentRecommendations } from "./content-recommendations.js";
 import { generateDailyJournalSummary } from "./daily-journal-summary.js";
 import { generateAnalyticsCoachInsight } from "./analytics-coach.js";
+import {
+  buildWeeklyGrowthSundayPushSummary,
+  generateWeeklyGrowthReview,
+  isSundayInOslo
+} from "./weekly-growth-review.js";
 import { PostgresRuntimeSnapshotStore } from "./postgres-persistence.js";
 import type { PostgresPersistenceDiagnostics } from "./postgres-persistence.js";
 import { Notification, NotificationPreferencesPatch } from "./types.js";
@@ -177,6 +182,15 @@ function latestIso(values: string[]): string {
 function toDateMs(value: string): number | null {
   const parsed = Date.parse(value);
   return Number.isNaN(parsed) ? null : parsed;
+}
+
+function parseBooleanQueryFlag(value: unknown): boolean {
+  if (typeof value !== "string") {
+    return false;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  return normalized === "1" || normalized === "true" || normalized === "yes";
 }
 
 function isWithinWindow(value: string, startMs: number, endMs: number): boolean {
@@ -541,6 +555,38 @@ app.get("/api/weekly-review", (req, res) => {
   const referenceDate = typeof req.query.referenceDate === "string" ? req.query.referenceDate : undefined;
   const summary = store.getWeeklySummary(referenceDate);
   return res.json({ summary });
+});
+
+app.get("/api/weekly-growth-review", async (req, res) => {
+  const now = new Date();
+  const review = await generateWeeklyGrowthReview(store, { now });
+
+  const notifySunday = parseBooleanQueryFlag(req.query.notifySunday);
+  const forcePush = parseBooleanQueryFlag(req.query.forcePush);
+  let sundayPushSent = false;
+
+  if (notifySunday && (forcePush || isSundayInOslo(now))) {
+    const message = buildWeeklyGrowthSundayPushSummary(review);
+    store.pushNotification({
+      source: "orchestrator",
+      title: "Weekly growth review",
+      message,
+      priority: "medium",
+      actions: ["view"],
+      url: "/companion/?tab=habits",
+      metadata: {
+        triggerType: "weekly-growth-review",
+        periodDays: review.periodDays,
+        commitments: review.commitments
+      }
+    });
+    sundayPushSent = true;
+  }
+
+  return res.json({
+    review,
+    sundayPushSent
+  });
 });
 
 app.get("/api/trends", (_req, res) => {
