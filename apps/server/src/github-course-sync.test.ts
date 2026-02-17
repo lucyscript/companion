@@ -271,6 +271,42 @@ describe("GitHubCourseSyncService", () => {
       expect(deadlines.some((deadline) => deadline.dueDate === `${currentYear}-02-12`)).toBe(true);
     });
 
+    it("should parse known deadline hint files even when repository tree listing fails", async () => {
+      const freshStore = new RuntimeStore(":memory:");
+      const labPlanMarkdown = `
+| Lab | Topic | Deadline |
+|-----|-------|----------|
+| 3 | Failure Detector and Leader Election | February 12 |
+`;
+      const currentYear = new Date().getUTCFullYear();
+
+      mockClient = {
+        getReadme: async (owner: string, repo: string) => {
+          if (owner === "dat520-2026" && repo === "info") {
+            return "# DAT520 Info";
+          }
+          return "";
+        },
+        listRepositoryFiles: async () => {
+          throw new Error("Tree endpoint unavailable");
+        },
+        getFileContent: async (owner: string, repo: string, path: string) => {
+          if (owner === "dat520-2026" && repo === "info" && path === "lab-plan.md") {
+            return labPlanMarkdown;
+          }
+          throw new Error(`unexpected path: ${owner}/${repo}/${path}`);
+        }
+      } as unknown as GitHubCourseClient;
+
+      service = new GitHubCourseSyncService(freshStore, mockClient);
+      const result = await service.sync();
+
+      expect(result.success).toBe(true);
+      const deadlines = freshStore.getAcademicDeadlines(new Date(), false).filter((deadline) => deadline.course === "DAT520");
+      expect(deadlines.some((deadline) => deadline.task.includes("Lab 3"))).toBe(true);
+      expect(deadlines.some((deadline) => deadline.dueDate === `${currentYear}-02-12`)).toBe(true);
+    });
+
     it("should update existing deadlines if date changes", async () => {
       // Create initial deadline
       const initialDeadline = store.createDeadline({
