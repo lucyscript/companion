@@ -421,7 +421,9 @@ export async function confirmDeadlineStatus(
 
 export async function updateDeadline(
   deadlineId: string,
-  payload: Partial<Pick<Deadline, "course" | "task" | "dueDate" | "priority" | "completed">>
+  payload: Partial<
+    Pick<Deadline, "course" | "task" | "dueDate" | "priority" | "completed" | "effortHoursRemaining" | "effortConfidence">
+  >
 ): Promise<Deadline | null> {
   try {
     const response = await jsonOrThrow<{ deadline: Deadline }>(`/api/deadlines/${deadlineId}`, {

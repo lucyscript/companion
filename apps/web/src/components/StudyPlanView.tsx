@@ -63,6 +63,11 @@ function formatDayLabel(value: string): string {
   return new Date(value).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
 }
 
+function formatHoursFromMinutes(minutes: number): string {
+  const hours = minutes / 60;
+  return Number.isInteger(hours) ? String(hours) : hours.toFixed(1);
+}
+
 function toDayKey(value: string): string {
   const date = new Date(value);
   const year = date.getFullYear();
@@ -334,6 +339,8 @@ export function StudyPlanView(): JSX.Element {
 
   const cacheAgeMs = cachedAt ? Date.now() - new Date(cachedAt).getTime() : Number.POSITIVE_INFINITY;
   const isStale = Number.isFinite(cacheAgeMs) && cacheAgeMs > STUDY_PLAN_STALE_MS;
+  const unallocatedMinutes = plan ? plan.unallocated.reduce((sum, item) => sum + item.remainingMinutes, 0) : 0;
+  const totalEstimatedMinutes = plan ? plan.summary.totalPlannedMinutes + unallocatedMinutes : 0;
 
   return (
     <section className="panel study-plan-panel">
@@ -417,6 +424,12 @@ export function StudyPlanView(): JSX.Element {
 
       {plan && (
         <>
+          <p className="study-plan-workload-context">
+            Estimated workload: ~{formatHoursFromMinutes(totalEstimatedMinutes)}h total •{" "}
+            {unallocatedMinutes > 0
+              ? `~${formatHoursFromMinutes(unallocatedMinutes)}h still unscheduled`
+              : "all estimated work is scheduled"}
+          </p>
           <p className="study-plan-summary">
             {plan.summary.totalSessions} sessions • {plan.summary.totalPlannedMinutes} minutes planned •{" "}
             {plan.summary.deadlinesCovered}/{plan.summary.deadlinesConsidered} deadlines covered
@@ -645,7 +658,7 @@ export function StudyPlanView(): JSX.Element {
               <ul>
                 {plan.unallocated.map((item) => (
                   <li key={item.deadlineId}>
-                    <strong>{item.course}: {item.task}</strong> ({item.remainingMinutes} min left)
+                    <strong>{item.course}: {item.task}</strong> ({item.remainingMinutes} min left • ~{formatHoursFromMinutes(item.remainingMinutes)}h)
                   </li>
                 ))}
               </ul>

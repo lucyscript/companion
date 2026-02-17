@@ -5,6 +5,7 @@ export type AgentName =
   | "orchestrator";
 
 export type Priority = "low" | "medium" | "high" | "critical";
+export type EffortConfidence = "low" | "medium" | "high";
 
 export interface AgentEvent {
   id: string;
@@ -101,6 +102,8 @@ export interface Deadline {
   dueDate: string;
   priority: Priority;
   completed: boolean;
+  effortHoursRemaining?: number;
+  effortConfidence?: EffortConfidence;
 }
 
 export interface StudyPlanSession {

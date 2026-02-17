@@ -1,11 +1,35 @@
 import { useEffect, useState } from "react";
-import { getSchedule } from "../lib/api";
-import { LectureEvent } from "../types";
-import { loadSchedule, loadScheduleCachedAt } from "../lib/storage";
+import { getDeadlines, getSchedule } from "../lib/api";
+import { Deadline, LectureEvent, Priority } from "../types";
+import { loadDeadlines, loadSchedule, loadScheduleCachedAt } from "../lib/storage";
 import { usePullToRefresh } from "../hooks/usePullToRefresh";
 import { PullToRefreshIndicator } from "./PullToRefreshIndicator";
 
 const SCHEDULE_STALE_MS = 12 * 60 * 60 * 1000;
+
+function defaultEffortHours(priority: Priority): number {
+  switch (priority) {
+    case "critical":
+      return 5;
+    case "high":
+      return 3.5;
+    case "medium":
+      return 2.5;
+    case "low":
+      return 1.5;
+  }
+}
+
+function estimateDeadlineHours(deadline: Deadline): number {
+  if (typeof deadline.effortHoursRemaining === "number" && Number.isFinite(deadline.effortHoursRemaining)) {
+    return Math.max(0, deadline.effortHoursRemaining);
+  }
+  return defaultEffortHours(deadline.priority);
+}
+
+function formatHours(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
 
 function formatCachedLabel(cachedAt: string | null): string {
   if (!cachedAt) {
@@ -26,14 +50,16 @@ interface ScheduleViewProps {
 
 export function ScheduleView({ focusLectureId }: ScheduleViewProps): JSX.Element {
   const [schedule, setSchedule] = useState<LectureEvent[]>(() => loadSchedule());
+  const [deadlines, setDeadlines] = useState<Deadline[]>(() => loadDeadlines());
   const [cachedAt, setCachedAt] = useState<string | null>(() => loadScheduleCachedAt());
   const [isOnline, setIsOnline] = useState<boolean>(() => navigator.onLine);
   const [refreshing, setRefreshing] = useState(false);
 
   const handleRefresh = async (): Promise<void> => {
     setRefreshing(true);
-    const refreshedSchedule = await getSchedule();
+    const [refreshedSchedule, refreshedDeadlines] = await Promise.all([getSchedule(), getDeadlines()]);
     setSchedule(refreshedSchedule);
+    setDeadlines(refreshedDeadlines);
     setCachedAt(loadScheduleCachedAt());
     setRefreshing(false);
   };
@@ -47,9 +73,10 @@ export function ScheduleView({ focusLectureId }: ScheduleViewProps): JSX.Element
     let disposed = false;
 
     const load = async (): Promise<void> => {
-      const next = await getSchedule();
+      const [nextSchedule, nextDeadlines] = await Promise.all([getSchedule(), getDeadlines()]);
       if (!disposed) {
-        setSchedule(next);
+        setSchedule(nextSchedule);
+        setDeadlines(nextDeadlines);
         setCachedAt(loadScheduleCachedAt());
       }
     };
@@ -133,6 +160,8 @@ export function ScheduleView({ focusLectureId }: ScheduleViewProps): JSX.Element
   );
   const cacheAgeMs = cachedAt ? Date.now() - new Date(cachedAt).getTime() : Number.POSITIVE_INFINITY;
   const isStale = Number.isFinite(cacheAgeMs) && cacheAgeMs > SCHEDULE_STALE_MS;
+  const pendingDeadlines = deadlines.filter((deadline) => !deadline.completed);
+  const remainingHours = pendingDeadlines.reduce((sum, deadline) => sum + estimateDeadlineHours(deadline), 0);
 
   return (
     <section className="panel schedule-panel">
@@ -152,6 +181,9 @@ export function ScheduleView({ focusLectureId }: ScheduleViewProps): JSX.Element
         <span className="cache-status-chip">{formatCachedLabel(cachedAt)}</span>
         {isStale && <span className="cache-status-chip cache-status-chip-stale">Stale snapshot</span>}
       </div>
+      <p className="schedule-workload-context">
+        {pendingDeadlines.length} pending deadline{pendingDeadlines.length === 1 ? "" : "s"} • ~{formatHours(remainingHours)}h remaining
+      </p>
 
       <div 
         ref={containerRef}
