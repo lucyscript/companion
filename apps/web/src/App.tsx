@@ -138,7 +138,7 @@ export default function App(): JSX.Element {
     const root = document.documentElement;
     const KEYBOARD_GAP_THRESHOLD_PX = 80;
     const VIEWPORT_DROP_THRESHOLD_PX = 110;
-    const KEYBOARD_CLEARANCE_PX = 8;
+    const KEYBOARD_CLEARANCE_PX = 2;
     let baselineViewportHeight = Math.round(window.visualViewport?.height ?? window.innerHeight);
     const isCoarsePointer = window.matchMedia?.("(pointer: coarse)")?.matches ?? false;
     const isIOS =

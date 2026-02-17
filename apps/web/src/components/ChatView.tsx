@@ -342,23 +342,6 @@ export function ChatView(): JSX.Element {
   }, [speechSynthesisSupported]);
 
   useEffect(() => {
-    if (typeof window === "undefined" || !window.visualViewport) {
-      return;
-    }
-
-    const handleViewportResize = (): void => {
-      if (document.activeElement === inputRef.current) {
-        scheduleScrollToBottom("auto");
-      }
-    };
-
-    window.visualViewport.addEventListener("resize", handleViewportResize);
-    return () => {
-      window.visualViewport?.removeEventListener("resize", handleViewportResize);
-    };
-  }, []);
-
-  useEffect(() => {
     if (!talkModeEnabled || !speechSynthesisSupported) {
       return;
     }
@@ -784,7 +767,6 @@ export function ChatView(): JSX.Element {
             placeholder="Ask me anything..."
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
-            onFocus={() => scheduleScrollToBottom("auto")}
             onKeyPress={handleKeyPress}
             disabled={isSending}
           />
