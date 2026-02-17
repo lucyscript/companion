@@ -750,12 +750,9 @@ app.post("/api/journal", (req, res) => {
     return res.status(400).json({ error: "Invalid journal entry", issues: parsed.error.issues });
   }
 
-  if (!store.areValidTagIds(parsed.data.tags ?? [])) {
-    return res.status(400).json({ error: "Invalid tag ids" });
-  }
-
   try {
-    const entry = store.recordJournalEntry(parsed.data.content, parsed.data.tags ?? [], parsed.data.photos);
+    const tagIds = store.resolveTagIds(parsed.data.tags ?? [], { createMissing: true });
+    const entry = store.recordJournalEntry(parsed.data.content, tagIds, parsed.data.photos);
     return res.json({ entry });
   } catch (error) {
     return res.status(400).json({ error: error instanceof Error ? error.message : "Unable to record journal entry" });
@@ -769,13 +766,12 @@ app.post("/api/journal/sync", (req, res) => {
     return res.status(400).json({ error: "Invalid journal sync payload", issues: parsed.error.issues });
   }
 
-  const allTagIds = parsed.data.entries.flatMap((entry) => entry.tags ?? []);
-  if (!store.areValidTagIds(allTagIds)) {
-    return res.status(400).json({ error: "Invalid tag ids" });
-  }
-
   try {
-    const result = store.syncJournalEntries(parsed.data.entries);
+    const normalizedEntries = parsed.data.entries.map((entry) => ({
+      ...entry,
+      tags: entry.tags ? store.resolveTagIds(entry.tags, { createMissing: true }) : undefined
+    }));
+    const result = store.syncJournalEntries(normalizedEntries);
     return res.status(200).json(result);
   } catch (error) {
     return res.status(400).json({ error: error instanceof Error ? error.message : "Unable to sync journal entries" });
@@ -823,10 +819,10 @@ app.get("/api/journal/search", (req, res) => {
       : Array.isArray(tagsParam)
         ? tagsParam.map((tag) => tag.toString())
         : [];
-  const tagIds = parsedTags.map((tag) => tag.trim()).filter(Boolean);
-
-  if (tagIds.length > 0 && !store.areValidTagIds(tagIds)) {
-    return res.status(400).json({ error: "Invalid tag ids" });
+  const requestedTags = parsedTags.map((tag) => tag.trim()).filter(Boolean);
+  const tagIds = store.resolveTagIds(requestedTags);
+  if (requestedTags.length > 0 && tagIds.length === 0) {
+    return res.json({ entries: [] });
   }
 
   const entries = store.searchJournalEntries({

@@ -125,4 +125,24 @@ describe("RuntimeStore - journal sync", () => {
     const stored = store.getJournalEntries();
     expect(stored[0].photos?.[0].dataUrl).toBe(photoDataUrl);
   });
+
+  it("resolves mixed tag refs (ids or names) and creates missing names", () => {
+    const store = new RuntimeStore(":memory:");
+    const schoolTag = store.createTag("school");
+    const focusTag = store.createTag("focus");
+
+    const resolved = store.resolveTagIds(
+      [schoolTag.id, "focus", "chat-reflection", "tag-does-not-exist"],
+      { createMissing: true }
+    );
+
+    expect(resolved).toContain(schoolTag.id);
+    expect(resolved).toContain(focusTag.id);
+
+    const created = store.getTags().find((tag) => tag.name === "chat-reflection");
+    expect(created).toBeDefined();
+    expect(created?.id).toBeDefined();
+    expect(created?.id && resolved.includes(created.id)).toBe(true);
+    expect(store.getTags().some((tag) => tag.name === "tag-does-not-exist")).toBe(false);
+  });
 });

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { submitJournalEntry } from "../lib/api";
+import { apiUrl } from "../lib/config";
 import { Priority } from "../types";
 
 interface FloatingQuickCaptureProps {
@@ -69,7 +70,7 @@ export function FloatingQuickCapture({ onUpdated }: FloatingQuickCaptureProps): 
       setMessage("");
 
       try {
-        const response = await fetch("/api/deadlines", {
+        const response = await fetch(apiUrl("/api/deadlines"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

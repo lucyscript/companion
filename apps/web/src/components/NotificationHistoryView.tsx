@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { getNotificationInteractions } from "../lib/api";
+import { apiUrl } from "../lib/config";
 import { NotificationInteraction, NotificationInteractionType, AgentName } from "../types";
 
 async function retriggerNotification(title: string, message: string, priority: string): Promise<void> {
   try {
-    await fetch("/api/push/test", {
+    await fetch(apiUrl("/api/push/test"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json"

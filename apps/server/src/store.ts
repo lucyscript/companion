@@ -61,6 +61,7 @@ const agentNames: AgentName[] = [
   "assignment-tracker",
   "orchestrator"
 ];
+const TAG_ID_LIKE_REGEX = /^tag-[a-zA-Z0-9_-]+$/;
 
 export class RuntimeStore {
   private readonly maxEvents = 100;
@@ -1238,6 +1239,86 @@ export class RuntimeStore {
     const rows = this.db.prepare(`SELECT id FROM tags WHERE id IN (${placeholders})`).all(...uniqueIds) as Array<{ id: string }>;
 
     return rows.length === uniqueIds.length;
+  }
+
+  resolveTagIds(tagRefs: string[], options: { createMissing?: boolean } = {}): string[] {
+    const uniqueRefs = Array.from(
+      new Set(
+        tagRefs
+          .map((value) => value.trim())
+          .filter((value) => value.length > 0)
+      )
+    );
+
+    if (uniqueRefs.length === 0) {
+      return [];
+    }
+
+    const existingTags = this.getTags();
+    const byId = new Map(existingTags.map((tag) => [tag.id, tag.id]));
+    const byName = new Map(existingTags.map((tag) => [tag.name.toLowerCase(), tag.id]));
+    const resolvedIds: string[] = [];
+    const seenResolved = new Set<string>();
+    const unresolvedNames: string[] = [];
+
+    uniqueRefs.forEach((ref) => {
+      const byIdMatch = byId.get(ref);
+      if (byIdMatch) {
+        if (!seenResolved.has(byIdMatch)) {
+          seenResolved.add(byIdMatch);
+          resolvedIds.push(byIdMatch);
+        }
+        return;
+      }
+
+      const byNameMatch = byName.get(ref.toLowerCase());
+      if (byNameMatch) {
+        if (!seenResolved.has(byNameMatch)) {
+          seenResolved.add(byNameMatch);
+          resolvedIds.push(byNameMatch);
+        }
+        return;
+      }
+
+      unresolvedNames.push(ref);
+    });
+
+    if (!options.createMissing || unresolvedNames.length === 0) {
+      return resolvedIds;
+    }
+
+    unresolvedNames.forEach((name) => {
+      // Preserve behavior for stale/deleted ids while allowing user-entered tag names.
+      if (TAG_ID_LIKE_REGEX.test(name)) {
+        return;
+      }
+
+      const existingId = byName.get(name.toLowerCase());
+      if (existingId) {
+        if (!seenResolved.has(existingId)) {
+          seenResolved.add(existingId);
+          resolvedIds.push(existingId);
+        }
+        return;
+      }
+
+      try {
+        const created = this.createTag(name);
+        byName.set(created.name.toLowerCase(), created.id);
+        if (!seenResolved.has(created.id)) {
+          seenResolved.add(created.id);
+          resolvedIds.push(created.id);
+        }
+      } catch {
+        const concurrentMatch = this.getTags().find((tag) => tag.name.toLowerCase() === name.toLowerCase());
+        if (concurrentMatch && !seenResolved.has(concurrentMatch.id)) {
+          seenResolved.add(concurrentMatch.id);
+          resolvedIds.push(concurrentMatch.id);
+        }
+      }
+    });
+
+    return resolvedIds;
   }
 
   private resolveTags(tagIds: string[]): Tag[] {

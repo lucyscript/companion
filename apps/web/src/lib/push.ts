@@ -1,3 +1,5 @@
+import { apiUrl } from "./config";
+
 interface VapidPublicKeyResponse {
   publicKey: string;
 }
@@ -90,7 +92,8 @@ async function requestPermission(): Promise<NotificationPermission> {
 }
 
 async function fetchJson<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
-  const response = await fetch(input, {
+  const url = typeof input === "string" ? apiUrl(input) : input;
+  const response = await fetch(url, {
     headers: {
       "Content-Type": "application/json"
     },
