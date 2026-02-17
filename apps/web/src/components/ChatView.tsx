@@ -447,12 +447,6 @@ export function ChatView(): JSX.Element {
     fileInputRef.current?.click();
   };
 
-  const ensureInputInView = (): void => {
-    window.setTimeout(() => {
-      inputRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-    }, 60);
-  };
-
   const handleCitationClick = (citation: ChatCitation): void => {
     const target = toCitationTarget(citation);
     const params = new URLSearchParams();
@@ -671,7 +665,6 @@ export function ChatView(): JSX.Element {
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyPress={handleKeyPress}
-            onFocus={ensureInputInView}
             disabled={isSending}
           />
           <button
