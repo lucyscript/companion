@@ -905,7 +905,7 @@ button:disabled {
 
 .schedule-item-header {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
   gap: 10px;
 }
@@ -915,30 +915,6 @@ button:disabled {
   font-size: 1rem;
   font-weight: 600;
   color: var(--text);
-}
-
-.workload {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 3px 8px;
-  border-radius: 999px;
-  border: 1px solid var(--border-soft);
-}
-
-.workload-low {
-  color: var(--ok);
-  border-color: var(--ok-border);
-}
-
-.workload-medium {
-  color: var(--warn);
-  border-color: var(--warn-border);
-}
-
-.workload-high {
-  color: var(--danger);
-  border-color: var(--danger-border);
 }
 
 .schedule-item-details {

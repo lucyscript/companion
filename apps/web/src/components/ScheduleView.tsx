@@ -351,9 +351,6 @@ export function ScheduleView({ focusLectureId }: ScheduleViewProps): JSX.Element
                 >
                   <div className="schedule-item-header">
                     <h3 className="schedule-item-title">{lecture.title}</h3>
-                    <span className={`workload workload-${lecture.workload}`}>
-                      {lecture.workload}
-                    </span>
                   </div>
                   <div className="schedule-item-details">
                     <span className="schedule-date">{formatDate(lecture.startTime)}</span>

@@ -394,3 +394,4 @@ Features are built in priority order. The orchestrator reads this section to dec
 | ✅ done | `pwa-icon-surface-fix` | frontend-engineer | Ensure favicon/manifest/apple-touch assets resolve correctly under GitHub Pages `/companion/` base so custom Companion icon appears in tab and installed PWA surfaces. |
 | ✅ done | `onboarding-env-config-simplification` | frontend-engineer | Simplify onboarding to profile/preferences only and remove API token/key prompts that are already provided via Railway environment variables. |
 | ✅ done | `onboarding-one-tap-defaults` | frontend-engineer | Trim onboarding to one-tap start with fixed defaults (`Europe/Oslo`, balanced tone) and no manual profile fields (name/baseline/timezone prompts removed). |
+| ✅ done | `schedule-workload-badge-removal` | frontend-engineer | Remove low/medium/high difficulty badge from lecture/lab cards in Schedule tab to keep the view focused on timing and context. |
