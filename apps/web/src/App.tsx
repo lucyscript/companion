@@ -14,10 +14,10 @@ import { useDashboard } from "./hooks/useDashboard";
 import { enablePushNotifications, isPushEnabled, supportsPushNotifications } from "./lib/push";
 import { setupSyncListeners } from "./lib/sync";
 import { applyTheme } from "./lib/theme";
-import { loadOnboardingProfile, loadThemePreference, saveOnboardingProfile, saveThemePreference } from "./lib/storage";
+import { loadOnboardingProfile, saveOnboardingProfile } from "./lib/storage";
 import { hapticCriticalAlert } from "./lib/haptics";
 import { parseDeepLink } from "./lib/deepLink";
-import { OnboardingProfile, ThemePreference } from "./types";
+import { OnboardingProfile } from "./types";
 
 type PushState = "checking" | "ready" | "enabled" | "unsupported" | "denied" | "error";
 
@@ -28,7 +28,6 @@ export default function App(): JSX.Element {
   const [pushMessage, setPushMessage] = useState("");
   const [profile, setProfile] = useState<OnboardingProfile | null>(loadOnboardingProfile());
   const [scheduleRevision, setScheduleRevision] = useState(0);
-  const [themePreference, setThemePreference] = useState<ThemePreference>(() => loadThemePreference());
   const [activeTab, setActiveTab] = useState<TabId>(initialDeepLink.tab ?? "chat");
   const [focusDeadlineId, setFocusDeadlineId] = useState<string | null>(initialDeepLink.deadlineId);
   const [focusLectureId, setFocusLectureId] = useState<string | null>(initialDeepLink.lectureId);
@@ -36,20 +35,8 @@ export default function App(): JSX.Element {
   const seenCriticalNotifications = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    saveThemePreference(themePreference);
-    applyTheme(themePreference);
-
-    if (themePreference !== "system") {
-      return;
-    }
-
-    const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const handler = (): void => {
-      applyTheme("system");
-    };
-    media.addEventListener("change", handler);
-    return () => media.removeEventListener("change", handler);
-  }, [themePreference]);
+    applyTheme("dark");
+  }, []);
 
   // Set up background sync listeners
   useEffect(() => {
@@ -206,7 +193,6 @@ export default function App(): JSX.Element {
     }
 
     const targetBySection: Record<string, string> = {
-      "weekly-review": "weekly-review-panel",
       integrations: "integration-status-panel"
     };
     const targetId = targetBySection[settingsSection];
@@ -234,10 +220,6 @@ export default function App(): JSX.Element {
   const handleOnboardingComplete = (nextProfile: OnboardingProfile): void => {
     saveOnboardingProfile(nextProfile);
     setProfile(nextProfile);
-  };
-
-  const handleThemeChange = (next: ThemePreference): void => {
-    setThemePreference(next);
   };
 
   const handleTabChange = (tab: TabId): void => {
@@ -318,9 +300,6 @@ export default function App(): JSX.Element {
             )}
             {activeTab === "settings" && (
               <SettingsView
-                themePreference={themePreference}
-                onThemeChange={handleThemeChange}
-                onUpdated={refresh}
                 onCalendarImported={() => setScheduleRevision((revision) => revision + 1)}
               />
             )}
