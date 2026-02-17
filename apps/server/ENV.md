@@ -36,6 +36,8 @@ This file documents all environment variables required to run the Companion serv
 - `CANVAS_BASE_URL` (default: "https://stavanger.instructure.com") — Canvas instance URL
 - `INTEGRATION_WINDOW_PAST_DAYS` (default: 30) — Keep synced TP/Canvas items this many days in the past
 - `INTEGRATION_WINDOW_FUTURE_DAYS` (default: 180) — Keep synced TP/Canvas items this many days in the future
+- `NOTIFICATION_DIGEST_MORNING_HOUR` (default: 8) — Hour (0-23) for morning non-urgent notification digest
+- `NOTIFICATION_DIGEST_EVENING_HOUR` (default: 18) — Hour (0-23) for evening non-urgent notification digest
 
 ### Course GitHub Integration
 - `COURSE_GITHUB_PAT` (optional) — GitHub personal access token for private course repos
@@ -97,6 +99,10 @@ GEMINI_API_KEY=your-gemini-api-key
 # Canvas LMS
 CANVAS_API_TOKEN=your-canvas-token
 CANVAS_BASE_URL=https://stavanger.instructure.com
+INTEGRATION_WINDOW_PAST_DAYS=30
+INTEGRATION_WINDOW_FUTURE_DAYS=180
+NOTIFICATION_DIGEST_MORNING_HOUR=8
+NOTIFICATION_DIGEST_EVENING_HOUR=18
 
 # Course GitHub
 COURSE_GITHUB_PAT=your-github-pat

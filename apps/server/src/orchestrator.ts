@@ -1,10 +1,15 @@
 import { BaseAgent } from "./agent-base.js";
 import { AssignmentTrackerAgent } from "./agents/assignment-agent.js";
 import { LecturePlanAgent } from "./agents/lecture-plan-agent.js";
+import { config } from "./config.js";
 import { buildContextAwareNudge } from "./nudge-engine.js";
 import { NotesAgent } from "./agents/notes-agent.js";
+import {
+  buildDigestNotification,
+  isDigestCandidate,
+  resolveNextDigestWindow
+} from "./notification-digest-batching.js";
 import { RuntimeStore } from "./store.js";
-import { calculateOptimalNotificationTime } from "./smart-timing.js";
 import { AgentEvent } from "./types.js";
 import { checkProactiveTriggersWithCooldown } from "./proactive-chat-triggers.js";
 
@@ -14,6 +19,8 @@ export class OrchestratorRuntime {
   private readonly deadlineReminderCooldownMinutes = 180;
   private readonly scheduledNotificationCheckIntervalMs = 30_000;
   private readonly proactiveTriggerCheckIntervalMs = 5 * 60 * 1000; // Check every 5 minutes
+  private readonly digestMorningHour = config.NOTIFICATION_DIGEST_MORNING_HOUR;
+  private readonly digestEveningHour = config.NOTIFICATION_DIGEST_EVENING_HOUR;
   private readonly agents: BaseAgent[] = [
     new NotesAgent(),
     new LecturePlanAgent(),
@@ -94,19 +101,14 @@ export class OrchestratorRuntime {
         // Urgent notifications go out immediately
         this.store.pushNotification(nudge);
       } else {
-        // Non-urgent notifications are scheduled for optimal time
-        const optimalTime = calculateOptimalNotificationTime(
-          {
-            scheduleEvents: this.store.getScheduleEvents(),
-            deadlines: this.store.getDeadlines(),
-            userContext: context,
-            deadlineHistory: this.store.getAllDeadlineReminderStates(),
-            currentTime: new Date()
-          },
-          false
+        // Non-urgent notifications are batched into configurable morning/evening digest windows.
+        const digestTime = resolveNextDigestWindow(
+          new Date(),
+          this.digestMorningHour,
+          this.digestEveningHour
         );
 
-        this.store.scheduleNotification(nudge, optimalTime, event.id);
+        this.store.scheduleNotification(nudge, digestTime, event.id);
       }
       return;
     }
@@ -164,13 +166,27 @@ export class OrchestratorRuntime {
    */
   private processScheduledNotifications(): void {
     const dueNotifications = this.store.getDueScheduledNotifications();
+    if (dueNotifications.length === 0) {
+      return;
+    }
 
-    for (const scheduled of dueNotifications) {
-      // Push the notification immediately
+    const digestCandidates = dueNotifications.filter((scheduled) => isDigestCandidate(scheduled));
+    const immediateNotifications = dueNotifications.filter((scheduled) => !isDigestCandidate(scheduled));
+
+    for (const scheduled of immediateNotifications) {
       this.store.pushNotification(scheduled.notification);
-
-      // Remove from scheduled queue
       this.store.removeScheduledNotification(scheduled.id);
+    }
+
+    if (digestCandidates.length > 0) {
+      const digest = buildDigestNotification(digestCandidates, new Date());
+      if (digest) {
+        this.store.pushNotification(digest);
+      }
+
+      for (const scheduled of digestCandidates) {
+        this.store.removeScheduledNotification(scheduled.id);
+      }
     }
   }
 
