@@ -46,6 +46,11 @@ import {
   SyncQueueItem,
   SyncQueueStatus,
   SyncOperationType,
+  IntegrationSyncAttempt,
+  IntegrationSyncAttemptStatus,
+  IntegrationSyncName,
+  IntegrationSyncRootCause,
+  IntegrationSyncSummary,
   ChatMessage,
   ChatMessageMetadata,
   ChatHistoryPage,
@@ -62,6 +67,16 @@ const agentNames: AgentName[] = [
   "orchestrator"
 ];
 const TAG_ID_LIKE_REGEX = /^tag-[a-zA-Z0-9_-]+$/;
+const integrationNames: IntegrationSyncName[] = ["tp", "canvas", "gmail"];
+const integrationRootCauses: IntegrationSyncRootCause[] = [
+  "none",
+  "auth",
+  "network",
+  "rate_limit",
+  "validation",
+  "provider",
+  "unknown"
+];
 
 export class RuntimeStore {
   private readonly maxEvents = 100;
@@ -80,6 +95,7 @@ export class RuntimeStore {
   private readonly maxEmailDigests = 50;
   private readonly maxLocations = 1000;
   private readonly maxLocationHistory = 5000;
+  private readonly maxIntegrationSyncAttempts = 5000;
   private notificationListeners: Array<(notification: Notification) => void> = [];
   private db: Database.Database;
 
@@ -412,6 +428,24 @@ export class RuntimeStore {
 
       CREATE INDEX IF NOT EXISTS idx_sync_queue_status ON sync_queue(status);
       CREATE INDEX IF NOT EXISTS idx_sync_queue_createdAt ON sync_queue(createdAt);
+
+      CREATE TABLE IF NOT EXISTS integration_sync_attempts (
+        id TEXT PRIMARY KEY,
+        integration TEXT NOT NULL,
+        status TEXT NOT NULL,
+        latencyMs INTEGER NOT NULL,
+        rootCause TEXT NOT NULL,
+        errorMessage TEXT,
+        attemptedAt TEXT NOT NULL,
+        insertOrder INTEGER NOT NULL DEFAULT (unixepoch('subsec') * 1000000)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_integration_sync_attempts_integration
+        ON integration_sync_attempts(integration, attemptedAt DESC);
+      CREATE INDEX IF NOT EXISTS idx_integration_sync_attempts_status
+        ON integration_sync_attempts(status, attemptedAt DESC);
+      CREATE INDEX IF NOT EXISTS idx_integration_sync_attempts_attemptedAt
+        ON integration_sync_attempts(attemptedAt DESC);
 
       CREATE TABLE IF NOT EXISTS canvas_data (
         id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -4304,6 +4338,169 @@ export class RuntimeStore {
   deleteSyncQueueItem(id: string): boolean {
     const result = this.db.prepare("DELETE FROM sync_queue WHERE id = ?").run(id);
     return result.changes > 0;
+  }
+
+  recordIntegrationSyncAttempt(
+    attempt: Omit<IntegrationSyncAttempt, "id">
+  ): IntegrationSyncAttempt {
+    const record: IntegrationSyncAttempt = {
+      id: makeId("sync-attempt"),
+      ...attempt
+    };
+
+    this.db
+      .prepare(
+        `INSERT INTO integration_sync_attempts (
+          id, integration, status, latencyMs, rootCause, errorMessage, attemptedAt
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        record.id,
+        record.integration,
+        record.status,
+        record.latencyMs,
+        record.rootCause,
+        record.errorMessage,
+        record.attemptedAt
+      );
+
+    this.trimIntegrationSyncAttemptsIfNeeded();
+    return record;
+  }
+
+  getIntegrationSyncAttempts(options: {
+    integration?: IntegrationSyncName;
+    status?: IntegrationSyncAttemptStatus;
+    limit?: number;
+    hours?: number;
+  } = {}): IntegrationSyncAttempt[] {
+    const whereParts: string[] = [];
+    const params: Array<string | number> = [];
+
+    if (options.integration) {
+      whereParts.push("integration = ?");
+      params.push(options.integration);
+    }
+
+    if (options.status) {
+      whereParts.push("status = ?");
+      params.push(options.status);
+    }
+
+    if (typeof options.hours === "number" && Number.isFinite(options.hours) && options.hours > 0) {
+      const cutoff = new Date(Date.now() - options.hours * 60 * 60 * 1000).toISOString();
+      whereParts.push("attemptedAt >= ?");
+      params.push(cutoff);
+    }
+
+    const whereClause = whereParts.length > 0 ? `WHERE ${whereParts.join(" AND ")}` : "";
+    const limit = Math.max(1, Math.min(options.limit ?? 200, 2000));
+    const query = `
+      SELECT id, integration, status, latencyMs, rootCause, errorMessage, attemptedAt
+      FROM integration_sync_attempts
+      ${whereClause}
+      ORDER BY attemptedAt DESC
+      LIMIT ?
+    `;
+
+    const rows = this.db.prepare(query).all(...params, limit) as Array<{
+      id: string;
+      integration: string;
+      status: string;
+      latencyMs: number;
+      rootCause: string;
+      errorMessage: string | null;
+      attemptedAt: string;
+    }>;
+
+    return rows.map((row) => ({
+      id: row.id,
+      integration: row.integration as IntegrationSyncName,
+      status: row.status as IntegrationSyncAttemptStatus,
+      latencyMs: row.latencyMs,
+      rootCause: row.rootCause as IntegrationSyncRootCause,
+      errorMessage: row.errorMessage,
+      attemptedAt: row.attemptedAt
+    }));
+  }
+
+  getIntegrationSyncSummary(windowHours = 24 * 7): IntegrationSyncSummary {
+    const attempts = this.getIntegrationSyncAttempts({
+      limit: this.maxIntegrationSyncAttempts,
+      hours: windowHours
+    });
+
+    const totalAttempts = attempts.length;
+    const totalSuccesses = attempts.filter((attempt) => attempt.status === "success").length;
+    const totalFailures = totalAttempts - totalSuccesses;
+
+    const integrations = integrationNames.map((integration) => {
+      const records = attempts.filter((attempt) => attempt.integration === integration);
+      const attemptsCount = records.length;
+      const successes = records.filter((attempt) => attempt.status === "success").length;
+      const failures = attemptsCount - successes;
+      const averageLatencyMs =
+        attemptsCount > 0
+          ? Math.round(records.reduce((sum, attempt) => sum + attempt.latencyMs, 0) / attemptsCount)
+          : 0;
+      const lastAttemptAt = records[0]?.attemptedAt ?? null;
+      const lastSuccessAt = records.find((attempt) => attempt.status === "success")?.attemptedAt ?? null;
+
+      const failuresByRootCause = integrationRootCauses.reduce<Record<IntegrationSyncRootCause, number>>(
+        (acc, rootCause) => {
+          acc[rootCause] = 0;
+          return acc;
+        },
+        {} as Record<IntegrationSyncRootCause, number>
+      );
+
+      records
+        .filter((attempt) => attempt.status === "failure")
+        .forEach((attempt) => {
+          failuresByRootCause[attempt.rootCause] += 1;
+        });
+
+      return {
+        integration,
+        attempts: attemptsCount,
+        successes,
+        failures,
+        successRate: attemptsCount > 0 ? Number(((successes / attemptsCount) * 100).toFixed(1)) : 0,
+        averageLatencyMs,
+        lastAttemptAt,
+        lastSuccessAt,
+        failuresByRootCause
+      };
+    });
+
+    return {
+      generatedAt: nowIso(),
+      windowHours,
+      totals: {
+        attempts: totalAttempts,
+        successes: totalSuccesses,
+        failures: totalFailures,
+        successRate: totalAttempts > 0 ? Number(((totalSuccesses / totalAttempts) * 100).toFixed(1)) : 0
+      },
+      integrations
+    };
+  }
+
+  private trimIntegrationSyncAttemptsIfNeeded(): void {
+    const count = (
+      this.db.prepare("SELECT COUNT(*) as count FROM integration_sync_attempts").get() as { count: number }
+    ).count;
+    if (count <= this.maxIntegrationSyncAttempts) {
+      return;
+    }
+
+    this.db
+      .prepare(
+        `DELETE FROM integration_sync_attempts WHERE id IN (
+          SELECT id FROM integration_sync_attempts ORDER BY insertOrder ASC LIMIT ?
+        )`
+      )
+      .run(count - this.maxIntegrationSyncAttempts);
   }
 
   /**

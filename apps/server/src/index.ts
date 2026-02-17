@@ -34,6 +34,7 @@ import { generateContentRecommendations } from "./content-recommendations.js";
 import { PostgresRuntimeSnapshotStore } from "./postgres-persistence.js";
 import type { PostgresPersistenceDiagnostics } from "./postgres-persistence.js";
 import { Notification, NotificationPreferencesPatch } from "./types.js";
+import type { IntegrationSyncName, IntegrationSyncRootCause } from "./types.js";
 import { SyncFailureRecoveryTracker, SyncRecoveryPrompt } from "./sync-failure-recovery.js";
 import { nowIso } from "./utils.js";
 
@@ -136,6 +137,47 @@ function publishSyncRecoveryPrompt(prompt: SyncRecoveryPrompt | null): void {
       rootCauseHint: prompt.rootCauseHint,
       suggestedActions: prompt.suggestedActions
     }
+  });
+}
+
+function categorizeSyncRootCause(message: string | undefined): IntegrationSyncRootCause {
+  if (!message) {
+    return "unknown";
+  }
+
+  const text = message.toLowerCase();
+  if (/(unauthor|forbidden|oauth|token|credential|permission|401|403)/.test(text)) {
+    return "auth";
+  }
+  if (/(rate limit|quota|resource exhausted|429)/.test(text)) {
+    return "rate_limit";
+  }
+  if (/(timeout|network|socket|econn|enotfound|dns|fetch failed|connect)/.test(text)) {
+    return "network";
+  }
+  if (/(invalid|validation|zod|schema|payload|400 bad request)/.test(text)) {
+    return "validation";
+  }
+  if (/(provider|upstream|internal|5\\d\\d)/.test(text)) {
+    return "provider";
+  }
+
+  return "unknown";
+}
+
+function recordIntegrationAttempt(
+  integration: IntegrationSyncName,
+  startedAtMs: number,
+  success: boolean,
+  errorMessage?: string
+): void {
+  store.recordIntegrationSyncAttempt({
+    integration,
+    status: success ? "success" : "failure",
+    latencyMs: Math.max(0, Date.now() - startedAtMs),
+    rootCause: success ? "none" : categorizeSyncRootCause(errorMessage),
+    errorMessage: success ? null : errorMessage ?? null,
+    attemptedAt: nowIso()
   });
 }
 
@@ -517,6 +559,17 @@ const integrationScopePreviewSchema = z.object({
   canvasCourseIds: z.array(z.coerce.number().int().positive()).max(100).optional(),
   pastDays: z.coerce.number().int().min(0).max(365).optional(),
   futureDays: z.coerce.number().int().min(1).max(730).optional()
+});
+
+const integrationHealthLogQuerySchema = z.object({
+  integration: z.enum(["tp", "canvas", "gmail"]).optional(),
+  status: z.enum(["success", "failure"]).optional(),
+  limit: z.coerce.number().int().min(1).max(2000).optional().default(200),
+  hours: z.coerce.number().int().min(1).max(24 * 365).optional()
+});
+
+const integrationHealthSummaryQuerySchema = z.object({
+  hours: z.coerce.number().int().min(1).max(24 * 365).optional().default(24 * 7)
 });
 
 const DEFAULT_TP_SCOPE_COURSE_IDS = ["DAT520,1", "DAT560,1", "DAT600,1"] as const;
@@ -1581,6 +1634,7 @@ app.post("/api/integrations/scope/preview", (req, res) => {
 
 app.post("/api/sync/tp", async (req, res) => {
   const parsed = tpSyncSchema.safeParse(req.body ?? {});
+  const syncStartedAt = Date.now();
 
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid TP sync payload", issues: parsed.error.issues });
@@ -1602,6 +1656,7 @@ app.post("/api/sync/tp", async (req, res) => {
     const diff = diffScheduleEvents(existingEvents, tpEvents);
     const result = store.upsertScheduleEvents(diff.toCreate, diff.toUpdate, diff.toDelete);
     syncFailureRecovery.recordSuccess("tp");
+    recordIntegrationAttempt("tp", syncStartedAt, true);
 
     return res.json({
       success: true,
@@ -1620,6 +1675,7 @@ app.post("/api/sync/tp", async (req, res) => {
     const message = error instanceof Error ? error.message : "Unknown error";
     const recoveryPrompt = syncFailureRecovery.recordFailure("tp", message);
     publishSyncRecoveryPrompt(recoveryPrompt);
+    recordIntegrationAttempt("tp", syncStartedAt, false, message);
 
     return res.status(500).json({
       success: false,
@@ -1693,6 +1749,7 @@ app.get("/api/github/course-content", (req, res) => {
 
 app.post("/api/canvas/sync", async (req, res) => {
   const parsed = canvasSyncSchema.safeParse(req.body ?? {});
+  const syncStartedAt = Date.now();
 
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid Canvas sync payload", issues: parsed.error.issues });
@@ -1708,11 +1765,13 @@ app.post("/api/canvas/sync", async (req, res) => {
 
   if (result.success) {
     syncFailureRecovery.recordSuccess("canvas");
+    recordIntegrationAttempt("canvas", syncStartedAt, true);
     return res.json(result);
   }
 
   const recoveryPrompt = syncFailureRecovery.recordFailure("canvas", result.error ?? "Canvas sync failed");
   publishSyncRecoveryPrompt(recoveryPrompt);
+  recordIntegrationAttempt("canvas", syncStartedAt, false, result.error ?? "Canvas sync failed");
   return res.json({
     ...result,
     recoveryPrompt
@@ -1861,15 +1920,50 @@ app.get("/api/integrations/recovery-prompts", (_req, res) => {
   return res.json(syncFailureRecovery.getSnapshot());
 });
 
+app.get("/api/integrations/health-log", (req, res) => {
+  const parsed = integrationHealthLogQuerySchema.safeParse(req.query ?? {});
+
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid integration health-log query", issues: parsed.error.issues });
+  }
+
+  const attempts = store.getIntegrationSyncAttempts({
+    integration: parsed.data.integration,
+    status: parsed.data.status,
+    limit: parsed.data.limit,
+    hours: parsed.data.hours
+  });
+
+  return res.json({
+    generatedAt: nowIso(),
+    total: attempts.length,
+    attempts
+  });
+});
+
+app.get("/api/integrations/health-log/summary", (req, res) => {
+  const parsed = integrationHealthSummaryQuerySchema.safeParse(req.query ?? {});
+
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid integration health-log summary query", issues: parsed.error.issues });
+  }
+
+  const summary = store.getIntegrationSyncSummary(parsed.data.hours);
+  return res.json(summary);
+});
+
 app.post("/api/gmail/sync", async (_req, res) => {
+  const syncStartedAt = Date.now();
   try {
     const result = await gmailSyncService.triggerSync();
     let recoveryPrompt: SyncRecoveryPrompt | null = null;
     if (result.success) {
       syncFailureRecovery.recordSuccess("gmail");
+      recordIntegrationAttempt("gmail", syncStartedAt, true);
     } else {
       recoveryPrompt = syncFailureRecovery.recordFailure("gmail", result.error ?? "Gmail sync failed");
       publishSyncRecoveryPrompt(recoveryPrompt);
+      recordIntegrationAttempt("gmail", syncStartedAt, false, result.error ?? "Gmail sync failed");
     }
 
     return res.json({
@@ -1883,6 +1977,7 @@ app.post("/api/gmail/sync", async (_req, res) => {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     const recoveryPrompt = syncFailureRecovery.recordFailure("gmail", errorMessage);
     publishSyncRecoveryPrompt(recoveryPrompt);
+    recordIntegrationAttempt("gmail", syncStartedAt, false, errorMessage);
     return res.status(500).json({ error: errorMessage, recoveryPrompt });
   }
 });

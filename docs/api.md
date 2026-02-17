@@ -1518,3 +1518,49 @@ Response `200`:
   ]
 }
 ```
+
+## Integration Health Log
+
+### `GET /api/integrations/health-log?integration=canvas&status=failure&limit=50&hours=168`
+
+Returns persisted TP/Canvas/Gmail sync attempts (success/failure, latency, root-cause).
+
+Response `200`:
+
+```json
+{
+  "generatedAt": "2026-02-17T16:30:00.000Z",
+  "total": 2,
+  "attempts": [
+    {
+      "id": "sync-attempt-1739809800000-1",
+      "integration": "canvas",
+      "status": "failure",
+      "latencyMs": 1842,
+      "rootCause": "auth",
+      "errorMessage": "401 unauthorized",
+      "attemptedAt": "2026-02-17T16:25:00.000Z"
+    }
+  ]
+}
+```
+
+### `GET /api/integrations/health-log/summary?hours=168`
+
+Returns aggregated reliability metrics for TP/Canvas/Gmail syncs.
+
+Response `200`:
+
+```json
+{
+  "generatedAt": "2026-02-17T16:30:00.000Z",
+  "windowHours": 168,
+  "totals": {
+    "attempts": 22,
+    "successes": 18,
+    "failures": 4,
+    "successRate": 81.8
+  },
+  "integrations": []
+}
+```

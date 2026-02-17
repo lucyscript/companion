@@ -620,6 +620,42 @@ export interface SyncQueueStatus {
   recentItems: SyncQueueItem[];
 }
 
+export type IntegrationSyncName = "tp" | "canvas" | "gmail";
+export type IntegrationSyncAttemptStatus = "success" | "failure";
+export type IntegrationSyncRootCause = "none" | "auth" | "network" | "rate_limit" | "validation" | "provider" | "unknown";
+
+export interface IntegrationSyncAttempt {
+  id: string;
+  integration: IntegrationSyncName;
+  status: IntegrationSyncAttemptStatus;
+  latencyMs: number;
+  rootCause: IntegrationSyncRootCause;
+  errorMessage: string | null;
+  attemptedAt: string;
+}
+
+export interface IntegrationSyncSummary {
+  generatedAt: string;
+  windowHours: number;
+  totals: {
+    attempts: number;
+    successes: number;
+    failures: number;
+    successRate: number;
+  };
+  integrations: Array<{
+    integration: IntegrationSyncName;
+    attempts: number;
+    successes: number;
+    failures: number;
+    successRate: number;
+    averageLatencyMs: number;
+    lastAttemptAt: string | null;
+    lastSuccessAt: string | null;
+    failuresByRootCause: Record<IntegrationSyncRootCause, number>;
+  }>;
+}
+
 // Canvas LMS types
 export interface CanvasCourse {
   id: number;

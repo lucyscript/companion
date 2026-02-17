@@ -406,6 +406,70 @@ Response:
 }
 ```
 
+### GET `/api/integrations/health-log?integration=canvas&status=failure&limit=50&hours=168`
+
+Return persisted TP/Canvas/Gmail sync attempts for troubleshooting.
+
+Response:
+
+```json
+{
+  "generatedAt": "2026-02-17T16:30:00.000Z",
+  "total": 3,
+  "attempts": [
+    {
+      "id": "sync-attempt-1739809800000-1",
+      "integration": "canvas",
+      "status": "failure",
+      "latencyMs": 1842,
+      "rootCause": "auth",
+      "errorMessage": "401 unauthorized",
+      "attemptedAt": "2026-02-17T16:25:00.000Z"
+    }
+  ]
+}
+```
+
+### GET `/api/integrations/health-log/summary?hours=168`
+
+Return reliability analytics for TP/Canvas/Gmail sync attempts.
+
+Response:
+
+```json
+{
+  "generatedAt": "2026-02-17T16:30:00.000Z",
+  "windowHours": 168,
+  "totals": {
+    "attempts": 22,
+    "successes": 18,
+    "failures": 4,
+    "successRate": 81.8
+  },
+  "integrations": [
+    {
+      "integration": "gmail",
+      "attempts": 8,
+      "successes": 6,
+      "failures": 2,
+      "successRate": 75,
+      "averageLatencyMs": 921,
+      "lastAttemptAt": "2026-02-17T16:20:00.000Z",
+      "lastSuccessAt": "2026-02-17T15:50:00.000Z",
+      "failuresByRootCause": {
+        "none": 0,
+        "auth": 1,
+        "network": 1,
+        "rate_limit": 0,
+        "validation": 0,
+        "provider": 0,
+        "unknown": 0
+      }
+    }
+  ]
+}
+```
+
 ---
 
 ## Phase 3: Social Media Summary & Content Digest
