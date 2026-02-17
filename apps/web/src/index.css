@@ -3122,11 +3122,11 @@ body.keyboard-open .app-shell {
   max-width: none;
   width: 100%;
   margin: 0;
-  padding-bottom: max(4px, env(safe-area-inset-bottom));
+  padding-bottom: 0;
 }
 
 body.keyboard-open .tab-content-area {
-  padding-bottom: max(4px, env(safe-area-inset-bottom));
+  padding-bottom: 0;
 }
 
 body.keyboard-open .app-shell-chat-active {
@@ -3185,14 +3185,14 @@ body.keyboard-open .chat-input-container {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: calc(var(--keyboard-gap, 0px) + env(safe-area-inset-bottom));
+  bottom: var(--keyboard-gap, 0px);
   z-index: 5;
-  padding: 2px 0 0;
+  padding: 1px 0 0;
   background: rgba(7, 14, 20, 0.96);
 }
 
 body.keyboard-open .chat-messages {
-  padding: max(34px, calc(34px + env(safe-area-inset-top))) 0 calc(52px + var(--keyboard-gap, 0px) + env(safe-area-inset-bottom));
+  padding: max(34px, calc(34px + env(safe-area-inset-top))) 0 calc(50px + var(--keyboard-gap, 0px));
   background: #091019;
 }
 
