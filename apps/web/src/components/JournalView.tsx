@@ -1,11 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { deleteJournalEntry, searchJournalEntries, submitJournalEntry, syncQueuedJournalEntries } from "../lib/api";
+import { deleteJournalEntry, getJournalEntries, searchJournalEntries, submitJournalEntry } from "../lib/api";
 import {
-  addJournalEntry,
-  enqueueJournalEntry,
   loadArchivedJournalIds,
   loadJournalEntries,
-  loadJournalQueue,
+  saveJournalEntries,
   saveArchivedJournalIds
 } from "../lib/storage";
 import { JournalEntry, JournalPhoto } from "../types";
@@ -56,16 +54,18 @@ export function JournalView({ focusJournalId }: JournalViewProps): JSX.Element {
   const pendingDeleteRef = useRef<Map<string, number>>(new Map());
 
   const handleRefresh = async (): Promise<void> => {
-    const synced = await syncQueuedJournalEntries(loadJournalQueue());
-    if (synced > 0) {
-      const updated = loadJournalEntries().map(normalizeEntry);
-      setEntries(updated);
-      applyFilters(updated);
-      setSyncMessage(`Synced ${synced} queued journal entr${synced === 1 ? "y" : "ies"}.`);
-    } else {
-      setSyncMessage("Already up to date");
+    const latest = await getJournalEntries();
+    if (!latest) {
+      setSyncMessage("Could not refresh journal right now.");
       setTimeout(() => setSyncMessage(""), 2000);
+      return;
     }
+
+    const normalized = latest.map(normalizeEntry);
+    setEntries(normalized);
+    applyFilters(normalized);
+    setSyncMessage("Journal refreshed.");
+    setTimeout(() => setSyncMessage(""), 2000);
   };
 
   const { containerRef, isPulling, pullDistance, isRefreshing } = usePullToRefresh<HTMLDivElement>({
@@ -83,22 +83,21 @@ export function JournalView({ focusJournalId }: JournalViewProps): JSX.Element {
   }, [sharedContent]);
 
   useEffect(() => {
-    const sync = async (): Promise<void> => {
-      const synced = await syncQueuedJournalEntries(loadJournalQueue());
-      if (synced > 0) {
-        const updated = loadJournalEntries().map(normalizeEntry);
-        setEntries(updated);
-        applyFilters(updated);
-        setSyncMessage(`Synced ${synced} queued journal entr${synced === 1 ? "y" : "ies"}.`);
+    const refresh = async (): Promise<void> => {
+      const latest = await getJournalEntries();
+      if (latest) {
+        const normalized = latest.map(normalizeEntry);
+        setEntries(normalized);
+        applyFilters(normalized);
       }
     };
 
     const handleOnline = (): void => {
-      void sync();
+      void refresh();
     };
 
     window.addEventListener("online", handleOnline);
-    void sync();
+    void refresh();
 
     return () => {
       window.removeEventListener("online", handleOnline);
@@ -311,9 +310,19 @@ export function JournalView({ focusJournalId }: JournalViewProps): JSX.Element {
 
     setBusy(true);
     try {
-      const entry = normalizeEntry(addJournalEntry(text.trim(), tags, photos));
-      const updated = [entry, ...entries];
+      const submitted = await submitJournalEntry(text.trim(), crypto.randomUUID(), tags, photos);
+      if (!submitted) {
+        setSyncMessage("Could not save entry. Please try again.");
+        return;
+      }
+
+      const normalizedSubmitted = normalizeEntry(submitted);
+      const updated = sortByNewest([
+        normalizedSubmitted,
+        ...entries.filter((entry) => (entry.clientEntryId ?? entry.id) !== (normalizedSubmitted.clientEntryId ?? normalizedSubmitted.id))
+      ]);
       setEntries(updated);
+      saveJournalEntries(updated);
       applyFilters(updated);
       setText("");
       setTags([]);
@@ -321,14 +330,6 @@ export function JournalView({ focusJournalId }: JournalViewProps): JSX.Element {
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
-
-      const submitted = await submitJournalEntry(entry.text, entry.clientEntryId ?? entry.id, tags, photos);
-      if (!submitted) {
-        enqueueJournalEntry(entry);
-        setSyncMessage("Saved offline. Will sync when connection returns.");
-        return;
-      }
-
       setSyncMessage("");
     } finally {
       setBusy(false);

@@ -1,7 +1,7 @@
 import { Fragment, ReactNode, useEffect, useRef, useState } from "react";
 import { sendChatMessage, getChatHistory, submitJournalEntry } from "../lib/api";
 import { ChatCitation, ChatMessage } from "../types";
-import { addJournalEntry, enqueueJournalEntry, loadTalkModeEnabled, saveTalkModeEnabled } from "../lib/storage";
+import { loadTalkModeEnabled, saveTalkModeEnabled } from "../lib/storage";
 
 function getSpeechRecognitionCtor(): (new () => SpeechRecognition) | null {
   if (typeof window === "undefined") return null;
@@ -373,17 +373,10 @@ export function ChatView(): JSX.Element {
 
     setSavingMessageId(message.id);
     try {
-      const entry = addJournalEntry(message.content);
-      // addJournalEntry guarantees id and clientEntryId are set to the same value
-      const entryId = entry.clientEntryId || entry.id;
-      if (!entryId) {
-        throw new Error("Failed to create journal entry: missing entry ID");
-      }
-
-      const submitted = await submitJournalEntry(message.content, entryId);
+      const submitted = await submitJournalEntry(message.content, crypto.randomUUID());
 
       if (!submitted) {
-        enqueueJournalEntry(entry);
+        throw new Error("Unable to save journal entry on server.");
       }
 
       // Create a new Set to trigger React re-render

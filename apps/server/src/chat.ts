@@ -572,7 +572,7 @@ function buildIntentGuidance(intent: ChatIntent): string {
     case "data-management":
       return "Intent hint: data management. Focus on import/export/backup/restore safety and exact steps.";
     case "actions":
-      return "Intent hint: action request. Use queue* action tools and require explicit confirmation.";
+      return "Intent hint: action request. Use queue* action tools with explicit confirmation for deadline/schedule changes. For journal saves, use createJournalEntry directly.";
     case "general":
     default:
       return "Intent hint: general. Ask a short clarification only if needed, otherwise use tools on demand.";
@@ -604,6 +604,12 @@ const INTENT_FEW_SHOT_EXAMPLES: IntentFewShotExample[] = [
     intent: "journal",
     toolPlan: "Call searchJournal with a focused query and small limit.",
     responseStyle: "Quote short snippets and summarize trends."
+  },
+  {
+    user: "Please save this to my journal: finished DAT520 lab and reviewed slides.",
+    intent: "journal",
+    toolPlan: "Call createJournalEntry with the requested text immediately.",
+    responseStyle: "Confirm that the journal entry was saved in one clear sentence."
   },
   {
     user: "Any important emails I should read now?",
@@ -654,7 +660,8 @@ function buildFunctionCallingSystemInstruction(userName: string, intent: ChatInt
 Core behavior:
 - For factual questions about schedule, deadlines, journal, email, or social updates, use tools before answering.
 - Do not hallucinate user-specific data. If data is unavailable, say so explicitly and suggest the next sync step.
-- For mutating requests, always use queue* action tools and require explicit user confirmation.
+- For mutating requests that change schedule/deadlines, use queue* action tools and require explicit user confirmation.
+- For journal-save requests, call createJournalEntry directly and do not ask for confirm/cancel commands.
 - Keep replies concise, practical, and conversational.
 - Use only lightweight Markdown that the chat UI supports:
   - **bold** for key facts and warnings
@@ -857,6 +864,23 @@ function buildJournalFallbackSection(response: unknown): string | null {
   return lines.join("\n");
 }
 
+function buildJournalCreateFallbackSection(response: unknown): string | null {
+  const payload = asRecord(response);
+  if (!payload) {
+    return null;
+  }
+
+  const message = asNonEmptyString(payload.message) ?? "Journal entry saved.";
+  const entry = asRecord(payload.entry);
+  const content = asNonEmptyString(entry?.content);
+
+  if (!content) {
+    return message;
+  }
+
+  return `${message}\n- ${textSnippet(content, 110)}`;
+}
+
 function buildToolRateLimitFallbackReply(
   functionResponses: ExecutedFunctionResponse[],
   pendingActions: ChatPendingAction[]
@@ -895,6 +919,9 @@ function buildToolDataFallbackReply(
         break;
       case "searchJournal":
         section = buildJournalFallbackSection(result.rawResponse);
+        break;
+      case "createJournalEntry":
+        section = buildJournalCreateFallbackSection(result.rawResponse);
         break;
       default:
         section = null;
@@ -1076,6 +1103,26 @@ function compactJournalForModel(response: unknown): unknown {
   };
 }
 
+function compactJournalCreateForModel(response: unknown): unknown {
+  const payload = asRecord(response);
+  if (!payload) {
+    return compactGenericValue(response);
+  }
+
+  const entry = asRecord(payload.entry);
+  return {
+    success: Boolean(payload.success),
+    message: asNonEmptyString(payload.message) ?? null,
+    entry: entry
+      ? {
+          id: asNonEmptyString(entry.id) ?? "",
+          timestamp: asNonEmptyString(entry.timestamp) ?? null,
+          contentSnippet: compactTextValue(asNonEmptyString(entry.content) ?? "", 180)
+        }
+      : null
+  };
+}
+
 function compactEmailsForModel(response: unknown): unknown {
   if (!Array.isArray(response)) {
     return compactGenericValue(response);
@@ -1155,6 +1202,8 @@ function compactFunctionResponseForModel(functionName: string, response: unknown
       return compactDeadlinesForModel(response);
     case "searchJournal":
       return compactJournalForModel(response);
+    case "createJournalEntry":
+      return compactJournalCreateForModel(response);
     case "getEmails":
       return compactEmailsForModel(response);
     case "getSocialDigest":
@@ -1237,6 +1286,27 @@ function collectToolCitations(
       });
     });
     return next;
+  }
+
+  if (functionName === "createJournalEntry") {
+    const payload = asRecord(response);
+    const entry = asRecord(payload?.entry);
+    const id = asNonEmptyString(entry?.id);
+    const content = asNonEmptyString(entry?.content);
+    const timestamp = asNonEmptyString(entry?.timestamp);
+
+    if (!id || !content) {
+      return [];
+    }
+
+    return [
+      {
+        id,
+        type: "journal",
+        label: textSnippet(content),
+        timestamp: timestamp ?? undefined
+      }
+    ];
   }
 
   if (functionName === "getEmails" && Array.isArray(response)) {

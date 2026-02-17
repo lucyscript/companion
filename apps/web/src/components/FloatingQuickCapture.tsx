@@ -57,7 +57,7 @@ export function FloatingQuickCapture({ onUpdated }: FloatingQuickCaptureProps): 
           await onUpdated();
         }
       } else {
-        setMessage("Failed to save. Entry queued for sync.");
+        setMessage("Failed to save. Please try again.");
       }
     } else {
       // Deadline mode

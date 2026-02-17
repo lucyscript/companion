@@ -8,7 +8,7 @@ import {
   handleGetSocialDigest,
   handleQueueDeadlineAction,
   handleQueueScheduleBlock,
-  handleQueueJournalDraft,
+  handleCreateJournalEntry,
   executePendingChatAction,
   executeFunctionCall
 } from "./gemini-tools.js";
@@ -60,7 +60,7 @@ describe("gemini-tools", () => {
     it("should include queue action functions", () => {
       expect(functionDeclarations.find((f) => f.name === "queueDeadlineAction")).toBeDefined();
       expect(functionDeclarations.find((f) => f.name === "queueScheduleBlock")).toBeDefined();
-      expect(functionDeclarations.find((f) => f.name === "queueJournalDraft")).toBeDefined();
+      expect(functionDeclarations.find((f) => f.name === "createJournalEntry")).toBeDefined();
     });
   });
 
@@ -247,18 +247,18 @@ describe("gemini-tools", () => {
       expect(store.getPendingChatActions()).toHaveLength(1);
     });
 
-    it("queues a journal draft action", () => {
-      const result = handleQueueJournalDraft(store, {
+    it("creates a journal entry immediately", () => {
+      const result = handleCreateJournalEntry(store, {
         content: "Draft reflection about today's lab."
       });
 
-      expect(result).toHaveProperty("requiresConfirmation", true);
-      if (!("pendingAction" in result)) {
-        throw new Error("Expected pendingAction in queue result");
+      if (!("success" in result)) {
+        throw new Error("Expected success response for journal create");
       }
 
-      expect(result.pendingAction.actionType).toBe("create-journal-draft");
-      expect(store.getPendingChatActions()).toHaveLength(1);
+      expect(result.success).toBe(true);
+      expect(result.entry.content).toContain("Draft reflection");
+      expect(store.getPendingChatActions()).toHaveLength(0);
     });
   });
 
@@ -356,6 +356,13 @@ describe("gemini-tools", () => {
 
       expect(result.name).toBe("queueDeadlineAction");
       expect(result.response).toHaveProperty("requiresConfirmation", true);
+    });
+
+    it("should execute createJournalEntry function", () => {
+      const result = executeFunctionCall("createJournalEntry", { content: "Saved from tool call." }, store);
+
+      expect(result.name).toBe("createJournalEntry");
+      expect(result.response).toHaveProperty("success", true);
     });
 
     it("should throw error for unknown function", () => {

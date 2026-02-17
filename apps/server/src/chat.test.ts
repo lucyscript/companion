@@ -799,6 +799,14 @@ describe("chat service", () => {
   });
 
   it("adds pending action metadata when Gemini queues an action tool call", async () => {
+    const deadline = store.createDeadline({
+      course: "DAT560",
+      task: "Assignment 2",
+      dueDate: "2026-02-21T12:00:00.000Z",
+      priority: "high",
+      completed: false
+    });
+
     generateChatResponse = vi
       .fn()
       .mockResolvedValueOnce({
@@ -806,8 +814,8 @@ describe("chat service", () => {
         finishReason: "stop",
         functionCalls: [
           {
-            name: "queueJournalDraft",
-            args: { content: "Draft a reflection from our chat." }
+            name: "queueDeadlineAction",
+            args: { deadlineId: deadline.id, action: "complete" }
           }
         ],
         usageMetadata: {
@@ -829,7 +837,7 @@ describe("chat service", () => {
       generateChatResponse
     } as unknown as GeminiClient;
 
-    const result = await sendChatMessage(store, "Save this as a journal draft", {
+    const result = await sendChatMessage(store, "Mark DAT560 Assignment 2 as complete", {
       geminiClient: fakeGemini,
       useFunctionCalling: true
     });
@@ -838,5 +846,37 @@ describe("chat service", () => {
     expect(result.assistantMessage.metadata?.pendingActions?.length).toBe(1);
     expect(result.reply).toContain("need your confirmation");
     expect(result.reply).toContain("confirm ");
+  });
+
+  it("creates journal entries immediately when Gemini calls createJournalEntry", async () => {
+    generateChatResponse = vi
+      .fn()
+      .mockResolvedValueOnce({
+        text: "",
+        finishReason: "stop",
+        functionCalls: [
+          {
+            name: "createJournalEntry",
+            args: { content: "First conversation with my AI assistant." }
+          }
+        ]
+      })
+      .mockResolvedValueOnce({
+        text: "Saved your journal entry.",
+        finishReason: "stop"
+      });
+    fakeGemini = {
+      generateChatResponse
+    } as unknown as GeminiClient;
+
+    const result = await sendChatMessage(store, "Add this to my journal: First conversation with my AI assistant.", {
+      geminiClient: fakeGemini,
+      useFunctionCalling: true
+    });
+
+    expect(generateChatResponse).toHaveBeenCalledTimes(2);
+    expect(result.assistantMessage.metadata?.pendingActions ?? []).toHaveLength(0);
+    expect(result.reply).toContain("Saved your journal entry.");
+    expect(store.searchJournalEntries({ query: "First conversation with my AI assistant.", limit: 5 }).length).toBe(1);
   });
 });

@@ -85,6 +85,29 @@ async function jsonOrThrow<T>(input: RequestInfo | URL, init?: RequestInit): Pro
   return (await response.json()) as T;
 }
 
+function normalizeJournalEntry(entry: JournalEntry): JournalEntry {
+  return {
+    ...entry,
+    text: entry.text ?? entry.content,
+    photos: entry.photos ?? []
+  };
+}
+
+function saveMergedJournalEntry(entry: JournalEntry): void {
+  const normalized = normalizeJournalEntry(entry);
+  const existing = loadJournalEntries();
+  const byClientId = new Map<string, JournalEntry>();
+
+  existing.forEach((item) => {
+    byClientId.set(item.clientEntryId ?? item.id, normalizeJournalEntry(item));
+  });
+  byClientId.set(normalized.clientEntryId ?? normalized.id, normalized);
+
+  saveJournalEntries(
+    Array.from(byClientId.values()).sort((a, b) => b.timestamp.localeCompare(a.timestamp))
+  );
+}
+
 export async function getDashboard(): Promise<DashboardSnapshot> {
   try {
     const snapshot = await jsonOrThrow<DashboardSnapshot>("/api/dashboard");
@@ -123,7 +146,27 @@ export async function submitJournalEntry(
       method: "POST",
       body: JSON.stringify({ content, clientEntryId, tags, photos })
     });
-    return response.entry;
+    saveMergedJournalEntry(response.entry);
+    return normalizeJournalEntry(response.entry);
+  } catch {
+    return null;
+  }
+}
+
+export async function getJournalEntries(limit?: number): Promise<JournalEntry[] | null> {
+  const params = new URLSearchParams();
+  if (typeof limit === "number" && Number.isFinite(limit) && limit > 0) {
+    params.set("limit", String(Math.round(limit)));
+  }
+
+  const query = params.toString();
+  const endpoint = query ? `/api/journal?${query}` : "/api/journal";
+
+  try {
+    const response = await jsonOrThrow<{ entries: JournalEntry[] }>(endpoint);
+    const normalized = response.entries.map((entry) => normalizeJournalEntry(entry));
+    saveJournalEntries(normalized);
+    return normalized;
   } catch {
     return null;
   }

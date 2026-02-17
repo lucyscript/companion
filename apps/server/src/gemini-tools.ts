@@ -133,15 +133,15 @@ export const functionDeclarations: FunctionDeclaration[] = [
     }
   },
   {
-    name: "queueJournalDraft",
+    name: "createJournalEntry",
     description:
-      "Queue a journal draft creation request that REQUIRES explicit user confirmation before execution.",
+      "Create and save a journal entry immediately. Use this when the user asks to save something to their journal right now.",
     parameters: {
       type: SchemaType.OBJECT,
       properties: {
         content: {
           type: SchemaType.STRING,
-          description: "Draft journal text to save after confirmation"
+          description: "Journal text content to save immediately"
         }
       },
       required: ["content"]
@@ -383,26 +383,22 @@ export function handleQueueScheduleBlock(
   return toPendingActionResponse(pending, "Action queued. Ask user for explicit confirmation before executing.");
 }
 
-export function handleQueueJournalDraft(
+export function handleCreateJournalEntry(
   store: RuntimeStore,
   args: Record<string, unknown> = {}
-): PendingActionToolResponse | { error: string } {
+): { success: true; entry: JournalEntry; message: string } | { error: string } {
   const content = asTrimmedString(args.content);
 
   if (!content) {
     return { error: "content is required." };
   }
 
-  const preview = content.length > 80 ? `${content.slice(0, 80)}...` : content;
-  const pending = store.createPendingChatAction({
-    actionType: "create-journal-draft",
-    summary: `Create journal draft: ${preview}`,
-    payload: {
-      content
-    }
-  });
-
-  return toPendingActionResponse(pending, "Action queued. Ask user for explicit confirmation before executing.");
+  const entry = store.recordJournalEntry(content);
+  return {
+    success: true,
+    entry,
+    message: "Journal entry saved."
+  };
 }
 
 export function executePendingChatAction(
@@ -595,8 +591,8 @@ export function executeFunctionCall(
     case "queueScheduleBlock":
       response = handleQueueScheduleBlock(store, args);
       break;
-    case "queueJournalDraft":
-      response = handleQueueJournalDraft(store, args);
+    case "createJournalEntry":
+      response = handleCreateJournalEntry(store, args);
       break;
     default:
       throw new Error(`Unknown function: ${name}`);
