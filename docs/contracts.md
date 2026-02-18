@@ -263,7 +263,9 @@ Response:
 }
 ```
 
-### GET `/api/nutrition/plan?date=YYYY-MM-DD`
+### Legacy compatibility: GET `/api/nutrition/plan?date=YYYY-MM-DD`
+
+Meal-plan endpoints remain for backward compatibility only. Active nutrition flow is item-based meal logging (`/api/nutrition/meals`) plus custom foods (`/api/nutrition/custom-foods`).
 
 Response:
 

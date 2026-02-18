@@ -21,9 +21,6 @@ import {
   handleDeleteNutritionCustomFood,
   handleLogMeal,
   handleDeleteMeal,
-  handleGetMealPlan,
-  handleUpsertMealPlanBlock,
-  handleRemoveMealPlanBlock,
   handleGetGitHubCourseContent,
   handleQueueDeadlineAction,
   handleQueueScheduleBlock,
@@ -45,8 +42,8 @@ describe("gemini-tools", () => {
   });
 
   describe("functionDeclarations", () => {
-    it("should define 30 function declarations", () => {
-      expect(functionDeclarations).toHaveLength(30);
+    it("should define 27 function declarations", () => {
+      expect(functionDeclarations).toHaveLength(27);
     });
 
     it("should include getSchedule function", () => {
@@ -103,9 +100,6 @@ describe("gemini-tools", () => {
       expect(functionDeclarations.find((f) => f.name === "deleteNutritionCustomFood")).toBeDefined();
       expect(functionDeclarations.find((f) => f.name === "logMeal")).toBeDefined();
       expect(functionDeclarations.find((f) => f.name === "deleteMeal")).toBeDefined();
-      expect(functionDeclarations.find((f) => f.name === "getMealPlan")).toBeDefined();
-      expect(functionDeclarations.find((f) => f.name === "upsertMealPlanBlock")).toBeDefined();
-      expect(functionDeclarations.find((f) => f.name === "removeMealPlanBlock")).toBeDefined();
     });
 
     it("should include getGitHubCourseContent function", () => {
@@ -615,30 +609,6 @@ describe("gemini-tools", () => {
       expect(logged.meal.fatGrams).toBe(6);
     });
 
-    it("creates, lists, and removes meal plan blocks", () => {
-      const upserted = handleUpsertMealPlanBlock(store, {
-        title: "Post-workout meal",
-        scheduledFor: "2026-02-18T08:30:00.000Z",
-        targetCalories: 700,
-        targetProteinGrams: 45
-      });
-
-      if ("error" in upserted) {
-        throw new Error(upserted.error);
-      }
-
-      expect(upserted.success).toBe(true);
-      expect(upserted.block.title).toBe("Post-workout meal");
-
-      const plan = handleGetMealPlan(store, { date: "2026-02-18" });
-      expect(plan.blocks.length).toBeGreaterThan(0);
-
-      const removed = handleRemoveMealPlanBlock(store, { blockId: upserted.block.id });
-      if ("error" in removed) {
-        throw new Error(removed.error);
-      }
-      expect(removed.deleted).toBe(true);
-    });
   });
 
   describe("handleGetGitHubCourseContent", () => {
@@ -1073,13 +1043,6 @@ describe("gemini-tools", () => {
 
       expect(result.name).toBe("logMeal");
       expect(result.response).toHaveProperty("success", true);
-    });
-
-    it("should execute getMealPlan function", () => {
-      const result = executeFunctionCall("getMealPlan", { date: "2026-02-17" }, store);
-
-      expect(result.name).toBe("getMealPlan");
-      expect(result.response).toHaveProperty("blocks");
     });
 
     it("should execute getGitHubCourseContent function", () => {

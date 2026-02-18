@@ -39,7 +39,6 @@ function toCitationTarget(citation: ChatCitation): CitationLinkTarget {
     case "goal":
       return { tab: "habits" };
     case "nutrition-meal":
-    case "nutrition-meal-plan":
       return { tab: "nutrition" };
     case "email":
       return { tab: "settings", section: "integrations" };
