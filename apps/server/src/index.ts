@@ -58,6 +58,7 @@ import { SyncFailureRecoveryTracker, SyncRecoveryPrompt } from "./sync-failure-r
 import { nowIso } from "./utils.js";
 
 const app = express();
+const MAX_API_JSON_BODY_SIZE = "10mb";
 
 interface RuntimePersistenceContext {
   store: RuntimeStore;
@@ -480,7 +481,24 @@ function isPublicApiRoute(method: string, path: string): boolean {
 }
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: MAX_API_JSON_BODY_SIZE }));
+app.use((error: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const maybeError = error as { type?: string; status?: number; statusCode?: number; body?: unknown } | undefined;
+  const isPayloadTooLarge =
+    maybeError?.type === "entity.too.large" || maybeError?.status === 413 || maybeError?.statusCode === 413;
+
+  if (isPayloadTooLarge) {
+    return res.status(413).json({
+      error: `Payload too large. Reduce attachment size and retry (max request body ${MAX_API_JSON_BODY_SIZE}).`
+    });
+  }
+
+  if (error instanceof SyntaxError && maybeError && Object.prototype.hasOwnProperty.call(maybeError, "body")) {
+    return res.status(400).json({ error: "Invalid JSON payload" });
+  }
+
+  return next(error);
+});
 
 app.use((req, res, next) => {
   if (!req.path.startsWith("/api")) {

@@ -136,6 +136,10 @@ function renderAssistantContent(content: string): ReactNode {
 
 const MAX_ATTACHMENTS = 3;
 const SUPPORTED_CHAT_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const CHAT_IMAGE_SERVER_HARD_LIMIT = 1_500_000;
+const CHAT_IMAGE_TARGET_LIMIT = 850_000;
+const CHAT_IMAGE_MAX_ACCEPTABLE_SIZE = 1_200_000;
+const CHAT_IMAGE_MAX_DIMENSION = 1600;
 
 async function toDataUrl(file: File): Promise<string> {
   return await new Promise((resolve, reject) => {
@@ -185,8 +189,12 @@ async function convertImageFileToJpegDataUrl(file: File): Promise<string | null>
       next.src = objectUrl;
     });
 
-    const width = Math.max(1, Math.round(image.naturalWidth || image.width));
-    const height = Math.max(1, Math.round(image.naturalHeight || image.height));
+    const sourceWidth = Math.max(1, Math.round(image.naturalWidth || image.width));
+    const sourceHeight = Math.max(1, Math.round(image.naturalHeight || image.height));
+    const maxSide = Math.max(sourceWidth, sourceHeight);
+    const scale = maxSide > CHAT_IMAGE_MAX_DIMENSION ? CHAT_IMAGE_MAX_DIMENSION / maxSide : 1;
+    const width = Math.max(1, Math.round(sourceWidth * scale));
+    const height = Math.max(1, Math.round(sourceHeight * scale));
     const canvas = document.createElement("canvas");
     canvas.width = width;
     canvas.height = height;
@@ -196,12 +204,77 @@ async function convertImageFileToJpegDataUrl(file: File): Promise<string | null>
     }
 
     context.drawImage(image, 0, 0, width, height);
-    return canvas.toDataURL("image/jpeg", 0.92);
+    const qualitySteps = [0.9, 0.82, 0.74, 0.66, 0.58];
+    const scaleSteps = [1, 0.88, 0.78, 0.68];
+    let best: string | null = null;
+
+    for (const sizeScale of scaleSteps) {
+      const scaledWidth = Math.max(1, Math.round(width * sizeScale));
+      const scaledHeight = Math.max(1, Math.round(height * sizeScale));
+      canvas.width = scaledWidth;
+      canvas.height = scaledHeight;
+      context.clearRect(0, 0, scaledWidth, scaledHeight);
+      context.drawImage(image, 0, 0, scaledWidth, scaledHeight);
+
+      for (const quality of qualitySteps) {
+        const candidate = canvas.toDataURL("image/jpeg", quality);
+        if (best === null || candidate.length < best.length) {
+          best = candidate;
+        }
+        if (candidate.length <= CHAT_IMAGE_TARGET_LIMIT) {
+          return candidate;
+        }
+      }
+    }
+
+    if (best && best.length <= CHAT_IMAGE_SERVER_HARD_LIMIT) {
+      return best;
+    }
+
+    return null;
   } catch {
     return null;
   } finally {
     URL.revokeObjectURL(objectUrl);
   }
+}
+
+async function buildChatImageAttachment(file: File): Promise<Omit<ChatImageAttachment, "id"> | null> {
+  let dataUrl = await toDataUrl(file);
+  let mimeType = normalizeMimeType(file.type) ?? mimeTypeFromDataUrl(dataUrl);
+
+  const supportedOriginal = Boolean(mimeType && SUPPORTED_CHAT_IMAGE_MIME_TYPES.has(mimeType));
+  if (supportedOriginal && dataUrl.length <= CHAT_IMAGE_MAX_ACCEPTABLE_SIZE) {
+    return {
+      dataUrl,
+      mimeType: mimeType!,
+      fileName: file.name || undefined
+    };
+  }
+
+  const converted = await convertImageFileToJpegDataUrl(file);
+  if (!converted) {
+    if (supportedOriginal && dataUrl.length <= CHAT_IMAGE_SERVER_HARD_LIMIT) {
+      return {
+        dataUrl,
+        mimeType: mimeType!,
+        fileName: file.name || undefined
+      };
+    }
+    return null;
+  }
+
+  dataUrl = converted;
+  mimeType = "image/jpeg";
+  if (dataUrl.length > CHAT_IMAGE_SERVER_HARD_LIMIT) {
+    return null;
+  }
+
+  return {
+    dataUrl,
+    mimeType,
+    fileName: file.name || undefined
+  };
 }
 
 function renderMessageAttachments(attachments: ChatImageAttachment[]): ReactNode {
@@ -437,7 +510,9 @@ export function ChatView(): JSX.Element {
         )
       );
     } catch (err) {
-      setError("Failed to send message. Please try again.");
+      const errorMessage =
+        err instanceof Error && err.message.trim().length > 0 ? err.message : "Failed to send message. Please try again.";
+      setError(errorMessage);
       console.error(err);
       setMessages((prev) => prev.filter((msg) => msg.id !== assistantPlaceholder.id));
     } finally {
@@ -492,35 +567,25 @@ export function ChatView(): JSX.Element {
       const failedFiles: string[] = [];
 
       for (const file of nextFiles) {
-        let dataUrl = await toDataUrl(file);
-        let mimeType = normalizeMimeType(file.type) ?? mimeTypeFromDataUrl(dataUrl);
-
-        if (!mimeType || !SUPPORTED_CHAT_IMAGE_MIME_TYPES.has(mimeType)) {
-          const converted = await convertImageFileToJpegDataUrl(file);
-          if (!converted) {
-            failedFiles.push(file.name || "image");
-            continue;
-          }
-          dataUrl = converted;
-          mimeType = "image/jpeg";
+        const preparedAttachment = await buildChatImageAttachment(file);
+        if (!preparedAttachment) {
+          failedFiles.push(file.name || "image");
+          continue;
         }
-
         nextAttachments.push({
           id: crypto.randomUUID(),
-          dataUrl,
-          mimeType,
-          fileName: file.name || undefined
+          ...preparedAttachment
         });
       }
 
       if (nextAttachments.length === 0 && failedFiles.length > 0) {
-        setError("One or more images use an unsupported format on this device. Try JPEG/PNG.");
+        setError("One or more images were too large or unsupported. Try a smaller image.");
         return;
       }
 
       setPendingAttachments((prev) => [...prev, ...nextAttachments].slice(0, MAX_ATTACHMENTS));
       if (failedFiles.length > 0) {
-        setError("Some selected images were skipped due to unsupported format. JPEG/PNG work best.");
+        setError("Some selected images were skipped because they were too large or unsupported.");
       } else {
         setError(null);
       }
