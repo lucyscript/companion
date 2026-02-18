@@ -413,6 +413,7 @@ Features are built in priority order. The orchestrator reads this section to dec
 | ✅ done | `nutrition-meal-interactions-parity` | fullstack-engineer | Add touch-first meal interaction controls: quick portion +/- updates via `PATCH /api/nutrition/meals/:id`, fast delete, and meal-plan block up/down reordering in Nutrition UI without full form re-entry. Tracked in issue #362. |
 | ✅ done | `nutrition-dashboard-parity` | frontend-engineer | Rework Nutrition top section to macro-dashboard style (target cards + daily total deltas) aligned with the lucyscript/food workflow while keeping macro-only scope. Tracked in issue #439. |
 | ✅ done | `nutrition-day-controls-parity` | frontend-engineer | Add day-level controls in Nutrition (save/load/reset day plans) with local snapshot persistence so users can quickly reuse macro meal structures without rebuilding each day. Tracked in issue #440. |
+| ✅ done | `nutrition-mobile-editing-parity` | frontend-engineer | Reduce mobile taps in Nutrition with thumb-friendly meal-plan block controls and one-tap “Quick add” from a plan block into the meal logging form. Tracked in issue #441. |
 | | | | |
 | | **— Phase 11: Continuous Coaching & Reliability —** | | |
 | ✅ done | `auth-admin-access-control` | fullstack-engineer | Add production auth gate with admin bootstrap credentials (`AUTH_ADMIN_EMAIL`/`AUTH_ADMIN_PASSWORD`), bearer session login/logout APIs, and frontend login screen so Railway-backed personal data is not publicly accessible from GitHub Pages. Tracked in issue #352. |

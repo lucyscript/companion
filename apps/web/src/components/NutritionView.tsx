@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   createNutritionCustomFood,
   createNutritionMeal,
@@ -372,6 +372,18 @@ function formatSignedDelta(value: number, unit: string): string {
   return `${rounded > 0 ? "+" : ""}${formatMetric(rounded)}${unit}`;
 }
 
+function inferMealTypeFromTime(iso: string): NutritionMealType {
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) {
+    return "other";
+  }
+  const hour = parsed.getHours();
+  if (hour < 10) return "breakfast";
+  if (hour < 14) return "lunch";
+  if (hour < 19) return "dinner";
+  return "snack";
+}
+
 function deltaToneClass(value: number): string {
   const rounded = roundToTenth(value);
   if (Math.abs(rounded) < 0.1) {
@@ -396,6 +408,7 @@ export function NutritionView(): JSX.Element {
   const [daySnapshotName, setDaySnapshotName] = useState("");
   const [selectedDaySnapshotId, setSelectedDaySnapshotId] = useState("");
   const [dayControlBusy, setDayControlBusy] = useState(false);
+  const mealFormRef = useRef<HTMLElement | null>(null);
 
   const [mealDraft, setMealDraft] = useState<MealDraft>({
     name: "",
@@ -825,6 +838,20 @@ export function NutritionView(): JSX.Element {
     });
   };
 
+  const handleQuickAddFromPlanBlock = (block: NutritionMealPlanBlock): void => {
+    setMealDraft({
+      name: block.title,
+      mealType: inferMealTypeFromTime(block.scheduledFor),
+      calories: toNumberString(block.targetCalories),
+      proteinGrams: toNumberString(block.targetProteinGrams),
+      carbsGrams: toNumberString(block.targetCarbsGrams),
+      fatGrams: toNumberString(block.targetFatGrams),
+      notes: block.notes ?? ""
+    });
+    setMessage(`Loaded ${block.title} into meal form.`);
+    mealFormRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
+
   const resetCustomFoodDraft = (): void => {
     setEditingCustomFoodId(null);
     setCustomFoodDraft({
@@ -1237,25 +1264,34 @@ export function NutritionView(): JSX.Element {
                       : ""}
                   </p>
                 </div>
-                <div className="nutrition-list-item-actions nutrition-quick-controls">
+                <div className="nutrition-list-item-actions nutrition-quick-controls nutrition-plan-actions">
                   <button
                     type="button"
                     onClick={() => void handleMovePlanBlock(block.id, "up")}
                     disabled={index === 0}
                     aria-label="Move block up"
+                    className="nutrition-thumb-button"
                   >
-                    Up
+                    ↑
                   </button>
                   <button
                     type="button"
                     onClick={() => void handleMovePlanBlock(block.id, "down")}
                     disabled={index === mealPlanBlocks.length - 1}
                     aria-label="Move block down"
+                    className="nutrition-thumb-button"
                   >
-                    Down
+                    ↓
                   </button>
-                  <button type="button" onClick={() => void handleDeletePlanBlock(block.id)}>
-                    Delete
+                  <button
+                    type="button"
+                    onClick={() => handleQuickAddFromPlanBlock(block)}
+                    className="nutrition-thumb-button nutrition-thumb-button-wide"
+                  >
+                    Quick add
+                  </button>
+                  <button type="button" onClick={() => void handleDeletePlanBlock(block.id)} className="nutrition-thumb-button">
+                    Del
                   </button>
                 </div>
               </article>
@@ -1298,7 +1334,7 @@ export function NutritionView(): JSX.Element {
         )}
       </article>
 
-      <article className="nutrition-card">
+      <article className="nutrition-card" ref={mealFormRef}>
         <h3>Log meal</h3>
         <form className="nutrition-form" onSubmit={(event) => void handleMealSubmit(event)}>
           <label>

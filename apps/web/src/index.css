@@ -3556,6 +3556,21 @@ body.keyboard-open .pull-to-refresh-container {
   touch-action: manipulation;
 }
 
+.nutrition-plan-actions {
+  justify-content: flex-start;
+}
+
+.nutrition-thumb-button {
+  min-height: 44px;
+  min-width: 52px;
+  padding: 9px 11px;
+  font-size: 0.86rem;
+}
+
+.nutrition-thumb-button-wide {
+  min-width: 96px;
+}
+
 .nutrition-item-title {
   margin: 0;
   font-weight: 700;
@@ -3607,6 +3622,12 @@ body.keyboard-open .pull-to-refresh-container {
 
   .nutrition-delta {
     text-align: left;
+  }
+}
+
+@media (min-width: 720px) {
+  .nutrition-plan-actions {
+    justify-content: flex-end;
   }
 }
 
