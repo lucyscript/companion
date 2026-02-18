@@ -101,7 +101,7 @@ async function initializeRuntimeStore(): Promise<RuntimePersistenceContext> {
   const store = new RuntimeStore(sqlitePath);
 
   await postgresSnapshotStore.persistSnapshot(store.serializeDatabase());
-  postgresSnapshotStore.startAutoSync(() => store.serializeDatabase(), 30_000);
+  postgresSnapshotStore.startAutoSync(() => store.serializeDatabase(), 5_000);
 
   return {
     store,

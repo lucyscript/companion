@@ -279,6 +279,7 @@ export interface Deadline {
   course: string;
   task: string;
   dueDate: string;
+  sourceDueDate?: string;
   priority: Priority;
   completed: boolean;
   canvasAssignmentId?: number;
