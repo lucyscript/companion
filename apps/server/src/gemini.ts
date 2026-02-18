@@ -240,10 +240,14 @@ export class GeminiClient {
     if (maybeFunctionResponse && typeof maybeFunctionResponse === "object") {
       const response = maybeFunctionResponse as { name?: unknown; response?: unknown };
       if (typeof response.name === "string" && response.name.trim().length > 0) {
+        const responsePayload =
+          response.response && typeof response.response === "object" && !Array.isArray(response.response)
+            ? response.response
+            : { result: response.response ?? null };
         return {
           function_response: {
             name: response.name,
-            response: response.response ?? {}
+            response: responsePayload
           }
         };
       }

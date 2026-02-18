@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { Part } from "@google/generative-ai";
 import {
   GeminiClient,
   GeminiError,
@@ -99,6 +100,56 @@ describe("GeminiClient", () => {
       });
       expect(payload.contents).toEqual([{ role: "user", parts: [{ text: "Hello" }] }]);
       expect(payload.tools?.[0]?.function_declarations?.[0]?.name).toBe("getSchedule");
+      vi.unstubAllGlobals();
+    });
+
+    it("wraps non-object function responses for Vertex compatibility", async () => {
+      const client = new GeminiClient("test-api-key");
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          candidates: [
+            {
+              finish_reason: "STOP",
+              content: {
+                parts: [{ text: "ok" }]
+              }
+            }
+          ]
+        })
+      });
+      vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
+      (client as unknown as { getVertexAccessToken: () => Promise<string> }).getVertexAccessToken = async () => "token";
+      (client as unknown as { normalizeVertexModelNameForGenerateContent: () => string }).normalizeVertexModelNameForGenerateContent =
+        () => "projects/p/locations/us-central1/publishers/google/models/gemini-2.5-flash";
+
+      await client.generateChatResponse({
+        messages: [
+          {
+            role: "function",
+            parts: [
+              {
+                functionResponse: {
+                  name: "getSchedule",
+                  response: ["a", "b", "c"]
+                }
+              } as unknown as Part
+            ]
+          }
+        ]
+      });
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [, init] = fetchMock.mock.calls[0] as [string, { body: string }];
+      const payload = JSON.parse(init.body) as {
+        contents: Array<{ parts: Array<{ function_response?: { response?: unknown } }> }>;
+      };
+      const functionResponse =
+        payload.contents[0]?.parts?.[0]?.function_response?.response as { result?: unknown } | undefined;
+      expect(functionResponse).toEqual({
+        result: ["a", "b", "c"]
+      });
+
       vi.unstubAllGlobals();
     });
 
