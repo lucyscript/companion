@@ -466,19 +466,19 @@ export class GeminiClient {
       sendJson({
         setup: {
           model: this.normalizeLiveModelName(),
-          generationConfig: {
-            responseModalities: ["TEXT"]
+          generation_config: {
+            response_modalities: ["TEXT"]
           },
           ...(request.systemInstruction && request.systemInstruction.trim().length > 0
             ? {
-                systemInstruction: {
+                system_instruction: {
                   parts: [{ text: request.systemInstruction }]
                 }
               }
             : {}),
           ...(request.tools && request.tools.length > 0
             ? {
-                tools: [{ functionDeclarations: request.tools }]
+                tools: [{ function_declarations: request.tools }]
               }
             : {})
         }
@@ -486,16 +486,26 @@ export class GeminiClient {
 
       while (true) {
         const setupMessage = (await nextMessageWithTimeout()) as
-          | { setupComplete?: unknown; error?: { message?: unknown }; __closed?: boolean }
+          | {
+              setupComplete?: unknown;
+              setup_complete?: unknown;
+              error?: { message?: unknown } | string;
+              __closed?: boolean;
+            }
           | undefined;
 
         if (setupMessage?.__closed) {
           throw closeError ?? new GeminiError("Gemini Live API socket closed before setup completed");
         }
-        if (setupMessage?.error && typeof setupMessage.error.message === "string") {
-          throw new GeminiError(`Gemini Live API setup error: ${setupMessage.error.message}`);
+        if (setupMessage?.error) {
+          if (typeof setupMessage.error === "string") {
+            throw new GeminiError(`Gemini Live API setup error: ${setupMessage.error}`);
+          }
+          if (typeof setupMessage.error.message === "string") {
+            throw new GeminiError(`Gemini Live API setup error: ${setupMessage.error.message}`);
+          }
         }
-        if (setupMessage?.setupComplete !== undefined) {
+        if (setupMessage?.setupComplete !== undefined || setupMessage?.setup_complete !== undefined) {
           break;
         }
       }
@@ -505,9 +515,9 @@ export class GeminiClient {
         .filter((message): message is { role: "user" | "model"; parts: Array<Record<string, unknown>> } => Boolean(message));
 
       sendJson({
-        clientContent: {
+        client_content: {
           turns,
-          turnComplete: true
+          turn_complete: true
         }
       });
 
@@ -523,9 +533,16 @@ export class GeminiClient {
                 turnComplete?: boolean;
                 interrupted?: boolean;
               };
+              server_content?: {
+                model_turn?: { parts?: Array<Record<string, unknown>> };
+                turn_complete?: boolean;
+                interrupted?: boolean;
+              };
               toolCall?: { functionCalls?: unknown };
+              tool_call?: { function_calls?: unknown };
               usageMetadata?: unknown;
-              error?: { message?: unknown };
+              usage_metadata?: unknown;
+              error?: { message?: unknown } | string;
               __closed?: boolean;
             }
           | undefined;
@@ -533,16 +550,23 @@ export class GeminiClient {
         if (envelope?.__closed) {
           throw closeError ?? new GeminiError("Gemini Live API socket closed before turn completed");
         }
-        if (envelope?.error && typeof envelope.error.message === "string") {
-          throw new GeminiError(`Gemini Live API error: ${envelope.error.message}`);
+        if (envelope?.error) {
+          if (typeof envelope.error === "string") {
+            throw new GeminiError(`Gemini Live API error: ${envelope.error}`);
+          }
+          if (typeof envelope.error.message === "string") {
+            throw new GeminiError(`Gemini Live API error: ${envelope.error.message}`);
+          }
         }
 
-        const nextUsage = this.toUsageMetadata(envelope?.usageMetadata);
+        const nextUsage = this.toUsageMetadata(envelope?.usageMetadata ?? envelope?.usage_metadata);
         if (nextUsage) {
           usageMetadata = nextUsage;
         }
 
-        const toolCalls = this.toLiveFunctionCalls(envelope?.toolCall?.functionCalls);
+        const toolCalls = this.toLiveFunctionCalls(
+          envelope?.toolCall?.functionCalls ?? envelope?.tool_call?.function_calls
+        );
         if (toolCalls.length > 0) {
           if (!request.onToolCall) {
             throw new GeminiError("Gemini Live API requested tool calls but no onToolCall handler was provided");
@@ -550,13 +574,22 @@ export class GeminiClient {
           const toolResponses = await request.onToolCall(toolCalls);
           const functionResponses = this.buildLiveFunctionResponses(toolCalls, toolResponses);
           sendJson({
-            toolResponse: {
-              functionResponses
+            tool_response: {
+              function_responses: functionResponses
             }
           });
         }
 
-        const parts = envelope?.serverContent?.modelTurn?.parts;
+        const serverContent = (envelope?.serverContent ?? envelope?.server_content) as
+          | {
+              modelTurn?: { parts?: Array<Record<string, unknown>> };
+              model_turn?: { parts?: Array<Record<string, unknown>> };
+              turnComplete?: boolean;
+              turn_complete?: boolean;
+              interrupted?: boolean;
+            }
+          | undefined;
+        const parts = serverContent?.modelTurn?.parts ?? serverContent?.model_turn?.parts;
         if (Array.isArray(parts)) {
           for (const part of parts) {
             if (typeof part?.text === "string" && part.text.length > 0) {
@@ -566,11 +599,11 @@ export class GeminiClient {
           }
         }
 
-        if (envelope?.serverContent?.interrupted) {
+        if (serverContent?.interrupted) {
           finishReason = "interrupted";
         }
 
-        if (envelope?.serverContent?.turnComplete) {
+        if (serverContent?.turnComplete || serverContent?.turn_complete) {
           if (!finishReason) {
             finishReason = "stop";
           }
