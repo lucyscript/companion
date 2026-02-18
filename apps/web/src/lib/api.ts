@@ -25,6 +25,7 @@ import {
   NotificationPreferences,
   SendChatMessageRequest,
   SendChatMessageResponse,
+  SendChatMessageStreamDoneResponse,
   GetChatHistoryResponse,
   AuthUser,
   UserContext,
@@ -1627,6 +1628,121 @@ export async function sendChatMessage(
     body: JSON.stringify({ message, attachments } as SendChatMessageRequest)
   });
   return response.message;
+}
+
+interface ChatStreamHandlers {
+  onToken: (delta: string) => void;
+}
+
+export async function sendChatMessageStream(
+  message: string,
+  handlers: ChatStreamHandlers,
+  attachments?: SendChatMessageRequest["attachments"]
+): Promise<ChatMessage> {
+  const response = await fetch(apiUrl("/api/chat/stream"), {
+    method: "POST",
+    headers: buildRequestHeaders(),
+    body: JSON.stringify({ message, attachments } as SendChatMessageRequest)
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    if (response.status === 401) {
+      throw new UnauthorizedError(body || "Unauthorized");
+    }
+    throw new Error(body || `Request failed: ${response.status}`);
+  }
+
+  if (!response.body) {
+    throw new Error("Streaming response body is not available.");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let eventName = "message";
+  let donePayload: SendChatMessageStreamDoneResponse | null = null;
+
+  const dispatchEvent = (name: string, data: string): void => {
+    if (!data) {
+      return;
+    }
+
+    if (name === "token") {
+      try {
+        const parsed = JSON.parse(data) as { delta?: unknown };
+        if (typeof parsed.delta === "string" && parsed.delta.length > 0) {
+          handlers.onToken(parsed.delta);
+        }
+      } catch {
+        // Ignore malformed token events.
+      }
+      return;
+    }
+
+    if (name === "done") {
+      donePayload = JSON.parse(data) as SendChatMessageStreamDoneResponse;
+      return;
+    }
+
+    if (name === "error") {
+      let errorMessage = "Chat stream failed.";
+      try {
+        const parsed = JSON.parse(data) as { error?: unknown };
+        if (typeof parsed.error === "string" && parsed.error.length > 0) {
+          errorMessage = parsed.error;
+        }
+      } catch {
+        errorMessage = data;
+      }
+      throw new Error(errorMessage);
+    }
+  };
+
+  const processBuffer = (): void => {
+    while (true) {
+      const separatorIndex = buffer.indexOf("\n\n");
+      if (separatorIndex === -1) {
+        return;
+      }
+
+      const block = buffer.slice(0, separatorIndex);
+      buffer = buffer.slice(separatorIndex + 2);
+
+      const lines = block.split("\n");
+      let data = "";
+      eventName = "message";
+
+      for (const line of lines) {
+        if (line.startsWith("event:")) {
+          eventName = line.slice(6).trim();
+        } else if (line.startsWith("data:")) {
+          data += line.slice(5).trim();
+        }
+      }
+
+      dispatchEvent(eventName, data);
+    }
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    buffer += decoder.decode(value, { stream: true });
+    processBuffer();
+  }
+
+  buffer += decoder.decode();
+  processBuffer();
+
+  const finalPayload = donePayload as SendChatMessageStreamDoneResponse | null;
+  if (finalPayload === null) {
+    throw new Error("Stream completed without final message payload.");
+  }
+
+  return finalPayload.message;
 }
 
 export async function getChatHistory(limit = 50, offset = 0): Promise<GetChatHistoryResponse> {

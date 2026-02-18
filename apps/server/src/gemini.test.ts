@@ -24,14 +24,14 @@ describe("GeminiClient", () => {
   });
 
   describe("configuration check", () => {
-    it("should throw error when API key not configured", async () => {
+    it("should throw error when Vertex project is not configured", async () => {
       const client = new GeminiClient(undefined);
       const request: GeminiChatRequest = {
         messages: [{ role: "user", parts: [{ text: "Hello" }] }]
       };
 
       await expect(client.generateChatResponse(request)).rejects.toThrow(
-        "Gemini API key not configured"
+        "GEMINI_VERTEX_PROJECT_ID is required"
       );
     });
   });
@@ -48,61 +48,84 @@ describe("GeminiClient", () => {
       );
     });
 
-    it("should pass system instruction via model config for content requests", async () => {
+    it("should pass system instruction and tools to Vertex generateContent requests", async () => {
       const client = new GeminiClient("test-api-key");
-
-      const generateContentMock = vi.fn().mockResolvedValue({
-        response: {
-          functionCalls: () => [],
-          text: () => "Hello",
-          candidates: [{ finishReason: "STOP" }]
-        }
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          candidates: [
+            {
+              finish_reason: "STOP",
+              content: {
+                parts: [{ text: "Hello" }]
+              }
+            }
+          ],
+          usage_metadata: {
+            prompt_token_count: 12,
+            candidates_token_count: 6,
+            total_token_count: 18
+          }
+        })
       });
-
-      const getGenerativeModelMock = vi.fn().mockReturnValue({
-        generateContent: generateContentMock
-      });
-
-      (client as unknown as { client: { getGenerativeModel: typeof getGenerativeModelMock } }).client = {
-        getGenerativeModel: getGenerativeModelMock
-      };
+      vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
+      (client as unknown as { getVertexAccessToken: () => Promise<string> }).getVertexAccessToken = async () => "token";
+      (client as unknown as { normalizeVertexModelNameForGenerateContent: () => string }).normalizeVertexModelNameForGenerateContent =
+        () => "projects/p/locations/us-central1/publishers/google/models/gemini-2.5-flash";
 
       const request: GeminiChatRequest = {
         messages: [{ role: "user", parts: [{ text: "Hello" }] }],
-        systemInstruction: "Use tools when needed."
+        systemInstruction: "Use tools when needed.",
+        tools: [
+          {
+            name: "getSchedule",
+            description: "Get schedule",
+            parameters: {
+              type: "object",
+              properties: {}
+            } as any
+          }
+        ]
       };
 
       const response = await client.generateChatResponse(request);
 
       expect(response.text).toBe("Hello");
-      expect(getGenerativeModelMock).toHaveBeenCalledWith(
-        expect.objectContaining({ systemInstruction: "Use tools when needed." })
-      );
-      expect(generateContentMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          contents: [{ role: "user", parts: [{ text: "Hello" }] }]
-        })
-      );
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [, init] = fetchMock.mock.calls[0] as [string, { body: string }];
+      const payload = JSON.parse(init.body);
+      expect(payload.system_instruction).toEqual({
+        parts: [{ text: "Use tools when needed." }]
+      });
+      expect(payload.contents).toEqual([{ role: "user", parts: [{ text: "Hello" }] }]);
+      expect(payload.tools?.[0]?.function_declarations?.[0]?.name).toBe("getSchedule");
+      vi.unstubAllGlobals();
     });
 
-    it("should retry transient 429 responses and return the recovered result", async () => {
+    it("should retry transient 429 responses and return the recovered Vertex result", async () => {
       const client = new GeminiClient("test-api-key");
 
-      const retryableError = Object.assign(new Error("429 Too Many Requests"), { status: 429 });
-      const generateContentMock = vi
+      const fetchMock = vi
         .fn()
-        .mockRejectedValueOnce(retryableError)
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 429
+        })
         .mockResolvedValue({
-          response: {
-            functionCalls: () => [],
-            text: () => "Recovered",
-            candidates: [{ finishReason: "STOP" }]
-          }
+          ok: true,
+          json: async () => ({
+            candidates: [
+              {
+                finish_reason: "STOP",
+                content: { parts: [{ text: "Recovered" }] }
+              }
+            ]
+          })
         });
-
-      const getGenerativeModelMock = vi.fn().mockReturnValue({
-        generateContent: generateContentMock
-      });
+      vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
+      (client as unknown as { getVertexAccessToken: () => Promise<string> }).getVertexAccessToken = async () => "token";
+      (client as unknown as { normalizeVertexModelNameForGenerateContent: () => string }).normalizeVertexModelNameForGenerateContent =
+        () => "projects/p/locations/us-central1/publishers/google/models/gemini-2.5-flash";
 
       const timeoutSpy = vi
         .spyOn(globalThis, "setTimeout")
@@ -115,17 +138,14 @@ describe("GeminiClient", () => {
           }) as unknown as typeof setTimeout
         );
 
-      (client as unknown as { client: { getGenerativeModel: typeof getGenerativeModelMock } }).client = {
-        getGenerativeModel: getGenerativeModelMock
-      };
-
       const response = await client.generateChatResponse({
         messages: [{ role: "user", parts: [{ text: "Retry test" }] }]
       });
 
       expect(response.text).toBe("Recovered");
-      expect(generateContentMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
       timeoutSpy.mockRestore();
+      vi.unstubAllGlobals();
     });
   });
 

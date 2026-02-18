@@ -1,5 +1,5 @@
 import { Fragment, ReactNode, useEffect, useRef, useState } from "react";
-import { sendChatMessage, getChatHistory, submitJournalEntry } from "../lib/api";
+import { sendChatMessageStream, getChatHistory, submitJournalEntry } from "../lib/api";
 import { ChatCitation, ChatImageAttachment, ChatMessage, ChatPendingAction } from "../types";
 import { loadTalkModeEnabled, saveTalkModeEnabled } from "../lib/storage";
 
@@ -423,16 +423,36 @@ export function ChatView(): JSX.Element {
     }
 
     try {
-      const response = await sendChatMessage(trimmedText, attachmentsToSend);
+      let streamedContent = "";
+      const response = await sendChatMessageStream(
+        trimmedText,
+        {
+          onToken: (delta: string) => {
+            if (delta.length === 0) {
+              return;
+            }
+            streamedContent += delta;
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === assistantPlaceholder.id
+                  ? { ...msg, content: streamedContent, streaming: true }
+                  : msg
+              )
+            );
+            scheduleScrollToBottom("auto");
+          }
+        },
+        attachmentsToSend
+      );
       setMessages((prev) =>
         prev.map((msg) =>
-          msg.streaming ? { ...response, streaming: false } : msg
+          msg.id === assistantPlaceholder.id ? { ...response, streaming: false } : msg
         )
       );
     } catch (err) {
       setError("Failed to send message. Please try again.");
       console.error(err);
-      setMessages((prev) => prev.filter((msg) => !msg.streaming));
+      setMessages((prev) => prev.filter((msg) => msg.id !== assistantPlaceholder.id));
     } finally {
       setIsSending(false);
     }

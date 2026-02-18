@@ -665,6 +665,67 @@ app.post("/api/chat", async (req, res) => {
   }
 });
 
+app.post("/api/chat/stream", async (req, res) => {
+  const parsed = chatRequestSchema.safeParse(req.body ?? {});
+
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid chat payload", issues: parsed.error.issues });
+  }
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  if (typeof res.flushHeaders === "function") {
+    res.flushHeaders();
+  }
+
+  let closed = false;
+  req.on("close", () => {
+    closed = true;
+  });
+
+  const sendSse = (event: string, payload: Record<string, unknown>): void => {
+    if (closed) {
+      return;
+    }
+    res.write(`event: ${event}\n`);
+    res.write(`data: ${JSON.stringify(payload)}\n\n`);
+  };
+
+  try {
+    await Promise.all([maybeAutoSyncCanvasData(), maybeAutoSyncGitHubDeadlines()]);
+    const result = await sendChatMessage(store, parsed.data.message.trim(), {
+      attachments: parsed.data.attachments,
+      onTextChunk: (chunk) => sendSse("token", { delta: chunk })
+    });
+
+    sendSse("done", {
+      reply: result.reply,
+      message: result.assistantMessage,
+      userMessage: result.userMessage,
+      finishReason: result.finishReason,
+      usage: result.usage,
+      citations: result.citations,
+      history: result.history
+    });
+    if (!closed) {
+      res.end();
+    }
+  } catch (error) {
+    if (error instanceof RateLimitError) {
+      sendSse("error", { error: error.message, status: 429 });
+    } else if (error instanceof GeminiError) {
+      sendSse("error", { error: error.message, status: error.statusCode ?? 500 });
+    } else {
+      sendSse("error", { error: "Chat request failed", status: 500 });
+    }
+    if (!closed) {
+      res.end();
+    }
+  }
+});
+
 app.post("/api/chat/context/compress", async (req, res) => {
   const parsed = chatContextCompressionSchema.safeParse(req.body ?? {});
 
@@ -2799,11 +2860,11 @@ app.get("/api/gemini/status", (_req, res) => {
 
   return res.json({
     apiConfigured: isConfigured,
-    model: isConfigured ? "gemini-2.0-flash" : "unknown",
+    model: isConfigured ? config.GEMINI_LIVE_MODEL : "unknown",
     rateLimitRemaining: null,
     rateLimitSource: "provider",
     lastRequestAt,
-    error: isConfigured ? undefined : "Gemini API key not configured"
+    error: isConfigured ? undefined : "Vertex Gemini credentials not configured"
   });
 });
 

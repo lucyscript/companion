@@ -90,7 +90,7 @@ export class GeminiClient {
   }
 
   isConfigured(): boolean {
-    return this.client !== null && this.model !== null;
+    return Boolean(config.GEMINI_VERTEX_PROJECT_ID?.trim()) || (this.client !== null && this.model !== null);
   }
 
   canUseLiveApi(): boolean {
@@ -188,113 +188,229 @@ export class GeminiClient {
     return token;
   }
 
+  private normalizeVertexModelNameForGenerateContent(): string {
+    const trimmed = this.liveModelName.trim();
+    if (trimmed.startsWith("projects/")) {
+      return trimmed;
+    }
+    const projectId = config.GEMINI_VERTEX_PROJECT_ID?.trim();
+    if (!projectId) {
+      throw new GeminiError(
+        "GEMINI_VERTEX_PROJECT_ID is required for Vertex chat requests when GEMINI_LIVE_MODEL is not a full model resource path."
+      );
+    }
+    const location = config.GEMINI_VERTEX_LOCATION.trim();
+    return `projects/${projectId}/locations/${location}/publishers/google/models/${trimmed}`;
+  }
+
+  private toVertexPart(part: Part): Record<string, unknown> | null {
+    if (typeof part.text === "string") {
+      return { text: part.text };
+    }
+
+    if (part.inlineData?.mimeType && part.inlineData?.data) {
+      return {
+        inline_data: {
+          mime_type: part.inlineData.mimeType,
+          data: part.inlineData.data
+        }
+      };
+    }
+
+    const maybeFunctionCall = (part as unknown as { functionCall?: unknown; function_call?: unknown }).functionCall
+      ?? (part as unknown as { functionCall?: unknown; function_call?: unknown }).function_call;
+    if (maybeFunctionCall && typeof maybeFunctionCall === "object") {
+      const call = maybeFunctionCall as { name?: unknown; args?: unknown };
+      if (typeof call.name === "string" && call.name.trim().length > 0) {
+        return {
+          function_call: {
+            name: call.name,
+            args: call.args && typeof call.args === "object" && !Array.isArray(call.args) ? call.args : {}
+          }
+        };
+      }
+    }
+
+    const maybeFunctionResponse = (part as unknown as { functionResponse?: unknown; function_response?: unknown }).functionResponse
+      ?? (part as unknown as { functionResponse?: unknown; function_response?: unknown }).function_response;
+    if (maybeFunctionResponse && typeof maybeFunctionResponse === "object") {
+      const response = maybeFunctionResponse as { name?: unknown; response?: unknown };
+      if (typeof response.name === "string" && response.name.trim().length > 0) {
+        return {
+          function_response: {
+            name: response.name,
+            response: response.response ?? {}
+          }
+        };
+      }
+    }
+
+    return null;
+  }
+
+  private toVertexContents(
+    messages: GeminiMessage[]
+  ): Array<{ role: GeminiMessage["role"]; parts: Array<Record<string, unknown>> }> {
+    const contents: Array<{ role: GeminiMessage["role"]; parts: Array<Record<string, unknown>> }> = [];
+
+    messages.forEach((message) => {
+      const parts = message.parts
+        .map((part) => this.toVertexPart(part))
+        .filter((part): part is Record<string, unknown> => part !== null);
+      if (parts.length === 0) {
+        return;
+      }
+      contents.push({
+        role: message.role,
+        parts
+      });
+    });
+
+    return contents;
+  }
+
+  private parseFunctionCallsFromParts(parts: unknown[]): FunctionCall[] {
+    const calls: FunctionCall[] = [];
+
+    parts.forEach((part) => {
+      if (!part || typeof part !== "object") {
+        return;
+      }
+      const record = part as {
+        functionCall?: { name?: unknown; args?: unknown };
+        function_call?: { name?: unknown; args?: unknown };
+      };
+      const functionCall = record.functionCall ?? record.function_call;
+      if (!functionCall || typeof functionCall.name !== "string" || functionCall.name.trim().length === 0) {
+        return;
+      }
+      const args =
+        functionCall.args && typeof functionCall.args === "object" && !Array.isArray(functionCall.args)
+          ? (functionCall.args as Record<string, unknown>)
+          : {};
+      calls.push({
+        name: functionCall.name,
+        args
+      } as FunctionCall);
+    });
+
+    return calls;
+  }
+
   async generateChatResponse(request: GeminiChatRequest): Promise<GeminiChatResponse> {
-    if (!this.isConfigured()) {
-      throw new GeminiError("Gemini API key not configured. Set GEMINI_API_KEY environment variable.");
+    if (request.messages.length === 0) {
+      throw new GeminiError("At least one message is required");
+    }
+
+    const modelName = this.normalizeVertexModelNameForGenerateContent();
+    const location = config.GEMINI_VERTEX_LOCATION.trim();
+    const url = `https://${location}-aiplatform.googleapis.com/v1/${modelName}:generateContent`;
+    const contents = this.toVertexContents(request.messages);
+    const body: Record<string, unknown> = {
+      contents
+    };
+    if (request.systemInstruction && request.systemInstruction.trim().length > 0) {
+      body.system_instruction = {
+        parts: [{ text: request.systemInstruction }]
+      };
+    }
+    if (request.tools && request.tools.length > 0) {
+      body.tools = [{ function_declarations: request.tools }];
     }
 
     try {
-      const modelConfig: {
-        model: string;
-        tools?: Array<{ functionDeclarations: FunctionDeclaration[] }>;
-        systemInstruction?: string;
-      } = {
-        model: this.fallbackModelName
-      };
-
-      if (request.tools && request.tools.length > 0) {
-        modelConfig.tools = [{ functionDeclarations: request.tools }];
-      }
-
-      if (request.systemInstruction && request.systemInstruction.trim().length > 0) {
-        modelConfig.systemInstruction = request.systemInstruction;
-      }
-
-      // Build a per-request model so SDK-normalized system instructions and tools are always valid.
-      const model = this.client!.getGenerativeModel(modelConfig);
-
-      if (request.messages.length === 0) {
-        throw new GeminiError("At least one message is required");
-      }
-
       const maxAttempts = 3;
-      let result: GenerateContentResult | null = null;
+      let rawResponse: Response | null = null;
 
       for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-        try {
-          result = await model.generateContent({
-            contents: request.messages
-          });
+        const accessToken = await this.getVertexAccessToken();
+        rawResponse = await fetch(url, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(body)
+        });
+
+        if (rawResponse.ok || rawResponse.status !== 429 || attempt === maxAttempts - 1) {
           break;
-        } catch (error) {
-          const statusCode = this.extractStatusCode(error);
-          const isRetryable429 = statusCode === 429;
-          const isLastAttempt = attempt === maxAttempts - 1;
-
-          if (!isRetryable429 || isLastAttempt) {
-            throw error;
-          }
-
-          const backoffMs = 200 * 2 ** attempt + Math.floor(Math.random() * 120);
-          await new Promise((resolve) => setTimeout(resolve, backoffMs));
         }
+
+        const backoffMs = 200 * 2 ** attempt + Math.floor(Math.random() * 120);
+        await new Promise((resolve) => setTimeout(resolve, backoffMs));
       }
 
-      if (!result) {
+      if (!rawResponse) {
         throw new GeminiError("Gemini API error: no response generated");
       }
 
-      const response = result.response;
-      
-      // Extract function calls if present
-      const functionCalls = response.functionCalls();
-
-      // Get text (may be empty if there are function calls)
-      let text = "";
-      try {
-        text = response.text();
-      } catch {
-        // Response may not have text if it only contains function calls
-        text = "";
+      if (!rawResponse.ok) {
+        const errorBody = await rawResponse.text();
+        if (rawResponse.status === 429) {
+          throw new RateLimitError(
+            `Gemini API rate limit exceeded: ${errorBody || rawResponse.statusText}`,
+            errorBody
+          );
+        }
+        if (rawResponse.status === 401 || rawResponse.status === 403) {
+          throw new GeminiError(
+            `Invalid Vertex credentials or missing IAM permissions: ${errorBody || rawResponse.statusText}`,
+            rawResponse.status,
+            errorBody
+          );
+        }
+        throw new GeminiError(
+          `Gemini API error (${rawResponse.status}): ${errorBody || rawResponse.statusText}`,
+          rawResponse.status,
+          errorBody
+        );
       }
+
+      const payload = (await rawResponse.json()) as {
+        candidates?: Array<{
+          finishReason?: string;
+          finish_reason?: string;
+          content?: { parts?: unknown[] };
+        }>;
+        usageMetadata?: unknown;
+        usage_metadata?: unknown;
+      };
+      const firstCandidate = payload.candidates?.[0];
+      const parts = firstCandidate?.content?.parts ?? [];
+      const text = parts
+        .map((part) => {
+          if (part && typeof part === "object" && typeof (part as { text?: unknown }).text === "string") {
+            return (part as { text: string }).text;
+          }
+          return "";
+        })
+        .join("");
+      const functionCalls = this.parseFunctionCallsFromParts(parts);
 
       return {
         text,
-        finishReason: response.candidates?.[0]?.finishReason,
-        usageMetadata: response.usageMetadata
-          ? {
-              promptTokenCount: response.usageMetadata.promptTokenCount,
-              candidatesTokenCount: response.usageMetadata.candidatesTokenCount,
-              totalTokenCount: response.usageMetadata.totalTokenCount
-            }
-          : undefined,
-        functionCalls: functionCalls && functionCalls.length > 0 ? functionCalls : undefined
+        finishReason: firstCandidate?.finishReason ?? firstCandidate?.finish_reason,
+        usageMetadata: this.toUsageMetadata(payload.usageMetadata ?? payload.usage_metadata),
+        functionCalls: functionCalls.length > 0 ? functionCalls : undefined
       };
     } catch (error) {
-      const statusCode = this.extractStatusCode(error);
+      if (error instanceof RateLimitError || error instanceof GeminiError) {
+        throw error;
+      }
 
+      const statusCode = this.extractStatusCode(error);
       if (statusCode === 429) {
         const providerMessage = error instanceof Error ? error.message : "Too many requests";
         throw new RateLimitError(`Gemini API rate limit exceeded: ${providerMessage}`, error);
       }
-
       if (statusCode === 401 || statusCode === 403) {
-        throw new GeminiError("Invalid Gemini API key", statusCode, error);
+        throw new GeminiError("Invalid Vertex credentials or missing IAM permissions", statusCode, error);
       }
-
       if (error instanceof Error) {
-        if (statusCode !== undefined) {
-          throw new GeminiError(`Gemini API error (${statusCode}): ${error.message}`, statusCode, error);
-        }
-
-        if (error.message.toLowerCase().includes("api key")) {
-          throw new GeminiError("Invalid Gemini API key", 401, error);
-        }
-
-        throw new GeminiError(`Gemini API error: ${error.message}`, undefined, error);
+        throw new GeminiError(`Gemini API error: ${error.message}`, statusCode, error);
       }
-
-      throw new GeminiError("Unknown Gemini API error", undefined, error);
+      throw new GeminiError("Unknown Gemini API error", statusCode, error);
     }
   }
 

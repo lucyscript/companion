@@ -484,6 +484,19 @@ export interface SendChatMessageResponse {
   citations?: ChatCitation[];
 }
 
+export interface SendChatMessageStreamDoneResponse {
+  reply: string;
+  message: ChatMessage;
+  userMessage: ChatMessage;
+  finishReason?: string;
+  usage?: {
+    promptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
+  };
+  citations?: ChatCitation[];
+}
+
 export type AuthRole = "admin" | "user";
 
 export interface AuthUser {

@@ -4,8 +4,6 @@ import {
   GeminiError,
   RateLimitError,
   GeminiMessage,
-  GeminiLiveFunctionCall,
-  GeminiLiveFunctionResponse,
   buildContextWindow,
   getGeminiClient
 } from "./gemini.js";
@@ -2448,7 +2446,11 @@ export async function compressChatContext(
     }) => Promise<{ text: string }>;
   };
 
-  if (config.GEMINI_USE_LIVE_API && typeof maybeLiveClient.generateLiveChatResponse === "function") {
+  if (
+    config.GEMINI_USE_LIVE_API &&
+    config.GEMINI_LIVE_MODEL.toLowerCase().includes("live") &&
+    typeof maybeLiveClient.generateLiveChatResponse === "function"
+  ) {
     try {
       const liveResponse = await maybeLiveClient.generateLiveChatResponse({
         messages: [
@@ -2521,6 +2523,20 @@ interface SendChatOptions {
   now?: Date;
   geminiClient?: GeminiClient;
   attachments?: ChatImageAttachment[];
+  onTextChunk?: (chunk: string) => void;
+}
+
+function emitTextChunks(text: string, onTextChunk?: (chunk: string) => void): void {
+  if (!onTextChunk || text.length === 0) {
+    return;
+  }
+
+  const chunks = text.match(/.{1,32}/g) ?? [text];
+  chunks.forEach((chunk) => {
+    if (chunk.length > 0) {
+      onTextChunk(chunk);
+    }
+  });
 }
 
 export async function sendChatMessage(
@@ -2664,68 +2680,70 @@ export async function sendChatMessage(
   }
 
   const gemini = options.geminiClient ?? getGeminiClient();
-  const maybeLiveClient = gemini as GeminiClient & {
-    generateLiveChatResponse?: (request: {
-      messages: GeminiMessage[];
-      systemInstruction: string;
-      tools?: typeof functionDeclarations;
-      onToolCall: (calls: GeminiLiveFunctionCall[]) => Promise<GeminiLiveFunctionResponse[]>;
-    }) => Promise<{
-      text: string;
-      finishReason?: string;
-      usageMetadata?: {
-        promptTokenCount: number;
-        candidatesTokenCount: number;
-        totalTokenCount: number;
-      };
-    }>;
-  };
-  if (typeof maybeLiveClient.generateLiveChatResponse !== "function") {
-    throw new GeminiError("Gemini Live API is required for chat responses in this build.");
-  }
-
   const contextWindow = "";
   const history = recentHistoryForIntent;
   const systemInstruction = buildFunctionCallingSystemInstruction(config.USER_NAME);
 
   const messages = toGeminiMessages(history, userInput, attachments);
   const userMessage = store.recordChatMessage("user", userInput, userMetadata);
-  let response: Awaited<ReturnType<GeminiClient["generateChatResponse"]>>;
+  let response: Awaited<ReturnType<GeminiClient["generateChatResponse"]>> | null = null;
   let totalUsage: ChatUsage | undefined = undefined;
   let pendingActionsFromTooling: ChatPendingAction[] = [];
   let executedFunctionResponses: ExecutedFunctionResponse[] = [];
   const citations = new Map<string, ChatCitation>();
+  const maxFunctionRounds = 8;
+  const workingMessages: GeminiMessage[] = [...messages];
 
   try {
-    response = await maybeLiveClient.generateLiveChatResponse({
-      messages,
-      systemInstruction,
-      tools: functionDeclarations,
-      onToolCall: async (calls) => {
-        const roundResponses = calls.map((call) => {
-          const result = executeFunctionCall(call.name, call.args, store);
-          const nextCitations = collectToolCitations(store, result.name, result.response);
-          nextCitations.forEach((citation) => addCitation(citations, citation));
-          return {
-            id: call.id,
-            name: result.name,
-            rawResponse: result.response,
-            modelResponse: compactFunctionResponseForModel(result.name, result.response)
-          };
-        });
-        executedFunctionResponses = [...executedFunctionResponses, ...roundResponses];
-        pendingActionsFromTooling = [
-          ...pendingActionsFromTooling,
-          ...roundResponses.flatMap((fnResp) => extractPendingActions(fnResp.rawResponse))
-        ];
-        return roundResponses.map((responseEntry) => ({
-          id: responseEntry.id,
-          name: responseEntry.name,
-          response: responseEntry.modelResponse
-        }));
+    for (let round = 0; round < maxFunctionRounds; round += 1) {
+      const roundResponse = await gemini.generateChatResponse({
+        messages: workingMessages,
+        systemInstruction,
+        tools: functionDeclarations
+      });
+      totalUsage = addGeminiUsage(totalUsage, roundResponse.usageMetadata);
+
+      const functionCalls = roundResponse.functionCalls ?? [];
+      if (functionCalls.length === 0) {
+        response = roundResponse;
+        break;
       }
-    });
-    totalUsage = addGeminiUsage(totalUsage, response.usageMetadata);
+
+      const roundResponses = functionCalls.map((call, callIndex) => {
+        const args =
+          call.args && typeof call.args === "object" && !Array.isArray(call.args)
+            ? (call.args as Record<string, unknown>)
+            : {};
+        const result = executeFunctionCall(call.name, args, store);
+        const nextCitations = collectToolCitations(store, result.name, result.response);
+        nextCitations.forEach((citation) => addCitation(citations, citation));
+        return {
+          id: `${round + 1}-${callIndex}`,
+          name: result.name,
+          rawResponse: result.response,
+          modelResponse: compactFunctionResponseForModel(result.name, result.response)
+        };
+      });
+      executedFunctionResponses = [...executedFunctionResponses, ...roundResponses];
+      pendingActionsFromTooling = [
+        ...pendingActionsFromTooling,
+        ...roundResponses.flatMap((fnResp) => extractPendingActions(fnResp.rawResponse))
+      ];
+
+      workingMessages.push({
+        role: "model",
+        parts: functionCalls.map((call) => ({ functionCall: call })) as Part[]
+      });
+      workingMessages.push({
+        role: "function",
+        parts: roundResponses.map((responseEntry) => ({
+          functionResponse: {
+            name: responseEntry.name,
+            response: responseEntry.modelResponse
+          }
+        })) as Part[]
+      });
+    }
   } catch (error) {
     if (error instanceof RateLimitError) {
       const fallbackReply = buildToolRateLimitFallbackReply(executedFunctionResponses, pendingActionsFromTooling);
@@ -2754,7 +2772,7 @@ export async function sendChatMessage(
     throw error;
   }
 
-  const finalReply = response.text.trim().length > 0
+  const finalReply = response && response.text.trim().length > 0
     ? response.text
     : executedFunctionResponses.length > 0
       ? buildToolDataFallbackReply(
@@ -2764,9 +2782,11 @@ export async function sendChatMessage(
         )
       : buildPendingActionFallbackReply(pendingActionsFromTooling);
 
+  emitTextChunks(finalReply, options.onTextChunk);
+
   const assistantMetadata: ChatMessageMetadata = {
     contextWindow,
-    finishReason: response.finishReason,
+    finishReason: response?.finishReason,
     usage: totalUsage,
     ...(pendingActionsFromTooling.length > 0 ? { pendingActions: store.getPendingChatActions(now) } : {}),
     ...(citations.size > 0 ? { citations: Array.from(citations.values()).slice(0, MAX_CHAT_CITATIONS) } : {})
@@ -2780,7 +2800,7 @@ export async function sendChatMessage(
     reply: assistantMessage.content,
     userMessage,
     assistantMessage,
-    finishReason: response.finishReason,
+    finishReason: response?.finishReason,
     usage: assistantMetadata.usage,
     citations: assistantMetadata.citations ?? [],
     history: historyPage
