@@ -1168,7 +1168,8 @@ export async function updateNutritionCustomFood(
 export async function deleteNutritionCustomFood(foodId: string): Promise<boolean> {
   try {
     const response = await fetch(apiUrl(`/api/nutrition/custom-foods/${foodId}`), {
-      method: "DELETE"
+      method: "DELETE",
+      headers: buildRequestHeaders()
     });
     return response.ok;
   } catch {
@@ -1228,7 +1229,8 @@ export async function updateNutritionMeal(
 export async function deleteNutritionMeal(mealId: string): Promise<boolean> {
   try {
     const response = await fetch(apiUrl(`/api/nutrition/meals/${mealId}`), {
-      method: "DELETE"
+      method: "DELETE",
+      headers: buildRequestHeaders()
     });
     return response.ok;
   } catch {

@@ -64,10 +64,11 @@ interface NutritionDaySnapshot {
 
 const DAY_SNAPSHOT_STORAGE_KEY = "companion:nutrition-day-snapshots";
 const MAX_DAY_SNAPSHOTS = 24;
-const MEAL_AMOUNT_STEP = 5;
+const MEAL_AMOUNT_STEP = 1;
 const MEAL_AMOUNT_HOLD_DELAY_MS = 300;
 const MEAL_AMOUNT_HOLD_INTERVAL_MS = 110;
 const KG_TO_LB = 2.2046226218;
+const MEAL_DONE_TOKEN = "[done]";
 
 function toDateKey(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -400,6 +401,33 @@ function deltaToneClass(value: number): string {
   return rounded > 0 ? "nutrition-delta-positive" : "nutrition-delta-negative";
 }
 
+function stripMealItemId(item: NutritionMealItem): Omit<NutritionMealItem, "id"> {
+  return {
+    name: item.name,
+    quantity: item.quantity,
+    unitLabel: item.unitLabel,
+    caloriesPerUnit: item.caloriesPerUnit,
+    proteinGramsPerUnit: item.proteinGramsPerUnit,
+    carbsGramsPerUnit: item.carbsGramsPerUnit,
+    fatGramsPerUnit: item.fatGramsPerUnit,
+    ...(item.customFoodId ? { customFoodId: item.customFoodId } : {})
+  };
+}
+
+function mealNotesWithDone(notes: string | undefined, completed: boolean): string | undefined {
+  const cleaned = (notes ?? "")
+    .replaceAll(MEAL_DONE_TOKEN, "")
+    .trim();
+  if (completed) {
+    return cleaned.length > 0 ? `${MEAL_DONE_TOKEN} ${cleaned}` : MEAL_DONE_TOKEN;
+  }
+  return cleaned.length > 0 ? cleaned : undefined;
+}
+
+function isMealCompleted(meal: NutritionMeal): boolean {
+  return typeof meal.notes === "string" && meal.notes.includes(MEAL_DONE_TOKEN);
+}
+
 export function NutritionView(): JSX.Element {
   const todayKey = useMemo(() => toDateKey(new Date()), []);
   const amountHoldTimers = useRef<Record<string, number>>({});
@@ -419,6 +447,7 @@ export function NutritionView(): JSX.Element {
   const [selectedDaySnapshotId, setSelectedDaySnapshotId] = useState("");
   const [dayControlBusy, setDayControlBusy] = useState(false);
   const [showDayControlPanel, setShowDayControlPanel] = useState(false);
+  const [mealFoodPickerByMeal, setMealFoodPickerByMeal] = useState<Record<string, string>>({});
 
   const [mealDraft, setMealDraft] = useState<MealDraft>({
     name: ""
@@ -509,7 +538,16 @@ export function NutritionView(): JSX.Element {
     setMealItemDrafts((previous) =>
       previous.map((item) => (item.customFoodId ? item : { ...item, customFoodId: fallbackFoodId }))
     );
-  }, [customFoods]);
+    setMealFoodPickerByMeal((previous) => {
+      const next: Record<string, string> = { ...previous };
+      meals.forEach((meal) => {
+        if (!next[meal.id]) {
+          next[meal.id] = fallbackFoodId;
+        }
+      });
+      return next;
+    });
+  }, [customFoods, meals]);
 
   useEffect(() => {
     return () => {
@@ -728,6 +766,11 @@ export function NutritionView(): JSX.Element {
       setSummary((current) => withMealsSummary(current, nextMeals));
       return nextMeals;
     });
+    setMealFoodPickerByMeal((previous) => {
+      const next = { ...previous };
+      delete next[mealId];
+      return next;
+    });
   };
 
   const handleAdjustMealPortion = async (mealId: string, direction: "up" | "down"): Promise<void> => {
@@ -762,6 +805,176 @@ export function NutritionView(): JSX.Element {
       setSummary((current) => withMealsSummary(current, nextMeals));
       return nextMeals;
     });
+  };
+
+  const replaceMealInState = (updatedMeal: NutritionMeal): void => {
+    setMeals((previous) => {
+      const nextMeals = previous.map((meal) => (meal.id === updatedMeal.id ? updatedMeal : meal));
+      setSummary((current) => withMealsSummary(current, nextMeals));
+      return nextMeals;
+    });
+  };
+
+  const handleToggleMealCompleted = async (mealId: string): Promise<void> => {
+    const currentMeal = meals.find((meal) => meal.id === mealId);
+    if (!currentMeal) {
+      return;
+    }
+
+    const nextCompleted = !isMealCompleted(currentMeal);
+    const nextNotes = mealNotesWithDone(currentMeal.notes, nextCompleted);
+    const updated = await updateNutritionMeal(mealId, { notes: nextNotes ?? "" });
+    if (!updated) {
+      setMessage("Could not update meal completion right now.");
+      return;
+    }
+
+    hapticSuccess();
+    replaceMealInState(updated);
+  };
+
+  const handleAdjustMealItemQuantity = async (mealId: string, itemIndex: number, delta: number): Promise<void> => {
+    const currentMeal = meals.find((meal) => meal.id === mealId);
+    if (!currentMeal) {
+      return;
+    }
+    const target = currentMeal.items[itemIndex];
+    if (!target) {
+      return;
+    }
+
+    const current = Number.isFinite(target.quantity) ? target.quantity : 0;
+    const nextQuantity = Math.max(1, roundToTenth(current + delta));
+    const nextItems = currentMeal.items.map((item, index) =>
+      index === itemIndex
+        ? {
+            ...item,
+            quantity: nextQuantity
+          }
+        : item
+    );
+
+    const updated = await updateNutritionMeal(mealId, {
+      items: nextItems.map(stripMealItemId)
+    });
+    if (!updated) {
+      setMessage("Could not adjust food amount right now.");
+      return;
+    }
+
+    hapticSuccess();
+    replaceMealInState(updated);
+  };
+
+  const handleRemoveMealItem = async (mealId: string, itemIndex: number): Promise<void> => {
+    const currentMeal = meals.find((meal) => meal.id === mealId);
+    if (!currentMeal) {
+      return;
+    }
+
+    const nextItems = currentMeal.items.filter((_, index) => index !== itemIndex);
+    const updated = await updateNutritionMeal(mealId, {
+      items: nextItems.map(stripMealItemId),
+      ...(nextItems.length === 0
+        ? {
+            calories: 0,
+            proteinGrams: 0,
+            carbsGrams: 0,
+            fatGrams: 0
+          }
+        : {})
+    });
+    if (!updated) {
+      setMessage("Could not remove food item right now.");
+      return;
+    }
+
+    hapticSuccess();
+    replaceMealInState(updated);
+  };
+
+  const handleMealFoodPickerChange = (mealId: string, customFoodId: string): void => {
+    setMealFoodPickerByMeal((previous) => ({
+      ...previous,
+      [mealId]: customFoodId
+    }));
+  };
+
+  const handleAddFoodToMeal = async (mealId: string): Promise<void> => {
+    const currentMeal = meals.find((meal) => meal.id === mealId);
+    if (!currentMeal) {
+      return;
+    }
+
+    const selectedFoodId = mealFoodPickerByMeal[mealId] ?? customFoods[0]?.id ?? "";
+    const selectedFood = customFoodsById.get(selectedFoodId);
+    if (!selectedFood) {
+      setMessage("Select a custom food first.");
+      return;
+    }
+
+    const nextItems: NutritionMealItem[] = [
+      ...currentMeal.items,
+      {
+        name: selectedFood.name,
+        quantity: 100,
+        unitLabel: selectedFood.unitLabel,
+        caloriesPerUnit: selectedFood.caloriesPerUnit,
+        proteinGramsPerUnit: selectedFood.proteinGramsPerUnit,
+        carbsGramsPerUnit: selectedFood.carbsGramsPerUnit,
+        fatGramsPerUnit: selectedFood.fatGramsPerUnit,
+        customFoodId: selectedFood.id
+      }
+    ];
+
+    const updated = await updateNutritionMeal(mealId, {
+      items: nextItems.map(stripMealItemId)
+    });
+    if (!updated) {
+      setMessage("Could not add food item right now.");
+      return;
+    }
+
+    hapticSuccess();
+    replaceMealInState(updated);
+  };
+
+  const handleMoveMeal = async (mealId: string, direction: "up" | "down"): Promise<void> => {
+    const currentOrder = [...meals];
+    const index = currentOrder.findIndex((meal) => meal.id === mealId);
+    if (index === -1) {
+      return;
+    }
+    const nextIndex = direction === "up" ? index - 1 : index + 1;
+    if (nextIndex < 0 || nextIndex >= currentOrder.length) {
+      return;
+    }
+
+    const reordered = [...currentOrder];
+    const [moved] = reordered.splice(index, 1);
+    reordered.splice(nextIndex, 0, moved!);
+
+    const dayAnchor = new Date(`${todayKey}T23:59:00.000Z`).getTime();
+    const patchPlan = reordered.map((meal, orderIndex) => ({
+      mealId: meal.id,
+      consumedAt: new Date(dayAnchor - orderIndex * 60_000).toISOString()
+    }));
+
+    const updatedMeals: NutritionMeal[] = [];
+    for (const patch of patchPlan) {
+      const updated = await updateNutritionMeal(patch.mealId, { consumedAt: patch.consumedAt });
+      if (!updated) {
+        setMessage("Could not reorder meals right now.");
+        return;
+      }
+      updatedMeals.push(updated);
+    }
+
+    const updatedById = new Map(updatedMeals.map((meal) => [meal.id, meal]));
+    const nextMeals = reordered.map((meal) => updatedById.get(meal.id) ?? meal);
+    hapticSuccess();
+    setMeals(nextMeals);
+    setSummary((current) => withMealsSummary(current, nextMeals));
   };
 
   const updateMealItemAmount = (id: string, delta: number): void => {
@@ -823,10 +1036,7 @@ export function NutritionView(): JSX.Element {
 
   const handleDeleteMealItemDraft = (id: string): void => {
     stopAmountHold(id);
-    setMealItemDrafts((previous) => {
-      const next = previous.filter((item) => item.id !== id);
-      return next.length > 0 ? next : [toMealItemDraft(undefined, customFoods[0]?.id ?? "")];
-    });
+    setMealItemDrafts((previous) => previous.filter((item) => item.id !== id));
   };
 
   const handleQuickAddCustomFood = (foodId: string): void => {
@@ -986,7 +1196,7 @@ export function NutritionView(): JSX.Element {
                 onClick={() => setShowDayControlPanel((current) => !current)}
                 disabled={dayControlBusy}
               >
-                {showDayControlPanel ? "Save ▲" : "Save ▼"}
+                {showDayControlPanel ? "Hide Options" : "Save Options"}
               </button>
               <button
                 type="button"
@@ -1058,9 +1268,6 @@ export function NutritionView(): JSX.Element {
           <article className="nutrition-card">
             <div>
               <h3>Target macros</h3>
-              <p className="nutrition-item-meta">
-                Protein and fat are set using g/lb bodyweight. Carbs are automatically calculated from remaining calories.
-              </p>
             </div>
 
             <div className="nutrition-summary-grid nutrition-target-dashboard">
@@ -1091,10 +1298,6 @@ export function NutritionView(): JSX.Element {
                 <p className="summary-value">{activeTargets ? `${formatMetric(activeTargets.targetCalories)} kcal` : "—"}</p>
               </article>
             </div>
-            <p className="nutrition-item-meta">
-              Carbs are automatically calculated to fill the remaining calories:{" "}
-              {activeTargets ? `${formatMetric(activeTargets.targetCarbsGrams)}g` : "—"}.
-            </p>
           </article>
 
           <article className="nutrition-card">
@@ -1104,7 +1307,10 @@ export function NutritionView(): JSX.Element {
             ) : (
               <div className="nutrition-list">
                 {meals.map((meal) => (
-                  <article key={meal.id} className="nutrition-list-item nutrition-meal-card">
+                  <article
+                    key={meal.id}
+                    className={`nutrition-list-item nutrition-meal-card ${isMealCompleted(meal) ? "nutrition-meal-card-complete" : ""}`}
+                  >
                     <div className="nutrition-meal-card-header">
                       <div>
                         <p className="nutrition-item-title">{meal.name}</p>
@@ -1113,17 +1319,25 @@ export function NutritionView(): JSX.Element {
                       <div className="nutrition-list-item-actions nutrition-quick-controls">
                         <button
                           type="button"
-                          onClick={() => void handleAdjustMealPortion(meal.id, "down")}
-                          aria-label="Decrease portion"
+                          className={isMealCompleted(meal) ? "nutrition-action-done" : ""}
+                          onClick={() => void handleToggleMealCompleted(meal.id)}
+                          aria-label={isMealCompleted(meal) ? "Mark meal as not eaten" : "Mark meal as eaten"}
                         >
-                          -
+                          {isMealCompleted(meal) ? "✓" : "○"}
                         </button>
                         <button
                           type="button"
-                          onClick={() => void handleAdjustMealPortion(meal.id, "up")}
-                          aria-label="Increase portion"
+                          onClick={() => void handleMoveMeal(meal.id, "up")}
+                          aria-label="Move meal up"
                         >
-                          +
+                          ↑
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleMoveMeal(meal.id, "down")}
+                          aria-label="Move meal down"
+                        >
+                          ↓
                         </button>
                         <button type="button" onClick={() => void handleDeleteMeal(meal.id)}>
                           Delete
@@ -1131,23 +1345,64 @@ export function NutritionView(): JSX.Element {
                       </div>
                     </div>
 
-                    {meal.items.length > 0 && (
-                      <ul className="nutrition-meal-item-list nutrition-meal-food-list">
-                        {meal.items.map((item) => {
-                          const itemCalories = Math.round(item.quantity * item.caloriesPerUnit);
-                          return (
-                            <li key={item.id} className="nutrition-meal-food-item">
+                    <ul className="nutrition-meal-item-list nutrition-meal-food-list">
+                      {meal.items.map((item, index) => {
+                        const itemCalories = Math.round(item.quantity * item.caloriesPerUnit);
+                        return (
+                          <li key={`${item.id ?? item.customFoodId ?? item.name}-${index}`} className="nutrition-meal-food-item">
+                            <div className="nutrition-meal-food-main">
                               <span>{item.name}</span>
                               <span>
                                 {formatMetric(item.quantity)}
                                 {item.unitLabel}
                               </span>
                               <span>{itemCalories} kcal</span>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    )}
+                            </div>
+                            <div className="nutrition-meal-food-actions">
+                              <button
+                                type="button"
+                                onClick={() => void handleAdjustMealItemQuantity(meal.id, index, -1)}
+                                aria-label="Decrease food amount"
+                              >
+                                -
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void handleAdjustMealItemQuantity(meal.id, index, 1)}
+                                aria-label="Increase food amount"
+                              >
+                                +
+                              </button>
+                              <button
+                                type="button"
+                                className="nutrition-secondary-button"
+                                onClick={() => void handleRemoveMealItem(meal.id, index)}
+                                aria-label="Remove food item"
+                              >
+                                🗑
+                              </button>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+
+                    <div className="nutrition-meal-add-food-row">
+                      <select
+                        value={mealFoodPickerByMeal[meal.id] ?? customFoods[0]?.id ?? ""}
+                        onChange={(event) => handleMealFoodPickerChange(meal.id, event.target.value)}
+                      >
+                        {customFoods.length === 0 && <option value="">No custom foods</option>}
+                        {customFoods.map((food) => (
+                          <option key={food.id} value={food.id}>
+                            {food.name}
+                          </option>
+                        ))}
+                      </select>
+                      <button type="button" onClick={() => void handleAddFoodToMeal(meal.id)} disabled={customFoods.length === 0}>
+                        + Add food
+                      </button>
+                    </div>
 
                     <div className="nutrition-meal-macro-grid">
                       <p>
@@ -1250,6 +1505,9 @@ export function NutritionView(): JSX.Element {
               )}
 
               <div className="nutrition-item-editor-list">
+                {mealItemDrafts.length === 0 && (
+                  <p className="nutrition-item-meta">No food items yet. Add one to build the meal.</p>
+                )}
                 {mealItemDrafts.map((item) => {
                   const selectedFood = customFoodsById.get(item.customFoodId);
                   return (
@@ -1317,9 +1575,8 @@ export function NutritionView(): JSX.Element {
                       </div>
                       {selectedFood && (
                         <p className="nutrition-item-meta">
-                          Auto: {selectedFood.caloriesPerUnit} kcal/{selectedFood.unitLabel} •{" "}
-                          {selectedFood.proteinGramsPerUnit}P/{selectedFood.carbsGramsPerUnit}C/
-                          {selectedFood.fatGramsPerUnit}F
+                          {selectedFood.caloriesPerUnit} kcal/{selectedFood.unitLabel} • {selectedFood.proteinGramsPerUnit}P/
+                          {selectedFood.carbsGramsPerUnit}C/{selectedFood.fatGramsPerUnit}F
                         </p>
                       )}
                       <div className="nutrition-inline-actions">
