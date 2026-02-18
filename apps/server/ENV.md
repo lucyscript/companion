@@ -36,9 +36,12 @@ This file documents all environment variables required to run the Companion serv
 - `GEMINI_LIVE_MODEL` (default: `gemini-live-2.5-flash-native-audio`) — Live model name
 - `GEMINI_LIVE_ENDPOINT` (optional) — Override WebSocket endpoint; default is computed from platform
 - `GEMINI_VERTEX_PROJECT_ID` (required for `vertex` unless `GEMINI_LIVE_MODEL` is already a full `projects/...` model resource)
+  - Alias supported: `GCP_PROJECT_ID`
 - `GEMINI_VERTEX_LOCATION` (default: `us-central1`) — Vertex model region for endpoint/model path
+  - Alias supported: `GCP_LOCATION`
 - `GEMINI_API_KEY` (required for `developer`) — Gemini Developer API key
 - `GOOGLE_SERVICE_ACCOUNT_JSON` (optional for `vertex`) — Raw service-account JSON credentials (Railway-friendly alternative to credentials file)
+  - Alias supported: `GOOGLE_APPLICATION_CREDENTIALS_JSON`
 - `GOOGLE_APPLICATION_CREDENTIALS` (recommended for `vertex`) — Service-account JSON path for Google IAM auth (or use other ADC methods)
 - `GEMINI_LIVE_TIMEOUT_MS` (default: `25000`) — Live socket read timeout in milliseconds
 

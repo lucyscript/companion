@@ -16,7 +16,11 @@ const env = {
   FOOD_PROVIDER: process.env.FOOD_PROVIDER ?? process.env.AXIS_FOOD_PROVIDER,
   SOCIAL_PROVIDER: process.env.SOCIAL_PROVIDER ?? process.env.AXIS_SOCIAL_PROVIDER,
   VIDEO_PROVIDER: process.env.VIDEO_PROVIDER ?? process.env.AXIS_VIDEO_PROVIDER,
-  GITHUB_PAT: process.env.GITHUB_PAT
+  GITHUB_PAT: process.env.GITHUB_PAT,
+  GEMINI_VERTEX_PROJECT_ID: process.env.GEMINI_VERTEX_PROJECT_ID ?? process.env.GCP_PROJECT_ID,
+  GEMINI_VERTEX_LOCATION: process.env.GEMINI_VERTEX_LOCATION ?? process.env.GCP_LOCATION,
+  GOOGLE_SERVICE_ACCOUNT_JSON:
+    process.env.GOOGLE_SERVICE_ACCOUNT_JSON ?? process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON
 };
 
 function parseBooleanEnv(value: unknown): boolean | undefined {

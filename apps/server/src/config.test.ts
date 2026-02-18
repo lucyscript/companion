@@ -136,6 +136,26 @@ describe("config", () => {
       expect(config.GEMINI_LIVE_TIMEOUT_MS).toBe(30000);
     });
 
+    it("should accept GOOGLE_APPLICATION_CREDENTIALS_JSON as alias for service-account JSON", async () => {
+      process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON = "{\"type\":\"service_account\",\"project_id\":\"p\"}";
+
+      const { config } = await import("./config.js");
+
+      expect(config.GOOGLE_SERVICE_ACCOUNT_JSON).toBe("{\"type\":\"service_account\",\"project_id\":\"p\"}");
+    });
+
+    it("should accept GCP project/location aliases for Vertex live settings", async () => {
+      process.env.GCP_PROJECT_ID = "companion-487810";
+      process.env.GCP_LOCATION = "us-central1";
+      delete process.env.GEMINI_VERTEX_PROJECT_ID;
+      delete process.env.GEMINI_VERTEX_LOCATION;
+
+      const { config } = await import("./config.js");
+
+      expect(config.GEMINI_VERTEX_PROJECT_ID).toBe("companion-487810");
+      expect(config.GEMINI_VERTEX_LOCATION).toBe("us-central1");
+    });
+
     it("should parse auth env vars", async () => {
       process.env.AUTH_REQUIRED = "true";
       process.env.AUTH_ADMIN_EMAIL = "admin@example.com";
