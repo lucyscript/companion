@@ -628,6 +628,15 @@ export interface DailyJournalSummary {
   highlights: string[];
   journalEntryCount: number;
   chatMessageCount: number;
+  visual?: GrowthNarrativeVisual;
+}
+
+export interface GrowthNarrativeVisual {
+  dataUrl: string;
+  mimeType: string;
+  alt: string;
+  model: string;
+  generatedAt: string;
 }
 
 export interface AnalyticsCoachMetrics {
@@ -659,6 +668,7 @@ export interface AnalyticsCoachInsight {
   risks: string[];
   recommendations: string[];
   metrics: AnalyticsCoachMetrics;
+  visual?: GrowthNarrativeVisual;
 }
 
 export interface WeeklyGrowthReview {

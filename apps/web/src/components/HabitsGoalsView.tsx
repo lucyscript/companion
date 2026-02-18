@@ -631,6 +631,14 @@ export function HabitsGoalsView(): JSX.Element {
         {summaryLoading && <p className="muted">Generating today's summary...</p>}
         {!summaryLoading && dailySummary && (
           <>
+            {dailySummary.visual && (
+              <figure className="daily-summary-visual">
+                <img src={dailySummary.visual.dataUrl} alt={dailySummary.visual.alt} loading="lazy" />
+                <figcaption>
+                  {dailySummary.visual.model} • {new Date(dailySummary.visual.generatedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false })}
+                </figcaption>
+              </figure>
+            )}
             <p className="daily-summary-meta">
               {dailySummary.chatMessageCount} chat notes • {dailySummary.journalEntryCount} journal entries
             </p>
