@@ -351,12 +351,109 @@ export class GeminiClient {
     };
   }
 
+  private hasAudioInput(messages: GeminiMessage[]): boolean {
+    return messages.some((message) =>
+      message.parts.some((part) => {
+        const mimeType = part.inlineData?.mimeType;
+        return typeof mimeType === "string" && mimeType.toLowerCase().startsWith("audio/");
+      })
+    );
+  }
+
+  private addUsageMetadata(
+    current: GeminiChatResponse["usageMetadata"],
+    next: GeminiChatResponse["usageMetadata"]
+  ): GeminiChatResponse["usageMetadata"] {
+    if (!next) {
+      return current;
+    }
+    if (!current) {
+      return { ...next };
+    }
+    return {
+      promptTokenCount: current.promptTokenCount + next.promptTokenCount,
+      candidatesTokenCount: current.candidatesTokenCount + next.candidatesTokenCount,
+      totalTokenCount: current.totalTokenCount + next.totalTokenCount
+    };
+  }
+
+  private async generateStandardToolLoopResponse(request: GeminiLiveChatRequest): Promise<GeminiChatResponse> {
+    const maxRounds = 8;
+    let rounds = 0;
+    let usageMetadata: GeminiChatResponse["usageMetadata"] = undefined;
+    const workingMessages: GeminiMessage[] = request.messages.map((message) => ({
+      role: message.role,
+      parts: [...message.parts]
+    }));
+
+    while (true) {
+      const response = await this.generateChatResponse({
+        messages: workingMessages,
+        systemInstruction: request.systemInstruction,
+        tools: request.tools
+      });
+      usageMetadata = this.addUsageMetadata(usageMetadata, response.usageMetadata);
+
+      const functionCalls = response.functionCalls ?? [];
+      if (functionCalls.length === 0) {
+        if (response.text.length > 0) {
+          request.onTextChunk?.(response.text);
+        }
+        return {
+          ...response,
+          usageMetadata
+        };
+      }
+
+      if (!request.onToolCall) {
+        throw new GeminiError("Gemini requested tool calls but no onToolCall handler was provided");
+      }
+
+      if (rounds >= maxRounds) {
+        throw new GeminiError("Gemini exceeded maximum function-call rounds");
+      }
+      rounds += 1;
+
+      const liveCalls: GeminiLiveFunctionCall[] = functionCalls.map((call, index) => ({
+        id: `${rounds}-${index}`,
+        name: call.name,
+        args: call.args && typeof call.args === "object" && !Array.isArray(call.args)
+          ? (call.args as Record<string, unknown>)
+          : {}
+      }));
+
+      const toolResponses = await request.onToolCall(liveCalls);
+      const functionResponses = this.buildLiveFunctionResponses(liveCalls, toolResponses);
+
+      workingMessages.push({
+        role: "model",
+        parts: functionCalls.map((call) => ({ functionCall: call }))
+      });
+      workingMessages.push({
+        role: "function",
+        parts: functionResponses.map((responseEntry) => ({
+          functionResponse: {
+            name: responseEntry.name,
+            response: responseEntry.response
+          }
+        })) as Part[]
+      });
+    }
+  }
+
   async generateLiveChatResponse(request: GeminiLiveChatRequest): Promise<GeminiChatResponse> {
     if (!this.canUseLiveApi() || !this.apiKey) {
       throw new GeminiError("Gemini API key not configured. Set GEMINI_API_KEY environment variable.");
     }
     if (request.messages.length === 0) {
       throw new GeminiError("At least one message is required");
+    }
+
+    const nativeAudioModel = this.liveModelName.toLowerCase().includes("native-audio");
+    if (nativeAudioModel && !this.hasAudioInput(request.messages)) {
+      // Native-audio models are optimized for true realtime audio I/O. For text-only chat
+      // requests, use the standard text function-calling loop to avoid audio-specific failures.
+      return await this.generateStandardToolLoopResponse(request);
     }
 
     const liveUrl = `${config.GEMINI_LIVE_ENDPOINT}?key=${encodeURIComponent(this.apiKey)}`;
@@ -462,8 +559,6 @@ export class GeminiClient {
 
     try {
       await waitForOpen();
-      const nativeAudioModel = this.liveModelName.toLowerCase().includes("native-audio");
-
       sendJson({
         setup: {
           model: this.normalizeLiveModelName(),
