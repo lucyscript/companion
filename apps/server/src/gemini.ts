@@ -463,6 +463,8 @@ export class GeminiClient {
     }
 
     const vertexMode = config.GEMINI_LIVE_PLATFORM === "vertex";
+    const nativeAudioModel = this.liveModelName.toLowerCase().includes("native-audio");
+    const responseModalities = nativeAudioModel ? ["AUDIO"] : ["TEXT"];
     const liveUrl = (() => {
       if (vertexMode) {
         return this.resolveVertexLiveEndpoint();
@@ -585,8 +587,9 @@ export class GeminiClient {
           setup: {
             model: modelName,
             generation_config: {
-              response_modalities: ["TEXT"]
+              response_modalities: responseModalities
             },
+            ...(nativeAudioModel ? { output_audio_transcription: {} } : {}),
             ...(request.systemInstruction && request.systemInstruction.trim().length > 0
               ? {
                   system_instruction: {
@@ -606,8 +609,9 @@ export class GeminiClient {
           setup: {
             model: modelName,
             generationConfig: {
-              responseModalities: ["TEXT"]
+              responseModalities
             },
+            ...(nativeAudioModel ? { outputAudioTranscription: {} } : {}),
             ...(request.systemInstruction && request.systemInstruction.trim().length > 0
               ? {
                   systemInstruction: {
