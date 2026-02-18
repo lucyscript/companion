@@ -201,9 +201,9 @@ describe("GeminiClient", () => {
       expect(fetchMock).toHaveBeenCalledTimes(1);
       const [, init] = fetchMock.mock.calls[0] as [string, { body: string }];
       const payload = JSON.parse(init.body) as {
-        contents: Array<{ parts: Array<{ function_call?: { thought_signature?: string } }> }>;
+        contents: Array<{ parts: Array<{ function_call?: { thoughtSignature?: string } }> }>;
       };
-      expect(payload.contents[0]?.parts[0]?.function_call?.thought_signature).toBe("sig-123");
+      expect(payload.contents[0]?.parts[0]?.function_call?.thoughtSignature).toBe("sig-123");
 
       vi.unstubAllGlobals();
     });

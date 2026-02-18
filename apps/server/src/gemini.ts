@@ -262,7 +262,7 @@ export class GeminiClient {
             ...(typeof call.id === "string" && call.id.trim().length > 0 ? { id: call.id } : {}),
             name: call.name,
             args: call.args && typeof call.args === "object" && !Array.isArray(call.args) ? call.args : {},
-            ...(thoughtSignature ? { thought_signature: thoughtSignature } : {})
+            ...(thoughtSignature ? { thoughtSignature } : {})
           }
         };
       }
