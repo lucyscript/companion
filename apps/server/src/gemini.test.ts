@@ -163,6 +163,93 @@ describe("GeminiClient", () => {
       vi.unstubAllGlobals();
     });
 
+    it("preserves function_call thought_signature when forwarding model function calls", async () => {
+      const client = new GeminiClient("test-api-key");
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          candidates: [
+            {
+              finish_reason: "STOP",
+              content: { parts: [{ text: "ok" }] }
+            }
+          ]
+        })
+      });
+      vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
+      (client as unknown as { getVertexAccessToken: () => Promise<string> }).getVertexAccessToken = async () => "token";
+      (client as unknown as { normalizeVertexModelNameForGenerateContent: () => string }).normalizeVertexModelNameForGenerateContent =
+        () => "projects/p/locations/global/publishers/google/models/gemini-3-flash-preview";
+
+      await client.generateChatResponse({
+        messages: [
+          {
+            role: "model",
+            parts: [
+              {
+                functionCall: {
+                  name: "getSchedule",
+                  args: {},
+                  thought_signature: "sig-123"
+                }
+              } as unknown as Part
+            ]
+          }
+        ]
+      });
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [, init] = fetchMock.mock.calls[0] as [string, { body: string }];
+      const payload = JSON.parse(init.body) as {
+        contents: Array<{ parts: Array<{ function_call?: { thought_signature?: string } }> }>;
+      };
+      expect(payload.contents[0]?.parts[0]?.function_call?.thought_signature).toBe("sig-123");
+
+      vi.unstubAllGlobals();
+    });
+
+    it("preserves thought_signature from Vertex function_call responses", async () => {
+      const client = new GeminiClient("test-api-key");
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          candidates: [
+            {
+              finish_reason: "STOP",
+              content: {
+                parts: [
+                  {
+                    function_call: {
+                      name: "getSchedule",
+                      args: {},
+                      thought_signature: "sig-vertex-1"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        })
+      });
+      vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
+      (client as unknown as { getVertexAccessToken: () => Promise<string> }).getVertexAccessToken = async () => "token";
+      (client as unknown as { normalizeVertexModelNameForGenerateContent: () => string }).normalizeVertexModelNameForGenerateContent =
+        () => "projects/p/locations/global/publishers/google/models/gemini-3-flash-preview";
+
+      const response = await client.generateChatResponse({
+        messages: [{ role: "user", parts: [{ text: "hello" }] }]
+      });
+
+      expect(response.functionCalls?.[0]).toEqual(
+        expect.objectContaining({
+          name: "getSchedule",
+          thought_signature: "sig-vertex-1"
+        })
+      );
+
+      vi.unstubAllGlobals();
+    });
+
     it("should retry transient 429 responses and return the recovered Vertex result", async () => {
       const client = new GeminiClient("test-api-key");
 

@@ -2175,70 +2175,6 @@ button:disabled {
   border-radius: 0;
 }
 
-.chat-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--border-soft);
-  background: var(--card);
-}
-
-.chat-talk-mode-btn {
-  border: 1px solid var(--border-soft);
-  background: var(--surface);
-  color: var(--text);
-  border-radius: 999px;
-  padding: 5px 10px;
-  font-size: 0.76rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.chat-talk-mode-btn-on {
-  border-color: var(--accent-border);
-  background: var(--accent-surface);
-}
-
-.chat-talk-wave {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-}
-
-.chat-talk-wave span {
-  width: 3px;
-  height: 6px;
-  border-radius: 999px;
-  background: var(--muted);
-}
-
-.chat-talk-wave span.listening,
-.chat-talk-wave span.speaking {
-  animation: chatWavePulse 1s ease-in-out infinite;
-  background: var(--accent);
-}
-
-.chat-talk-wave span:nth-child(2) {
-  animation-delay: 0.15s;
-}
-
-.chat-talk-wave span:nth-child(3) {
-  animation-delay: 0.3s;
-}
-
-@keyframes chatWavePulse {
-  0%, 100% {
-    transform: scaleY(0.8);
-    opacity: 0.7;
-  }
-  50% {
-    transform: scaleY(2);
-    opacity: 1;
-  }
-}
-
 .chat-messages {
   flex: 1;
   overflow-y: auto;
@@ -3144,23 +3080,6 @@ body.keyboard-open .chat-view {
   border-radius: 0;
   background: #091019;
   z-index: 1;
-}
-
-body.keyboard-open .chat-toolbar {
-  display: none;
-}
-
-body.keyboard-open .chat-talk-wave {
-  display: none;
-}
-
-body.keyboard-open .chat-talk-mode-btn {
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  background: rgba(7, 14, 20, 0.72);
-  border-color: var(--border-soft);
-  font-size: 0.78rem;
-  padding: 5px 10px;
 }
 
 body.keyboard-open .chat-input-container {

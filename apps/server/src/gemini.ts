@@ -243,12 +243,26 @@ export class GeminiClient {
     const maybeFunctionCall = (part as unknown as { functionCall?: unknown; function_call?: unknown }).functionCall
       ?? (part as unknown as { functionCall?: unknown; function_call?: unknown }).function_call;
     if (maybeFunctionCall && typeof maybeFunctionCall === "object") {
-      const call = maybeFunctionCall as { name?: unknown; args?: unknown };
+      const call = maybeFunctionCall as {
+        id?: unknown;
+        name?: unknown;
+        args?: unknown;
+        thoughtSignature?: unknown;
+        thought_signature?: unknown;
+      };
       if (typeof call.name === "string" && call.name.trim().length > 0) {
+        const thoughtSignature =
+          typeof call.thought_signature === "string"
+            ? call.thought_signature
+            : typeof call.thoughtSignature === "string"
+              ? call.thoughtSignature
+              : undefined;
         return {
           function_call: {
+            ...(typeof call.id === "string" && call.id.trim().length > 0 ? { id: call.id } : {}),
             name: call.name,
-            args: call.args && typeof call.args === "object" && !Array.isArray(call.args) ? call.args : {}
+            args: call.args && typeof call.args === "object" && !Array.isArray(call.args) ? call.args : {},
+            ...(thoughtSignature ? { thought_signature: thoughtSignature } : {})
           }
         };
       }
@@ -304,8 +318,20 @@ export class GeminiClient {
         return;
       }
       const record = part as {
-        functionCall?: { name?: unknown; args?: unknown };
-        function_call?: { name?: unknown; args?: unknown };
+        functionCall?: {
+          id?: unknown;
+          name?: unknown;
+          args?: unknown;
+          thoughtSignature?: unknown;
+          thought_signature?: unknown;
+        };
+        function_call?: {
+          id?: unknown;
+          name?: unknown;
+          args?: unknown;
+          thoughtSignature?: unknown;
+          thought_signature?: unknown;
+        };
       };
       const functionCall = record.functionCall ?? record.function_call;
       if (!functionCall || typeof functionCall.name !== "string" || functionCall.name.trim().length === 0) {
@@ -315,9 +341,19 @@ export class GeminiClient {
         functionCall.args && typeof functionCall.args === "object" && !Array.isArray(functionCall.args)
           ? (functionCall.args as Record<string, unknown>)
           : {};
+      const thoughtSignature =
+        typeof functionCall.thought_signature === "string"
+          ? functionCall.thought_signature
+          : typeof functionCall.thoughtSignature === "string"
+            ? functionCall.thoughtSignature
+            : undefined;
       calls.push({
+        ...(typeof functionCall.id === "string" && functionCall.id.trim().length > 0
+          ? { id: functionCall.id }
+          : {}),
         name: functionCall.name,
-        args
+        args,
+        ...(thoughtSignature ? { thought_signature: thoughtSignature } : {})
       } as FunctionCall);
     });
 
@@ -540,7 +576,7 @@ export class GeminiClient {
       let finishReason: string | undefined;
       let usageMetadata: GeminiChatResponse["usageMetadata"] | undefined;
       const functionCalls: FunctionCall[] = [];
-      const functionCallKeys = new Set<string>();
+      const functionCallIndexByKey = new Map<string, number>();
 
       const consumeSseBlock = (block: string): void => {
         const lines = block.split(/\r?\n/);
@@ -617,13 +653,32 @@ export class GeminiClient {
           const args = call.args && typeof call.args === "object" && !Array.isArray(call.args)
             ? (call.args as Record<string, unknown>)
             : {};
-          const key = `${call.name}:${JSON.stringify(args)}`;
-          if (!functionCallKeys.has(key)) {
-            functionCallKeys.add(key);
-            functionCalls.push({
-              name: call.name,
-              args
-            } as FunctionCall);
+          const signature = (call as unknown as { thought_signature?: unknown; thoughtSignature?: unknown })
+            .thought_signature
+            ?? (call as unknown as { thought_signature?: unknown; thoughtSignature?: unknown }).thoughtSignature;
+          const callId = (call as unknown as { id?: unknown }).id;
+          const key = `${call.name}:${JSON.stringify(args)}:${typeof callId === "string" ? callId : ""}`;
+          const nextCall = {
+            ...(typeof callId === "string" && callId.trim().length > 0 ? { id: callId } : {}),
+            name: call.name,
+            args,
+            ...(typeof signature === "string" && signature.length > 0 ? { thought_signature: signature } : {})
+          } as FunctionCall;
+
+          const existingIndex = functionCallIndexByKey.get(key);
+          if (existingIndex === undefined) {
+            functionCallIndexByKey.set(key, functionCalls.length);
+            functionCalls.push(nextCall);
+            return;
+          }
+
+          const existing = functionCalls[existingIndex] as unknown as { thought_signature?: unknown };
+          const hasExistingSignature = typeof existing?.thought_signature === "string" && existing.thought_signature.length > 0;
+          const hasNextSignature =
+            typeof (nextCall as unknown as { thought_signature?: unknown }).thought_signature === "string" &&
+            ((nextCall as unknown as { thought_signature?: string }).thought_signature?.length ?? 0) > 0;
+          if (!hasExistingSignature && hasNextSignature) {
+            functionCalls[existingIndex] = nextCall;
           }
         });
 
