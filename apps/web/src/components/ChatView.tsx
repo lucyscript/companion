@@ -204,7 +204,6 @@ export function ChatView(): JSX.Element {
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const lastSpokenAssistantIdRef = useRef<string | null>(null);
   const scrollFrameRef = useRef<number | null>(null);
-  const scrollTimeoutRef = useRef<number | null>(null);
 
   const recognitionCtor = getSpeechRecognitionCtor();
   const speechRecognitionSupported = Boolean(recognitionCtor);
@@ -229,20 +228,9 @@ export function ChatView(): JSX.Element {
       scrollFrameRef.current = null;
     }
 
-    if (scrollTimeoutRef.current !== null) {
-      window.clearTimeout(scrollTimeoutRef.current);
-      scrollTimeoutRef.current = null;
-    }
-
     scrollFrameRef.current = window.requestAnimationFrame(() => {
       scrollToBottom(behavior);
       scrollFrameRef.current = null;
-
-      // Run a second pass after layout settles (mobile keyboard + viewport resize).
-      scrollTimeoutRef.current = window.setTimeout(() => {
-        scrollToBottom("auto");
-        scrollTimeoutRef.current = null;
-      }, 120);
     });
   };
 
@@ -277,10 +265,6 @@ export function ChatView(): JSX.Element {
         scrollFrameRef.current = null;
       }
 
-      if (scrollTimeoutRef.current !== null) {
-        window.clearTimeout(scrollTimeoutRef.current);
-        scrollTimeoutRef.current = null;
-      }
     };
   }, [speechSynthesisSupported]);
 
@@ -415,7 +399,10 @@ export function ChatView(): JSX.Element {
     setMessages((prev) => [...prev, assistantPlaceholder]);
     scheduleScrollToBottom("auto");
     if (typeof window !== "undefined" && window.matchMedia("(max-width: 820px)").matches) {
-      window.requestAnimationFrame(() => inputRef.current?.blur());
+      window.requestAnimationFrame(() => {
+        inputRef.current?.blur();
+        scheduleScrollToBottom("auto");
+      });
     }
 
     try {

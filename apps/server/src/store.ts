@@ -94,7 +94,7 @@ const integrationRootCauses: IntegrationSyncRootCause[] = [
 export class RuntimeStore {
   private readonly maxEvents = 100;
   private readonly maxNotifications = 40;
-  private readonly maxChatMessages = 500;
+  private readonly maxChatMessages = 5000;
   private readonly maxJournalEntries = 100;
   private readonly maxScheduleEvents = 200;
   private readonly maxRoutinePresets = 100;

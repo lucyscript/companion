@@ -1790,7 +1790,10 @@ export async function getChatHistory(limit = 500, offset = 0): Promise<GetChatHi
     page += 1;
   }
 
-  const messages = allMessages.slice(targetOffset, targetOffset + targetLimit);
+  // Server returns pages in reverse-chronological order (newest first).
+  // Normalize to chronological order for stable rendering and scroll behavior.
+  const normalized = [...allMessages].reverse();
+  const messages = normalized.slice(targetOffset, targetOffset + targetLimit);
 
   return {
     history: {
