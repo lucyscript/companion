@@ -26,6 +26,14 @@ interface ChatContextResult {
   history: ChatMessage[];
 }
 
+function parseDeadlineDueDateForComparison(value: string): Date {
+  const trimmed = value.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return new Date(`${trimmed}T23:59:59.999Z`);
+  }
+  return new Date(trimmed);
+}
+
 function isSameDay(dateA: Date, dateB: Date): boolean {
   return (
     dateA.getUTCFullYear() === dateB.getUTCFullYear() &&
@@ -228,7 +236,7 @@ export function buildChatContext(store: RuntimeStore, now: Date = new Date(), hi
   const upcomingDeadlines = store
     .getAcademicDeadlines(now)
     .filter((deadline) => {
-      const due = new Date(deadline.dueDate);
+      const due = parseDeadlineDueDateForComparison(deadline.dueDate);
       if (Number.isNaN(due.getTime())) {
         return false;
       }
@@ -2816,24 +2824,38 @@ export async function sendChatMessage(
 
   try {
     for (let round = 0; round < maxFunctionRounds; round += 1) {
+      const buildNonStreamingRound = async (): Promise<Awaited<ReturnType<GeminiClient["generateChatResponse"]>>> =>
+        gemini.generateChatResponse({
+          messages: workingMessages,
+          systemInstruction,
+          tools: functionDeclarations
+        });
       const roundResponse = useNativeStreaming
-        ? await streamCapableGemini.generateChatResponseStream!({
-            messages: workingMessages,
-            systemInstruction,
-            tools: functionDeclarations,
-            onTextChunk: (chunk: string) => {
-              if (chunk.length === 0) {
-                return;
+        ? await (async (): Promise<Awaited<ReturnType<GeminiClient["generateChatResponse"]>>> => {
+            try {
+              return await streamCapableGemini.generateChatResponseStream!({
+                messages: workingMessages,
+                systemInstruction,
+                tools: functionDeclarations,
+                onTextChunk: (chunk: string) => {
+                  if (chunk.length === 0) {
+                    return;
+                  }
+                  streamedTokenChars += chunk.length;
+                  options.onTextChunk?.(chunk);
+                }
+              });
+            } catch (error) {
+              if (
+                error instanceof GeminiError &&
+                /stream timed out|timed out waiting for a response|streaming error/i.test(error.message)
+              ) {
+                return buildNonStreamingRound();
               }
-              streamedTokenChars += chunk.length;
-              options.onTextChunk?.(chunk);
+              throw error;
             }
-          })
-        : await gemini.generateChatResponse({
-            messages: workingMessages,
-            systemInstruction,
-            tools: functionDeclarations
-          });
+          })()
+        : await buildNonStreamingRound();
       totalUsage = addGeminiUsage(totalUsage, roundResponse.usageMetadata);
 
       const functionCalls = roundResponse.functionCalls ?? [];
@@ -2898,8 +2920,9 @@ export async function sendChatMessage(
     }
 
     if (useNativeStreaming && (!response || response.text.trim().length === 0) && executedFunctionResponses.length > 0) {
-      const synthesisResponse = useNativeStreaming
-        ? await streamCapableGemini.generateChatResponseStream!({
+      const synthesisResponse = await (async (): Promise<Awaited<ReturnType<GeminiClient["generateChatResponse"]>>> => {
+        try {
+          return await streamCapableGemini.generateChatResponseStream!({
             messages: workingMessages,
             systemInstruction,
             onTextChunk: (chunk: string) => {
@@ -2909,11 +2932,20 @@ export async function sendChatMessage(
               streamedTokenChars += chunk.length;
               options.onTextChunk?.(chunk);
             }
-          })
-        : await gemini.generateChatResponse({
-            messages: workingMessages,
-            systemInstruction
           });
+        } catch (error) {
+          if (
+            error instanceof GeminiError &&
+            /stream timed out|timed out waiting for a response|streaming error/i.test(error.message)
+          ) {
+            return gemini.generateChatResponse({
+              messages: workingMessages,
+              systemInstruction
+            });
+          }
+          throw error;
+        }
+      })();
       totalUsage = addGeminiUsage(totalUsage, synthesisResponse.usageMetadata);
       if (synthesisResponse.text.trim().length > 0) {
         response = synthesisResponse;

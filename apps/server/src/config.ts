@@ -63,7 +63,7 @@ const schema = z.object({
   GEMINI_VERTEX_PROJECT_ID: z.string().optional(),
   GEMINI_VERTEX_LOCATION: z.string().default("us-central1"),
   GOOGLE_SERVICE_ACCOUNT_JSON: z.string().optional(),
-  GEMINI_LIVE_TIMEOUT_MS: z.coerce.number().int().min(3000).max(120000).default(25000),
+  GEMINI_LIVE_TIMEOUT_MS: z.coerce.number().int().min(3000).max(120000).default(60000),
   YOUTUBE_API_KEY: z.string().optional(),
   YOUTUBE_CHANNEL_IDS: z.string().optional(),
   YOUTUBE_FALLBACK_QUERIES: z.string().optional(),

@@ -989,12 +989,19 @@ export function handleGetDeadlines(
     : null;
   const now = new Date();
   const maxPastDays = 45;
+  const parseDueDate = (value: string): Date => {
+    const trimmed = value.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return new Date(`${trimmed}T23:59:59.999Z`);
+    }
+    return new Date(trimmed);
+  };
 
   const deadlines = store
     .getAcademicDeadlines(now)
     .filter((deadline) => (includeCompleted ? true : !deadline.completed))
     .filter((deadline) => {
-      const due = new Date(deadline.dueDate);
+      const due = parseDueDate(deadline.dueDate);
       if (Number.isNaN(due.getTime())) {
         return false;
       }
