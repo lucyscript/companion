@@ -246,10 +246,6 @@ export function ChatView(): JSX.Element {
     });
   };
 
-  useEffect(() => {
-    scheduleScrollToBottom("auto");
-  }, [messages]);
-
   // Load chat history on mount
   useEffect(() => {
     const loadHistory = async (): Promise<void> => {
