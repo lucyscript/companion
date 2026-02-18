@@ -715,6 +715,7 @@ Core behavior:
 - For simple greetings/small talk (for example "hi", "hello", "yo"), reply naturally without tool calls.
 - For habits and goals questions, call getHabitsGoalsStatus first. For create/delete requests, use createHabit/deleteHabit/createGoal/deleteGoal. For check-ins, use updateHabitCheckIn/updateGoalCheckIn.
 - For nutrition requests, use nutrition tools and focus on macro tracking only: calories, protein, carbs, and fat.
+- You can control the full Food tab via tools: nutrition targets, meals, meal items, and custom foods.
 - Do not hallucinate user-specific data. If data is unavailable, say so explicitly and suggest the next sync step.
 - For email follow-ups like "what did it contain?" after inbox discussion, call getEmails again and answer from sender/subject/snippet.
 - For deadline completion and snooze/extension requests, use queueDeadlineAction and apply immediately (no confirmation step).
@@ -1049,6 +1050,56 @@ function buildNutritionSummaryFallbackSection(response: unknown): string | null 
   return `Nutrition today: ${calories} kcal, ${protein}g protein, ${carbs}g carbs, ${fat}g fat${mealsLogged !== null ? ` (${mealsLogged} meals)` : ""}.`;
 }
 
+function buildNutritionTargetsFallbackSection(response: unknown): string | null {
+  const payload = asRecord(response);
+  if (!payload) {
+    return null;
+  }
+
+  const profile = asRecord(payload.profile);
+  if (!profile) {
+    return "Nutrition targets: not set for this date yet.";
+  }
+
+  const calories = typeof profile.targetCalories === "number" ? profile.targetCalories : null;
+  const protein = typeof profile.targetProteinGrams === "number" ? profile.targetProteinGrams : null;
+  const carbs = typeof profile.targetCarbsGrams === "number" ? profile.targetCarbsGrams : null;
+  const fat = typeof profile.targetFatGrams === "number" ? profile.targetFatGrams : null;
+
+  if (calories === null || protein === null || carbs === null || fat === null) {
+    return "Nutrition targets updated.";
+  }
+
+  return `Nutrition targets: ${calories} kcal, ${protein}g protein, ${carbs}g carbs, ${fat}g fat.`;
+}
+
+function buildNutritionMealsFallbackSection(response: unknown): string | null {
+  const payload = asRecord(response);
+  if (!payload) {
+    return null;
+  }
+
+  const meals = Array.isArray(payload.meals) ? payload.meals : [];
+  if (meals.length === 0) {
+    return "Meals: none logged for this date range.";
+  }
+
+  const lines: string[] = [`Meals (${meals.length}):`];
+  meals.slice(0, 6).forEach((value) => {
+    const meal = asRecord(value);
+    if (!meal) {
+      return;
+    }
+    const name = asNonEmptyString(meal.name) ?? "Meal";
+    const consumedAt = asNonEmptyString(meal.consumedAt) ?? "unknown time";
+    lines.push(`- ${name} (${consumedAt})`);
+  });
+  if (meals.length > 6) {
+    lines.push(`- +${meals.length - 6} more`);
+  }
+  return lines.join("\n");
+}
+
 function buildNutritionCustomFoodsFallbackSection(response: unknown): string | null {
   const payload = asRecord(response);
   if (!payload) {
@@ -1237,9 +1288,22 @@ function buildToolDataFallbackReply(
       case "getNutritionSummary":
         section = buildNutritionSummaryFallbackSection(result.rawResponse);
         break;
+      case "getNutritionTargets":
+      case "updateNutritionTargets":
+        section = buildNutritionTargetsFallbackSection(result.rawResponse);
+        break;
+      case "getNutritionMeals":
+        section = buildNutritionMealsFallbackSection(result.rawResponse);
+        break;
       case "getNutritionCustomFoods":
         section = buildNutritionCustomFoodsFallbackSection(result.rawResponse);
         break;
+      case "createNutritionMeal":
+      case "updateNutritionMeal":
+      case "addNutritionMealItem":
+      case "updateNutritionMealItem":
+      case "removeNutritionMealItem":
+      case "moveNutritionMeal":
       case "logMeal":
       case "deleteMeal":
       case "createNutritionCustomFood":
@@ -1700,6 +1764,77 @@ function compactNutritionSummaryForModel(response: unknown): unknown {
   };
 }
 
+function compactNutritionTargetsForModel(response: unknown): unknown {
+  const payload = asRecord(response);
+  if (!payload) {
+    return compactGenericValue(response);
+  }
+
+  const profile = asRecord(payload.profile);
+  return {
+    date: asNonEmptyString(payload.date) ?? null,
+    profile: profile
+      ? {
+          date: asNonEmptyString(profile.date) ?? null,
+          weightKg: typeof profile.weightKg === "number" ? profile.weightKg : null,
+          maintenanceCalories: typeof profile.maintenanceCalories === "number" ? profile.maintenanceCalories : null,
+          surplusCalories: typeof profile.surplusCalories === "number" ? profile.surplusCalories : null,
+          targetCalories: typeof profile.targetCalories === "number" ? profile.targetCalories : null,
+          targetProteinGrams: typeof profile.targetProteinGrams === "number" ? profile.targetProteinGrams : null,
+          targetCarbsGrams: typeof profile.targetCarbsGrams === "number" ? profile.targetCarbsGrams : null,
+          targetFatGrams: typeof profile.targetFatGrams === "number" ? profile.targetFatGrams : null
+        }
+      : null,
+    success: typeof payload.success === "boolean" ? payload.success : undefined,
+    message: asNonEmptyString(payload.message) ?? null
+  };
+}
+
+function compactNutritionMealsForModel(response: unknown): unknown {
+  const payload = asRecord(response);
+  if (!payload) {
+    return compactGenericValue(response);
+  }
+
+  const meals = Array.isArray(payload.meals) ? payload.meals : [];
+  return {
+    total: typeof payload.total === "number" ? payload.total : meals.length,
+    meals: meals.slice(0, TOOL_RESULT_ITEM_LIMIT).map((value) => {
+      const meal = asRecord(value);
+      if (!meal) {
+        return {};
+      }
+
+      const items = Array.isArray(meal.items) ? meal.items : [];
+      return {
+        id: asNonEmptyString(meal.id) ?? "",
+        name: compactTextValue(asNonEmptyString(meal.name) ?? "", 100),
+        mealType: asNonEmptyString(meal.mealType) ?? "other",
+        consumedAt: asNonEmptyString(meal.consumedAt) ?? null,
+        notes: asNonEmptyString(meal.notes) ?? null,
+        calories: typeof meal.calories === "number" ? meal.calories : 0,
+        proteinGrams: typeof meal.proteinGrams === "number" ? meal.proteinGrams : 0,
+        carbsGrams: typeof meal.carbsGrams === "number" ? meal.carbsGrams : 0,
+        fatGrams: typeof meal.fatGrams === "number" ? meal.fatGrams : 0,
+        items: items.slice(0, TOOL_RESULT_ITEM_LIMIT).map((itemValue) => {
+          const item = asRecord(itemValue);
+          if (!item) {
+            return {};
+          }
+          return {
+            id: asNonEmptyString(item.id) ?? "",
+            name: compactTextValue(asNonEmptyString(item.name) ?? "", 80),
+            quantity: typeof item.quantity === "number" ? item.quantity : 0,
+            unitLabel: asNonEmptyString(item.unitLabel) ?? "g",
+            customFoodId: asNonEmptyString(item.customFoodId) ?? null
+          };
+        })
+      };
+    }),
+    truncated: meals.length > TOOL_RESULT_ITEM_LIMIT
+  };
+}
+
 function compactNutritionCustomFoodsForModel(response: unknown): unknown {
   const payload = asRecord(response);
   if (!payload) {
@@ -1753,7 +1888,21 @@ function compactNutritionMutationForModel(response: unknown): unknown {
       ? {
           id: asNonEmptyString(meal.id) ?? "",
           name: compactTextValue(asNonEmptyString(meal.name) ?? "", 100),
-          consumedAt: asNonEmptyString(meal.consumedAt) ?? null
+          consumedAt: asNonEmptyString(meal.consumedAt) ?? null,
+          items: Array.isArray(meal.items)
+            ? meal.items.slice(0, TOOL_RESULT_ITEM_LIMIT).map((itemValue) => {
+                const item = asRecord(itemValue);
+                if (!item) {
+                  return {};
+                }
+                return {
+                  id: asNonEmptyString(item.id) ?? "",
+                  name: compactTextValue(asNonEmptyString(item.name) ?? "", 80),
+                  quantity: typeof item.quantity === "number" ? item.quantity : 0,
+                  unitLabel: asNonEmptyString(item.unitLabel) ?? "g"
+                };
+              })
+            : []
         }
       : null,
     block: block
@@ -1830,8 +1979,19 @@ function compactFunctionResponseForModel(functionName: string, response: unknown
       return compactGoalUpdateForModel(response);
     case "getNutritionSummary":
       return compactNutritionSummaryForModel(response);
+    case "getNutritionTargets":
+    case "updateNutritionTargets":
+      return compactNutritionTargetsForModel(response);
+    case "getNutritionMeals":
+      return compactNutritionMealsForModel(response);
     case "getNutritionCustomFoods":
       return compactNutritionCustomFoodsForModel(response);
+    case "createNutritionMeal":
+    case "updateNutritionMeal":
+    case "addNutritionMealItem":
+    case "updateNutritionMealItem":
+    case "removeNutritionMealItem":
+    case "moveNutritionMeal":
     case "logMeal":
     case "deleteMeal":
     case "createNutritionCustomFood":
@@ -2158,6 +2318,35 @@ function collectToolCitations(
     return next;
   }
 
+  if (functionName === "getNutritionMeals") {
+    const payload = asRecord(response);
+    if (!payload) {
+      return [];
+    }
+
+    const next: ChatCitation[] = [];
+    const meals = Array.isArray(payload.meals) ? payload.meals : [];
+    meals.forEach((value) => {
+      const meal = asRecord(value);
+      if (!meal) {
+        return;
+      }
+      const id = asNonEmptyString(meal.id);
+      const name = asNonEmptyString(meal.name);
+      const consumedAt = asNonEmptyString(meal.consumedAt);
+      if (!id || !name) {
+        return;
+      }
+      next.push({
+        id,
+        type: "nutrition-meal",
+        label: name,
+        timestamp: consumedAt ?? undefined
+      });
+    });
+    return next;
+  }
+
   if (functionName === "getNutritionCustomFoods") {
     const payload = asRecord(response);
     const foods = Array.isArray(payload?.foods) ? payload.foods : [];
@@ -2181,7 +2370,15 @@ function collectToolCitations(
     return next;
   }
 
-  if (functionName === "logMeal") {
+  if (
+    functionName === "logMeal" ||
+    functionName === "createNutritionMeal" ||
+    functionName === "updateNutritionMeal" ||
+    functionName === "addNutritionMealItem" ||
+    functionName === "updateNutritionMealItem" ||
+    functionName === "removeNutritionMealItem" ||
+    functionName === "moveNutritionMeal"
+  ) {
     const payload = asRecord(response);
     const meal = asRecord(payload?.meal);
     const id = asNonEmptyString(meal?.id);

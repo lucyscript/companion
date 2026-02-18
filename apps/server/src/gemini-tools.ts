@@ -309,6 +309,91 @@ export const functionDeclarations: FunctionDeclaration[] = [
     }
   },
   {
+    name: "getNutritionTargets",
+    description:
+      "Get nutrition target profile for a specific date (weight, maintenance, surplus, and target macros/calories).",
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        date: {
+          type: SchemaType.STRING,
+          description: "Optional date in YYYY-MM-DD format. Defaults to today."
+        }
+      },
+      required: []
+    }
+  },
+  {
+    name: "updateNutritionTargets",
+    description:
+      "Create or update nutrition target profile values for a date (weight, maintenance, surplus, and/or target macros).",
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        date: {
+          type: SchemaType.STRING,
+          description: "Optional date in YYYY-MM-DD format. Defaults to today."
+        },
+        weightKg: {
+          type: SchemaType.NUMBER,
+          description: "Body weight in kg (set null to clear)."
+        },
+        maintenanceCalories: {
+          type: SchemaType.NUMBER,
+          description: "Maintenance calories (set null to clear)."
+        },
+        surplusCalories: {
+          type: SchemaType.NUMBER,
+          description: "Calorie surplus/deficit (set null to clear)."
+        },
+        targetCalories: {
+          type: SchemaType.NUMBER,
+          description: "Explicit calorie target (set null to clear)."
+        },
+        targetProteinGrams: {
+          type: SchemaType.NUMBER,
+          description: "Explicit protein target in grams (set null to clear)."
+        },
+        targetCarbsGrams: {
+          type: SchemaType.NUMBER,
+          description: "Explicit carb target in grams (set null to clear)."
+        },
+        targetFatGrams: {
+          type: SchemaType.NUMBER,
+          description: "Explicit fat target in grams (set null to clear)."
+        }
+      },
+      required: []
+    }
+  },
+  {
+    name: "getNutritionMeals",
+    description:
+      "Get logged meals with meal items for a date or date-time range.",
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        date: {
+          type: SchemaType.STRING,
+          description: "Optional date in YYYY-MM-DD format."
+        },
+        from: {
+          type: SchemaType.STRING,
+          description: "Optional range start as ISO datetime."
+        },
+        to: {
+          type: SchemaType.STRING,
+          description: "Optional range end as ISO datetime."
+        },
+        limit: {
+          type: SchemaType.NUMBER,
+          description: "Maximum number of meals to return (default: 30, max: 500)."
+        }
+      },
+      required: []
+    }
+  },
+  {
     name: "getNutritionCustomFoods",
     description:
       "Get saved custom foods for macro tracking. Returns per-unit calories/protein/carbs/fat values and identifiers.",
@@ -474,6 +559,243 @@ export const functionDeclarations: FunctionDeclaration[] = [
         notes: {
           type: SchemaType.STRING,
           description: "Optional note."
+        }
+      },
+      required: []
+    }
+  },
+  {
+    name: "createNutritionMeal",
+    description:
+      "Create a meal entry with optional item list and macros.",
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        name: {
+          type: SchemaType.STRING,
+          description: "Meal name."
+        },
+        mealType: {
+          type: SchemaType.STRING,
+          description: "Meal type: breakfast, lunch, dinner, snack, other."
+        },
+        consumedAt: {
+          type: SchemaType.STRING,
+          description: "Optional consumed time (ISO or natural time like 'today 19:30'). Defaults to now."
+        },
+        notes: {
+          type: SchemaType.STRING,
+          description: "Optional note for the meal."
+        },
+        calories: {
+          type: SchemaType.NUMBER,
+          description: "Optional total calories (required when no items are provided)."
+        },
+        proteinGrams: {
+          type: SchemaType.NUMBER,
+          description: "Optional total protein grams."
+        },
+        carbsGrams: {
+          type: SchemaType.NUMBER,
+          description: "Optional total carbs grams."
+        },
+        fatGrams: {
+          type: SchemaType.NUMBER,
+          description: "Optional total fat grams."
+        },
+        items: {
+          type: SchemaType.ARRAY,
+          description:
+            "Optional meal items. Each item can reference a custom food via customFoodId/customFoodName and quantity grams.",
+          items: {
+            type: SchemaType.OBJECT,
+            properties: {
+              customFoodId: { type: SchemaType.STRING },
+              customFoodName: { type: SchemaType.STRING },
+              quantity: { type: SchemaType.NUMBER },
+              name: { type: SchemaType.STRING },
+              unitLabel: { type: SchemaType.STRING },
+              caloriesPerUnit: { type: SchemaType.NUMBER },
+              proteinGramsPerUnit: { type: SchemaType.NUMBER },
+              carbsGramsPerUnit: { type: SchemaType.NUMBER },
+              fatGramsPerUnit: { type: SchemaType.NUMBER }
+            }
+          }
+        }
+      },
+      required: ["name"]
+    }
+  },
+  {
+    name: "updateNutritionMeal",
+    description:
+      "Update meal metadata and status (name, type, consumedAt, notes, completed, and optional macro totals).",
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        mealId: {
+          type: SchemaType.STRING,
+          description: "Meal ID (preferred)."
+        },
+        mealName: {
+          type: SchemaType.STRING,
+          description: "Meal name hint when ID is unknown."
+        },
+        name: {
+          type: SchemaType.STRING,
+          description: "Updated meal name."
+        },
+        mealType: {
+          type: SchemaType.STRING,
+          description: "Updated meal type: breakfast, lunch, dinner, snack, other."
+        },
+        consumedAt: {
+          type: SchemaType.STRING,
+          description: "Updated consumed time (ISO or natural time)."
+        },
+        notes: {
+          type: SchemaType.STRING,
+          description: "Updated notes text (empty clears notes)."
+        },
+        completed: {
+          type: SchemaType.BOOLEAN,
+          description: "Mark meal as eaten (true) or not eaten (false)."
+        },
+        calories: {
+          type: SchemaType.NUMBER,
+          description: "Optional total calories override."
+        },
+        proteinGrams: {
+          type: SchemaType.NUMBER,
+          description: "Optional total protein grams override."
+        },
+        carbsGrams: {
+          type: SchemaType.NUMBER,
+          description: "Optional total carb grams override."
+        },
+        fatGrams: {
+          type: SchemaType.NUMBER,
+          description: "Optional total fat grams override."
+        }
+      },
+      required: []
+    }
+  },
+  {
+    name: "addNutritionMealItem",
+    description:
+      "Add a custom food item to an existing meal.",
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        mealId: {
+          type: SchemaType.STRING,
+          description: "Meal ID (preferred)."
+        },
+        mealName: {
+          type: SchemaType.STRING,
+          description: "Meal name hint when ID is unknown."
+        },
+        customFoodId: {
+          type: SchemaType.STRING,
+          description: "Custom food ID (preferred)."
+        },
+        customFoodName: {
+          type: SchemaType.STRING,
+          description: "Custom food name hint when ID is unknown."
+        },
+        quantity: {
+          type: SchemaType.NUMBER,
+          description: "Amount in grams (default: 100)."
+        }
+      },
+      required: []
+    }
+  },
+  {
+    name: "updateNutritionMealItem",
+    description:
+      "Update a meal item amount by setting quantity (grams) or applying a delta in grams.",
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        mealId: {
+          type: SchemaType.STRING,
+          description: "Meal ID (preferred)."
+        },
+        mealName: {
+          type: SchemaType.STRING,
+          description: "Meal name hint when ID is unknown."
+        },
+        itemId: {
+          type: SchemaType.STRING,
+          description: "Meal item ID (preferred)."
+        },
+        itemName: {
+          type: SchemaType.STRING,
+          description: "Meal item name hint when ID is unknown."
+        },
+        quantity: {
+          type: SchemaType.NUMBER,
+          description: "New absolute quantity in grams."
+        },
+        delta: {
+          type: SchemaType.NUMBER,
+          description: "Relative quantity adjustment in grams (for example +1 or -1)."
+        }
+      },
+      required: []
+    }
+  },
+  {
+    name: "removeNutritionMealItem",
+    description:
+      "Remove one item from a meal.",
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        mealId: {
+          type: SchemaType.STRING,
+          description: "Meal ID (preferred)."
+        },
+        mealName: {
+          type: SchemaType.STRING,
+          description: "Meal name hint when ID is unknown."
+        },
+        itemId: {
+          type: SchemaType.STRING,
+          description: "Meal item ID (preferred)."
+        },
+        itemName: {
+          type: SchemaType.STRING,
+          description: "Meal item name hint when ID is unknown."
+        }
+      },
+      required: []
+    }
+  },
+  {
+    name: "moveNutritionMeal",
+    description:
+      "Move meal ordering up or down within a day.",
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        mealId: {
+          type: SchemaType.STRING,
+          description: "Meal ID (preferred)."
+        },
+        mealName: {
+          type: SchemaType.STRING,
+          description: "Meal name hint when ID is unknown."
+        },
+        direction: {
+          type: SchemaType.STRING,
+          description: "Direction: up or down."
+        },
+        date: {
+          type: SchemaType.STRING,
+          description: "Optional day key YYYY-MM-DD to constrain ordering window."
         }
       },
       required: []
@@ -1739,6 +2061,244 @@ export function handleGetNutritionSummary(
   return store.getNutritionDailySummary(date ?? new Date());
 }
 
+const NUTRITION_MEAL_DONE_TOKEN = "[done]";
+
+function mealNotesWithDoneToken(notes: string | undefined, completed: boolean): string | undefined {
+  const cleaned = (notes ?? "")
+    .replaceAll(NUTRITION_MEAL_DONE_TOKEN, "")
+    .trim();
+  if (completed) {
+    return cleaned.length > 0 ? `${NUTRITION_MEAL_DONE_TOKEN} ${cleaned}` : NUTRITION_MEAL_DONE_TOKEN;
+  }
+  return cleaned.length > 0 ? cleaned : undefined;
+}
+
+function resolveNutritionMealTarget(
+  store: RuntimeStore,
+  args: Record<string, unknown>
+): NutritionMeal | { error: string } {
+  const mealId = asTrimmedString(args.mealId);
+  if (mealId) {
+    const byId = store.getNutritionMealById(mealId);
+    if (!byId) {
+      return { error: `Meal not found: ${mealId}` };
+    }
+    return byId;
+  }
+
+  const mealName = asTrimmedString(args.mealName);
+  const meals = store.getNutritionMeals({ limit: 500 });
+  if (meals.length === 0) {
+    return { error: "No meals have been logged yet." };
+  }
+
+  if (!mealName) {
+    if (meals.length === 1) {
+      return meals[0]!;
+    }
+    return { error: "Provide mealId or mealName when multiple meals exist." };
+  }
+
+  const needle = normalizeSearchText(mealName);
+  const matches = meals.filter((meal) => normalizeSearchText(meal.name).includes(needle));
+  if (matches.length === 0) {
+    return { error: `No meal matched "${mealName}".` };
+  }
+  if (matches.length > 1) {
+    return {
+      error: `Meal name is ambiguous. Matches: ${matches
+        .slice(0, 4)
+        .map((meal) => meal.name)
+        .join(", ")}`
+    };
+  }
+  return matches[0]!;
+}
+
+function resolveNutritionMealItemTarget(
+  meal: NutritionMeal,
+  args: Record<string, unknown>
+): { index: number; item: NutritionMeal["items"][number] } | { error: string } {
+  const itemId = asTrimmedString(args.itemId);
+  if (itemId) {
+    const index = meal.items.findIndex((item) => item.id === itemId);
+    if (index === -1) {
+      return { error: `Meal item not found: ${itemId}` };
+    }
+    return { index, item: meal.items[index]! };
+  }
+
+  const itemName = asTrimmedString(args.itemName);
+  if (!itemName) {
+    if (meal.items.length === 1) {
+      return { index: 0, item: meal.items[0]! };
+    }
+    return { error: "Provide itemId or itemName when multiple meal items exist." };
+  }
+
+  const needle = normalizeSearchText(itemName);
+  const matches = meal.items
+    .map((item, index) => ({ item, index }))
+    .filter((entry) => normalizeSearchText(entry.item.name).includes(needle));
+  if (matches.length === 0) {
+    return { error: `No meal item matched "${itemName}".` };
+  }
+  if (matches.length > 1) {
+    return {
+      error: `Meal item name is ambiguous. Matches: ${matches
+        .slice(0, 4)
+        .map((entry) => entry.item.name)
+        .join(", ")}`
+    };
+  }
+  return matches[0]!;
+}
+
+function toDateKey(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function parseNutritionConsumedAt(value: unknown): string | null {
+  const raw = asTrimmedString(value);
+  if (!raw) {
+    return null;
+  }
+  const parsed = parseFlexibleDateTime(raw, new Date());
+  return parsed ? parsed.toISOString() : null;
+}
+
+export function handleGetNutritionTargets(
+  store: RuntimeStore,
+  args: Record<string, unknown> = {}
+): { date: string; profile: ReturnType<RuntimeStore["getNutritionTargetProfile"]> } {
+  const date = parseNutritionDate(args.date) ?? toDateKey(new Date());
+  return {
+    date,
+    profile: store.getNutritionTargetProfile(date)
+  };
+}
+
+export function handleUpdateNutritionTargets(
+  store: RuntimeStore,
+  args: Record<string, unknown> = {}
+): { success: true; profile: ReturnType<RuntimeStore["upsertNutritionTargetProfile"]>; message: string } | { error: string } {
+  const entry: {
+    date?: string;
+    weightKg?: number | null;
+    maintenanceCalories?: number | null;
+    surplusCalories?: number | null;
+    targetCalories?: number | null;
+    targetProteinGrams?: number | null;
+    targetCarbsGrams?: number | null;
+    targetFatGrams?: number | null;
+  } = {};
+
+  const requestedDate = parseNutritionDate(args.date);
+  if (requestedDate) {
+    entry.date = requestedDate;
+  } else if (asTrimmedString(args.date)) {
+    return { error: "date must be YYYY-MM-DD when provided." };
+  }
+
+  const setNumberOrNull = (
+    key:
+      | "weightKg"
+      | "maintenanceCalories"
+      | "surplusCalories"
+      | "targetCalories"
+      | "targetProteinGrams"
+      | "targetCarbsGrams"
+      | "targetFatGrams",
+    min: number,
+    max: number
+  ): true | { error: string } => {
+    if (!Object.prototype.hasOwnProperty.call(args, key)) {
+      return true;
+    }
+    const raw = args[key];
+    if (raw === null) {
+      entry[key] = null;
+      return true;
+    }
+    if (typeof raw !== "number" || Number.isNaN(raw)) {
+      return { error: `${key} must be a number or null.` };
+    }
+    entry[key] = clampFloat(raw, 0, min, max);
+    return true;
+  };
+
+  for (const [key, min, max] of [
+    ["weightKg", 0, 500],
+    ["maintenanceCalories", 0, 10000],
+    ["surplusCalories", -5000, 5000],
+    ["targetCalories", 0, 15000],
+    ["targetProteinGrams", 0, 1000],
+    ["targetCarbsGrams", 0, 1500],
+    ["targetFatGrams", 0, 600]
+  ] as const) {
+    const applied = setNumberOrNull(key, min, max);
+    if (applied !== true) {
+      return applied;
+    }
+  }
+
+  const hasPatchField = [
+    "weightKg",
+    "maintenanceCalories",
+    "surplusCalories",
+    "targetCalories",
+    "targetProteinGrams",
+    "targetCarbsGrams",
+    "targetFatGrams"
+  ].some((key) => Object.prototype.hasOwnProperty.call(entry, key));
+
+  if (!hasPatchField) {
+    return {
+      error:
+        "Provide at least one field to update: weightKg, maintenanceCalories, surplusCalories, targetCalories, targetProteinGrams, targetCarbsGrams, targetFatGrams."
+    };
+  }
+
+  const profile = store.upsertNutritionTargetProfile(entry);
+  return {
+    success: true,
+    profile,
+    message: `Updated nutrition targets for ${profile.date}.`
+  };
+}
+
+export function handleGetNutritionMeals(
+  store: RuntimeStore,
+  args: Record<string, unknown> = {}
+): { meals: NutritionMeal[]; total: number } | { error: string } {
+  const dateRaw = asTrimmedString(args.date);
+  const date = parseNutritionDate(dateRaw);
+  if (dateRaw && !date) {
+    return { error: "date must be YYYY-MM-DD when provided." };
+  }
+
+  const fromRaw = asTrimmedString(args.from);
+  const toRaw = asTrimmedString(args.to);
+  if (fromRaw && Number.isNaN(new Date(fromRaw).getTime())) {
+    return { error: "from must be a valid ISO datetime when provided." };
+  }
+  if (toRaw && Number.isNaN(new Date(toRaw).getTime())) {
+    return { error: "to must be a valid ISO datetime when provided." };
+  }
+
+  const limit = clampNumber(args.limit, 30, 1, 500);
+  const meals = store.getNutritionMeals({
+    ...(date ? { date } : {}),
+    ...(fromRaw ? { from: fromRaw } : {}),
+    ...(toRaw ? { to: toRaw } : {}),
+    limit
+  });
+  return {
+    meals,
+    total: meals.length
+  };
+}
+
 function resolveNutritionCustomFoodTarget(
   store: RuntimeStore,
   args: Record<string, unknown>
@@ -1913,6 +2473,407 @@ export function handleDeleteNutritionCustomFood(
     customFoodId: resolved.id,
     customFoodName: resolved.name,
     message: `Deleted custom food "${resolved.name}".`
+  };
+}
+
+function buildNutritionMealItemFromCustomFood(
+  customFood: NutritionCustomFood,
+  quantity: number
+): NutritionMeal["items"][number] {
+  return {
+    name: customFood.name,
+    quantity,
+    unitLabel: "g",
+    caloriesPerUnit: customFood.caloriesPerUnit,
+    proteinGramsPerUnit: customFood.proteinGramsPerUnit,
+    carbsGramsPerUnit: customFood.carbsGramsPerUnit,
+    fatGramsPerUnit: customFood.fatGramsPerUnit,
+    customFoodId: customFood.id
+  };
+}
+
+function parseNutritionMealItemsArg(
+  store: RuntimeStore,
+  value: unknown
+): NutritionMeal["items"] | { error: string } {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const items: NutritionMeal["items"] = [];
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object") {
+      continue;
+    }
+
+    const record = entry as Record<string, unknown>;
+    const customFoodId = asTrimmedString(record.customFoodId);
+    const customFoodName = asTrimmedString(record.customFoodName);
+    const quantity = clampFloat(record.quantity, 100, 1, 1000);
+
+    if (customFoodId || customFoodName) {
+      const resolvedFood = resolveNutritionCustomFoodTarget(store, {
+        customFoodId,
+        customFoodName
+      });
+      if ("error" in resolvedFood) {
+        return resolvedFood;
+      }
+      items.push(buildNutritionMealItemFromCustomFood(resolvedFood, quantity));
+      continue;
+    }
+
+    const name = asTrimmedString(record.name);
+    if (!name) {
+      return { error: "Each meal item must include name or customFoodId/customFoodName." };
+    }
+
+    if (typeof record.caloriesPerUnit !== "number") {
+      return { error: `Item "${name}" must include caloriesPerUnit when no custom food is provided.` };
+    }
+
+    items.push({
+      name,
+      quantity,
+      unitLabel: asTrimmedString(record.unitLabel) ?? "g",
+      caloriesPerUnit: clampFloat(record.caloriesPerUnit, 0, 0, 10000),
+      proteinGramsPerUnit: clampFloat(record.proteinGramsPerUnit, 0, 0, 1000),
+      carbsGramsPerUnit: clampFloat(record.carbsGramsPerUnit, 0, 0, 1500),
+      fatGramsPerUnit: clampFloat(record.fatGramsPerUnit, 0, 0, 600),
+      ...(customFoodId ? { customFoodId } : {})
+    });
+  }
+
+  return items;
+}
+
+export function handleCreateNutritionMeal(
+  store: RuntimeStore,
+  args: Record<string, unknown> = {}
+): { success: true; meal: NutritionMeal; message: string } | { error: string } {
+  const name = asTrimmedString(args.name);
+  if (!name) {
+    return { error: "name is required." };
+  }
+
+  const parsedItems = parseNutritionMealItemsArg(store, args.items);
+  if ("error" in parsedItems) {
+    return parsedItems;
+  }
+
+  let items = parsedItems;
+  if (items.length === 0 && (asTrimmedString(args.customFoodId) || asTrimmedString(args.customFoodName))) {
+    const resolvedFood = resolveNutritionCustomFoodTarget(store, {
+      customFoodId: asTrimmedString(args.customFoodId),
+      customFoodName: asTrimmedString(args.customFoodName)
+    });
+    if ("error" in resolvedFood) {
+      return resolvedFood;
+    }
+    items = [buildNutritionMealItemFromCustomFood(resolvedFood, clampFloat(args.quantity, 100, 1, 1000))];
+  }
+
+  const caloriesInput = typeof args.calories === "number" ? clampFloat(args.calories, 0, 0, 10000) : null;
+  const proteinGrams = clampFloat(args.proteinGrams, 0, 0, 1000);
+  const carbsGrams = clampFloat(args.carbsGrams, 0, 0, 1500);
+  const fatGrams = clampFloat(args.fatGrams, 0, 0, 600);
+
+  let calories = caloriesInput;
+  if (calories === null && items.length === 0 && (proteinGrams > 0 || carbsGrams > 0 || fatGrams > 0)) {
+    calories = Math.round((proteinGrams * 4 + carbsGrams * 4 + fatGrams * 9) * 10) / 10;
+  }
+
+  if (items.length === 0 && calories === null) {
+    return { error: "Provide items or calories/macros when creating a meal." };
+  }
+
+  const consumedAt = parseNutritionConsumedAt(args.consumedAt) ?? new Date().toISOString();
+  if (asTrimmedString(args.consumedAt) && !parseNutritionConsumedAt(args.consumedAt)) {
+    return { error: "consumedAt must be a valid datetime when provided." };
+  }
+
+  const meal = store.createNutritionMeal({
+    name,
+    mealType: parseMealType(args.mealType),
+    consumedAt,
+    items,
+    ...(calories !== null ? { calories } : {}),
+    proteinGrams,
+    carbsGrams,
+    fatGrams,
+    ...(asTrimmedString(args.notes) ? { notes: asTrimmedString(args.notes)! } : {})
+  });
+
+  return {
+    success: true,
+    meal,
+    message: `Created meal "${meal.name}".`
+  };
+}
+
+export function handleUpdateNutritionMeal(
+  store: RuntimeStore,
+  args: Record<string, unknown> = {}
+): { success: true; meal: NutritionMeal; message: string } | { error: string } {
+  const resolved = resolveNutritionMealTarget(store, args);
+  if ("error" in resolved) {
+    return resolved;
+  }
+
+  const patch: Partial<Omit<NutritionMeal, "id" | "createdAt">> = {};
+
+  const nextName = asTrimmedString(args.name);
+  if (nextName) {
+    patch.name = nextName;
+  }
+
+  const mealTypeRaw = asTrimmedString(args.mealType);
+  if (mealTypeRaw) {
+    patch.mealType = parseMealType(mealTypeRaw);
+  }
+
+  const consumedAtRaw = asTrimmedString(args.consumedAt);
+  if (consumedAtRaw) {
+    const parsedConsumedAt = parseNutritionConsumedAt(consumedAtRaw);
+    if (!parsedConsumedAt) {
+      return { error: "consumedAt must be a valid datetime when provided." };
+    }
+    patch.consumedAt = parsedConsumedAt;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(args, "notes")) {
+    patch.notes = asTrimmedString(args.notes) ?? "";
+  }
+
+  if (Object.prototype.hasOwnProperty.call(args, "completed")) {
+    if (typeof args.completed !== "boolean") {
+      return { error: "completed must be a boolean when provided." };
+    }
+    const baseNotes = typeof patch.notes === "string" ? patch.notes : resolved.notes;
+    patch.notes = mealNotesWithDoneToken(baseNotes, args.completed) ?? "";
+  }
+
+  if (typeof args.calories === "number") {
+    patch.calories = clampFloat(args.calories, 0, 0, 10000);
+  }
+  if (typeof args.proteinGrams === "number") {
+    patch.proteinGrams = clampFloat(args.proteinGrams, 0, 0, 1000);
+  }
+  if (typeof args.carbsGrams === "number") {
+    patch.carbsGrams = clampFloat(args.carbsGrams, 0, 0, 1500);
+  }
+  if (typeof args.fatGrams === "number") {
+    patch.fatGrams = clampFloat(args.fatGrams, 0, 0, 600);
+  }
+
+  if (Object.keys(patch).length === 0) {
+    return {
+      error:
+        "Provide at least one field to update: name, mealType, consumedAt, notes, completed, calories, proteinGrams, carbsGrams, fatGrams."
+    };
+  }
+
+  const updated = store.updateNutritionMeal(resolved.id, patch);
+  if (!updated) {
+    return { error: "Unable to update meal." };
+  }
+
+  return {
+    success: true,
+    meal: updated,
+    message: `Updated meal "${updated.name}".`
+  };
+}
+
+export function handleAddNutritionMealItem(
+  store: RuntimeStore,
+  args: Record<string, unknown> = {}
+): { success: true; meal: NutritionMeal; item: NutritionMeal["items"][number]; message: string } | { error: string } {
+  const resolvedMeal = resolveNutritionMealTarget(store, args);
+  if ("error" in resolvedMeal) {
+    return resolvedMeal;
+  }
+
+  const resolvedFood = resolveNutritionCustomFoodTarget(store, args);
+  if ("error" in resolvedFood) {
+    return resolvedFood;
+  }
+
+  const quantity = clampFloat(args.quantity, 100, 1, 1000);
+  const nextItem = buildNutritionMealItemFromCustomFood(resolvedFood, quantity);
+  const nextItems = [...resolvedMeal.items, nextItem];
+
+  const updated = store.updateNutritionMeal(resolvedMeal.id, { items: nextItems });
+  if (!updated) {
+    return { error: "Unable to add meal item." };
+  }
+
+  const added = updated.items[updated.items.length - 1];
+  if (!added) {
+    return { error: "Meal item was not added." };
+  }
+
+  return {
+    success: true,
+    meal: updated,
+    item: added,
+    message: `Added "${resolvedFood.name}" to "${updated.name}".`
+  };
+}
+
+export function handleUpdateNutritionMealItem(
+  store: RuntimeStore,
+  args: Record<string, unknown> = {}
+): { success: true; meal: NutritionMeal; item: NutritionMeal["items"][number]; message: string } | { error: string } {
+  const resolvedMeal = resolveNutritionMealTarget(store, args);
+  if ("error" in resolvedMeal) {
+    return resolvedMeal;
+  }
+  if (resolvedMeal.items.length === 0) {
+    return { error: "This meal has no items to update." };
+  }
+
+  const resolvedItem = resolveNutritionMealItemTarget(resolvedMeal, args);
+  if ("error" in resolvedItem) {
+    return resolvedItem;
+  }
+
+  const hasQuantity = typeof args.quantity === "number";
+  const hasDelta = typeof args.delta === "number";
+  if (!hasQuantity && !hasDelta) {
+    return { error: "Provide quantity or delta to update a meal item." };
+  }
+
+  const nextQuantity = hasQuantity
+    ? clampFloat(args.quantity, resolvedItem.item.quantity, 1, 1000)
+    : clampFloat(resolvedItem.item.quantity + Number(args.delta ?? 0), resolvedItem.item.quantity, 1, 1000);
+
+  const nextItems = resolvedMeal.items.map((item, index) =>
+    index === resolvedItem.index
+      ? {
+          ...item,
+          quantity: nextQuantity
+        }
+      : item
+  );
+
+  const updated = store.updateNutritionMeal(resolvedMeal.id, { items: nextItems });
+  if (!updated) {
+    return { error: "Unable to update meal item." };
+  }
+
+  const updatedItem = updated.items.find((item) => item.id && item.id === resolvedItem.item.id) ?? updated.items[resolvedItem.index];
+  if (!updatedItem) {
+    return { error: "Meal item update could not be verified." };
+  }
+
+  return {
+    success: true,
+    meal: updated,
+    item: updatedItem,
+    message: `Updated "${updatedItem.name}" to ${updatedItem.quantity}g in "${updated.name}".`
+  };
+}
+
+export function handleRemoveNutritionMealItem(
+  store: RuntimeStore,
+  args: Record<string, unknown> = {}
+): { success: true; meal: NutritionMeal; removedItemId?: string; message: string } | { error: string } {
+  const resolvedMeal = resolveNutritionMealTarget(store, args);
+  if ("error" in resolvedMeal) {
+    return resolvedMeal;
+  }
+  if (resolvedMeal.items.length === 0) {
+    return { error: "This meal has no items to remove." };
+  }
+
+  const resolvedItem = resolveNutritionMealItemTarget(resolvedMeal, args);
+  if ("error" in resolvedItem) {
+    return resolvedItem;
+  }
+
+  const nextItems = resolvedMeal.items.filter((_, index) => index !== resolvedItem.index);
+  const updated = store.updateNutritionMeal(resolvedMeal.id, {
+    items: nextItems,
+    ...(nextItems.length === 0
+      ? {
+          calories: 0,
+          proteinGrams: 0,
+          carbsGrams: 0,
+          fatGrams: 0
+        }
+      : {})
+  });
+  if (!updated) {
+    return { error: "Unable to remove meal item." };
+  }
+
+  return {
+    success: true,
+    meal: updated,
+    ...(resolvedItem.item.id ? { removedItemId: resolvedItem.item.id } : {}),
+    message: `Removed "${resolvedItem.item.name}" from "${updated.name}".`
+  };
+}
+
+export function handleMoveNutritionMeal(
+  store: RuntimeStore,
+  args: Record<string, unknown> = {}
+):
+  | { success: true; moved: false; meal: NutritionMeal; message: string }
+  | { success: true; moved: true; meal: NutritionMeal; message: string }
+  | { error: string } {
+  const resolvedMeal = resolveNutritionMealTarget(store, args);
+  if ("error" in resolvedMeal) {
+    return resolvedMeal;
+  }
+
+  const direction = asTrimmedString(args.direction)?.toLowerCase();
+  if (direction !== "up" && direction !== "down") {
+    return { error: "direction must be either up or down." };
+  }
+
+  const date = parseNutritionDate(args.date) ?? toDateKey(new Date(resolvedMeal.consumedAt));
+  const meals = store.getNutritionMeals({ date, limit: 1000 });
+  const index = meals.findIndex((meal) => meal.id === resolvedMeal.id);
+  if (index === -1) {
+    return { error: "Meal is not in the requested day window." };
+  }
+
+  const nextIndex = direction === "up" ? index - 1 : index + 1;
+  if (nextIndex < 0 || nextIndex >= meals.length) {
+    return {
+      success: true,
+      moved: false,
+      meal: resolvedMeal,
+      message: `Meal "${resolvedMeal.name}" is already at the ${direction === "up" ? "top" : "bottom"} of that day.`
+    };
+  }
+
+  const reordered = [...meals];
+  const [movedMeal] = reordered.splice(index, 1);
+  reordered.splice(nextIndex, 0, movedMeal!);
+
+  const dayAnchor = new Date(`${date}T23:59:00.000Z`).getTime();
+  const updatedMeals = new Map<string, NutritionMeal>();
+  reordered.forEach((meal, orderIndex) => {
+    const consumedAt = new Date(dayAnchor - orderIndex * 60_000).toISOString();
+    const updated = store.updateNutritionMeal(meal.id, { consumedAt });
+    if (updated) {
+      updatedMeals.set(updated.id, updated);
+    }
+  });
+
+  const updatedMovedMeal = updatedMeals.get(resolvedMeal.id);
+  if (!updatedMovedMeal) {
+    return { error: "Unable to reorder meals." };
+  }
+
+  return {
+    success: true,
+    moved: true,
+    meal: updatedMovedMeal,
+    message: `Moved "${updatedMovedMeal.name}" ${direction}.`
   };
 }
 
@@ -3503,6 +4464,15 @@ export function executeFunctionCall(
     case "getNutritionSummary":
       response = handleGetNutritionSummary(store, args);
       break;
+    case "getNutritionTargets":
+      response = handleGetNutritionTargets(store, args);
+      break;
+    case "updateNutritionTargets":
+      response = handleUpdateNutritionTargets(store, args);
+      break;
+    case "getNutritionMeals":
+      response = handleGetNutritionMeals(store, args);
+      break;
     case "getNutritionCustomFoods":
       response = handleGetNutritionCustomFoods(store, args);
       break;
@@ -3514,6 +4484,24 @@ export function executeFunctionCall(
       break;
     case "deleteNutritionCustomFood":
       response = handleDeleteNutritionCustomFood(store, args);
+      break;
+    case "createNutritionMeal":
+      response = handleCreateNutritionMeal(store, args);
+      break;
+    case "updateNutritionMeal":
+      response = handleUpdateNutritionMeal(store, args);
+      break;
+    case "addNutritionMealItem":
+      response = handleAddNutritionMealItem(store, args);
+      break;
+    case "updateNutritionMealItem":
+      response = handleUpdateNutritionMealItem(store, args);
+      break;
+    case "removeNutritionMealItem":
+      response = handleRemoveNutritionMealItem(store, args);
+      break;
+    case "moveNutritionMeal":
+      response = handleMoveNutritionMeal(store, args);
       break;
     case "logMeal":
       response = handleLogMeal(store, args);

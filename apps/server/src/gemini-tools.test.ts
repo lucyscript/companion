@@ -15,10 +15,19 @@ import {
   handleCreateGoal,
   handleDeleteGoal,
   handleGetNutritionSummary,
+  handleGetNutritionTargets,
+  handleUpdateNutritionTargets,
+  handleGetNutritionMeals,
   handleGetNutritionCustomFoods,
   handleCreateNutritionCustomFood,
   handleUpdateNutritionCustomFood,
   handleDeleteNutritionCustomFood,
+  handleCreateNutritionMeal,
+  handleUpdateNutritionMeal,
+  handleAddNutritionMealItem,
+  handleUpdateNutritionMealItem,
+  handleRemoveNutritionMealItem,
+  handleMoveNutritionMeal,
   handleLogMeal,
   handleDeleteMeal,
   handleGetGitHubCourseContent,
@@ -44,8 +53,8 @@ describe("gemini-tools", () => {
   });
 
   describe("functionDeclarations", () => {
-    it("should define 29 function declarations", () => {
-      expect(functionDeclarations).toHaveLength(29);
+    it("should define 38 function declarations", () => {
+      expect(functionDeclarations).toHaveLength(38);
     });
 
     it("should include getSchedule function", () => {
@@ -96,10 +105,19 @@ describe("gemini-tools", () => {
 
     it("should include nutrition functions", () => {
       expect(functionDeclarations.find((f) => f.name === "getNutritionSummary")).toBeDefined();
+      expect(functionDeclarations.find((f) => f.name === "getNutritionTargets")).toBeDefined();
+      expect(functionDeclarations.find((f) => f.name === "updateNutritionTargets")).toBeDefined();
+      expect(functionDeclarations.find((f) => f.name === "getNutritionMeals")).toBeDefined();
       expect(functionDeclarations.find((f) => f.name === "getNutritionCustomFoods")).toBeDefined();
       expect(functionDeclarations.find((f) => f.name === "createNutritionCustomFood")).toBeDefined();
       expect(functionDeclarations.find((f) => f.name === "updateNutritionCustomFood")).toBeDefined();
       expect(functionDeclarations.find((f) => f.name === "deleteNutritionCustomFood")).toBeDefined();
+      expect(functionDeclarations.find((f) => f.name === "createNutritionMeal")).toBeDefined();
+      expect(functionDeclarations.find((f) => f.name === "updateNutritionMeal")).toBeDefined();
+      expect(functionDeclarations.find((f) => f.name === "addNutritionMealItem")).toBeDefined();
+      expect(functionDeclarations.find((f) => f.name === "updateNutritionMealItem")).toBeDefined();
+      expect(functionDeclarations.find((f) => f.name === "removeNutritionMealItem")).toBeDefined();
+      expect(functionDeclarations.find((f) => f.name === "moveNutritionMeal")).toBeDefined();
       expect(functionDeclarations.find((f) => f.name === "logMeal")).toBeDefined();
       expect(functionDeclarations.find((f) => f.name === "deleteMeal")).toBeDefined();
     });
@@ -570,6 +588,127 @@ describe("gemini-tools", () => {
       const result = handleGetNutritionSummary(store, { date: "2026-02-17" });
       expect(result.mealsLogged).toBe(1);
       expect(result.totals.calories).toBe(480);
+    });
+
+    it("gets and updates nutrition targets", () => {
+      const before = handleGetNutritionTargets(store, { date: "2026-02-17" });
+      expect(before.date).toBe("2026-02-17");
+      expect(before.profile).toBeNull();
+
+      const updated = handleUpdateNutritionTargets(store, {
+        date: "2026-02-17",
+        weightKg: 73,
+        maintenanceCalories: 2621,
+        surplusCalories: 300
+      });
+      if ("error" in updated) {
+        throw new Error(updated.error);
+      }
+      expect(updated.success).toBe(true);
+      expect(updated.profile.weightKg).toBe(73);
+      expect(updated.profile.targetCalories).toBeGreaterThan(2800);
+
+      const after = handleGetNutritionTargets(store, { date: "2026-02-17" });
+      expect(after.profile?.targetProteinGrams).toBeGreaterThan(0);
+      expect(after.profile?.targetCarbsGrams).toBeGreaterThan(0);
+    });
+
+    it("creates a meal with custom-food items and updates/removes item quantities", () => {
+      const createdFood = handleCreateNutritionCustomFood(store, {
+        name: "Jasmine rice",
+        unitLabel: "g",
+        caloriesPerUnit: 1.3,
+        proteinGramsPerUnit: 0.027,
+        carbsGramsPerUnit: 0.286,
+        fatGramsPerUnit: 0.003
+      });
+      if ("error" in createdFood) {
+        throw new Error(createdFood.error);
+      }
+
+      const createdMeal = handleCreateNutritionMeal(store, {
+        name: "Meal 1",
+        mealType: "lunch",
+        items: [{ customFoodId: createdFood.food.id, quantity: 100 }]
+      });
+      if ("error" in createdMeal) {
+        throw new Error(createdMeal.error);
+      }
+
+      const addedItem = handleAddNutritionMealItem(store, {
+        mealId: createdMeal.meal.id,
+        customFoodId: createdFood.food.id,
+        quantity: 50
+      });
+      if ("error" in addedItem) {
+        throw new Error(addedItem.error);
+      }
+      expect(addedItem.meal.items.length).toBe(2);
+
+      const firstItemId = addedItem.meal.items[0]?.id;
+      expect(firstItemId).toBeTruthy();
+      if (!firstItemId) {
+        throw new Error("Expected meal item id");
+      }
+
+      const updatedItem = handleUpdateNutritionMealItem(store, {
+        mealId: createdMeal.meal.id,
+        itemId: firstItemId,
+        delta: 25
+      });
+      if ("error" in updatedItem) {
+        throw new Error(updatedItem.error);
+      }
+      expect(updatedItem.item.quantity).toBe(125);
+
+      const removedItem = handleRemoveNutritionMealItem(store, {
+        mealId: createdMeal.meal.id,
+        itemId: firstItemId
+      });
+      if ("error" in removedItem) {
+        throw new Error(removedItem.error);
+      }
+      expect(removedItem.meal.items.length).toBe(1);
+    });
+
+    it("updates meal completion and supports moving meals", () => {
+      const first = handleCreateNutritionMeal(store, {
+        name: "Breakfast",
+        mealType: "breakfast",
+        consumedAt: "2026-02-17T08:00:00.000Z",
+        calories: 400
+      });
+      if ("error" in first) {
+        throw new Error(first.error);
+      }
+      const second = handleCreateNutritionMeal(store, {
+        name: "Lunch",
+        mealType: "lunch",
+        consumedAt: "2026-02-17T12:00:00.000Z",
+        calories: 700
+      });
+      if ("error" in second) {
+        throw new Error(second.error);
+      }
+
+      const marked = handleUpdateNutritionMeal(store, {
+        mealId: second.meal.id,
+        completed: true
+      });
+      if ("error" in marked) {
+        throw new Error(marked.error);
+      }
+      expect(marked.meal.notes ?? "").toContain("[done]");
+
+      const moved = handleMoveNutritionMeal(store, {
+        mealId: second.meal.id,
+        direction: "up",
+        date: "2026-02-17"
+      });
+      if ("error" in moved) {
+        throw new Error(moved.error);
+      }
+      expect(moved.success).toBe(true);
     });
 
     it("logs and deletes meals", () => {
@@ -1164,6 +1303,96 @@ describe("gemini-tools", () => {
 
       expect(result.name).toBe("getNutritionSummary");
       expect(result.response).toHaveProperty("totals");
+    });
+
+    it("should execute nutrition targets and meal-item mutation functions", () => {
+      const updateTargets = executeFunctionCall(
+        "updateNutritionTargets",
+        { date: "2026-02-17", weightKg: 73, maintenanceCalories: 2621, surplusCalories: 300 },
+        store
+      );
+      expect(updateTargets.name).toBe("updateNutritionTargets");
+      expect(updateTargets.response).toHaveProperty("success", true);
+
+      const targets = executeFunctionCall("getNutritionTargets", { date: "2026-02-17" }, store);
+      expect(targets.name).toBe("getNutritionTargets");
+      expect(targets.response).toHaveProperty("profile");
+
+      const createdFood = executeFunctionCall(
+        "createNutritionCustomFood",
+        { name: "Rice", unitLabel: "g", caloriesPerUnit: 1.3, carbsGramsPerUnit: 0.286 },
+        store
+      );
+      const foodId = (createdFood.response as { food?: { id?: string } }).food?.id;
+      expect(foodId).toBeDefined();
+      if (!foodId) {
+        throw new Error("Expected custom food id");
+      }
+
+      const createdMeal = executeFunctionCall(
+        "createNutritionMeal",
+        {
+          name: "Meal 1",
+          items: [{ customFoodId: foodId, quantity: 100 }]
+        },
+        store
+      );
+      expect(createdMeal.name).toBe("createNutritionMeal");
+      expect(createdMeal.response).toHaveProperty("success", true);
+
+      const mealId = (createdMeal.response as { meal?: { id?: string } }).meal?.id;
+      expect(mealId).toBeDefined();
+      if (!mealId) {
+        throw new Error("Expected meal id");
+      }
+
+      const addedItem = executeFunctionCall(
+        "addNutritionMealItem",
+        {
+          mealId,
+          customFoodId: foodId,
+          quantity: 50
+        },
+        store
+      );
+      expect(addedItem.name).toBe("addNutritionMealItem");
+      expect(addedItem.response).toHaveProperty("success", true);
+
+      const meals = executeFunctionCall("getNutritionMeals", { date: "2026-02-17" }, store);
+      expect(meals.name).toBe("getNutritionMeals");
+      expect(meals.response).toHaveProperty("meals");
+
+      const firstItemId = (
+        addedItem.response as { meal?: { items?: Array<{ id?: string }> } }
+      ).meal?.items?.[0]?.id;
+      expect(firstItemId).toBeDefined();
+      if (!firstItemId) {
+        throw new Error("Expected meal item id");
+      }
+
+      const updatedItem = executeFunctionCall(
+        "updateNutritionMealItem",
+        { mealId, itemId: firstItemId, delta: 10 },
+        store
+      );
+      expect(updatedItem.name).toBe("updateNutritionMealItem");
+      expect(updatedItem.response).toHaveProperty("success", true);
+
+      const removedItem = executeFunctionCall(
+        "removeNutritionMealItem",
+        { mealId, itemId: firstItemId },
+        store
+      );
+      expect(removedItem.name).toBe("removeNutritionMealItem");
+      expect(removedItem.response).toHaveProperty("success", true);
+
+      const movedMeal = executeFunctionCall(
+        "moveNutritionMeal",
+        { mealId, direction: "down" },
+        store
+      );
+      expect(movedMeal.name).toBe("moveNutritionMeal");
+      expect(movedMeal.response).toHaveProperty("success", true);
     });
 
     it("should execute custom food nutrition functions", () => {
