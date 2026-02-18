@@ -284,7 +284,7 @@ export const functionDeclarations: FunctionDeclaration[] = [
   {
     name: "getNutritionSummary",
     description:
-      "Get a daily nutrition summary with calories and macro totals (protein/carbs/fat), plus logged meals and meal-plan blocks.",
+      "Get a daily nutrition summary with calories and macro totals (protein/carbs/fat), plus logged meals.",
     parameters: {
       type: SchemaType.OBJECT,
       properties: {
@@ -481,87 +481,6 @@ export const functionDeclarations: FunctionDeclaration[] = [
         mealName: {
           type: SchemaType.STRING,
           description: "Meal name hint when ID is unknown."
-        }
-      },
-      required: []
-    }
-  },
-  {
-    name: "getMealPlan",
-    description:
-      "Get nutrition meal-plan blocks for a day/time window. Use this when user asks about planned meals.",
-    parameters: {
-      type: SchemaType.OBJECT,
-      properties: {
-        date: {
-          type: SchemaType.STRING,
-          description: "Optional date in YYYY-MM-DD format."
-        },
-        limit: {
-          type: SchemaType.NUMBER,
-          description: "Maximum number of plan blocks to return (default: 20, max: 100)."
-        }
-      },
-      required: []
-    }
-  },
-  {
-    name: "upsertMealPlanBlock",
-    description:
-      "Create or update a meal-plan block with target macros/calories.",
-    parameters: {
-      type: SchemaType.OBJECT,
-      properties: {
-        blockId: {
-          type: SchemaType.STRING,
-          description: "Existing block ID for updates."
-        },
-        title: {
-          type: SchemaType.STRING,
-          description: "Meal-plan block title."
-        },
-        scheduledFor: {
-          type: SchemaType.STRING,
-          description: "ISO datetime for scheduled meal block."
-        },
-        targetCalories: {
-          type: SchemaType.NUMBER,
-          description: "Optional target calories."
-        },
-        targetProteinGrams: {
-          type: SchemaType.NUMBER,
-          description: "Optional target protein grams."
-        },
-        targetCarbsGrams: {
-          type: SchemaType.NUMBER,
-          description: "Optional target carbs grams."
-        },
-        targetFatGrams: {
-          type: SchemaType.NUMBER,
-          description: "Optional target fat grams."
-        },
-        notes: {
-          type: SchemaType.STRING,
-          description: "Optional notes."
-        }
-      },
-      required: []
-    }
-  },
-  {
-    name: "removeMealPlanBlock",
-    description:
-      "Remove a meal-plan block. Prefer blockId; blockTitle may be used when id is unknown.",
-    parameters: {
-      type: SchemaType.OBJECT,
-      properties: {
-        blockId: {
-          type: SchemaType.STRING,
-          description: "Meal-plan block ID (preferred)."
-        },
-        blockTitle: {
-          type: SchemaType.STRING,
-          description: "Meal-plan block title hint when ID is unknown."
         }
       },
       required: []
@@ -3005,15 +2924,6 @@ export function executeFunctionCall(
       break;
     case "deleteMeal":
       response = handleDeleteMeal(store, args);
-      break;
-    case "getMealPlan":
-      response = handleGetMealPlan(store, args);
-      break;
-    case "upsertMealPlanBlock":
-      response = handleUpsertMealPlanBlock(store, args);
-      break;
-    case "removeMealPlanBlock":
-      response = handleRemoveMealPlanBlock(store, args);
       break;
     case "getGitHubCourseContent":
       response = handleGetGitHubCourseContent(store, args);

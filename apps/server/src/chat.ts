@@ -921,7 +921,7 @@ function buildIntentGuidance(intent: ChatIntent): string {
     case "journal":
       return "Intent hint: journal. Prefer searchJournal before answering memory/reflection questions.";
     case "nutrition":
-      return "Intent hint: nutrition. Prefer getNutritionSummary/getMealPlan/getNutritionCustomFoods for status and logMeal/deleteMeal/upsertMealPlanBlock/removeMealPlanBlock/createNutritionCustomFood/updateNutritionCustomFood/deleteNutritionCustomFood for requested updates.";
+      return "Intent hint: nutrition. Prefer getNutritionSummary/getNutritionCustomFoods for status and logMeal/deleteMeal/createNutritionCustomFood/updateNutritionCustomFood/deleteNutritionCustomFood for requested updates.";
     case "emails":
       return "Intent hint: emails. Prefer getEmails for inbox-related requests.";
     case "social":
@@ -1409,34 +1409,6 @@ function buildNutritionSummaryFallbackSection(response: unknown): string | null 
   return `Nutrition today: ${calories} kcal, ${protein}g protein, ${carbs}g carbs, ${fat}g fat${mealsLogged !== null ? ` (${mealsLogged} meals)` : ""}.`;
 }
 
-function buildMealPlanFallbackSection(response: unknown): string | null {
-  const payload = asRecord(response);
-  if (!payload) {
-    return null;
-  }
-
-  const blocks = Array.isArray(payload.blocks) ? payload.blocks : [];
-  if (blocks.length === 0) {
-    return "Meal plan: no blocks found.";
-  }
-
-  const lines: string[] = [`Meal plan blocks (${blocks.length}):`];
-  blocks.slice(0, 4).forEach((value) => {
-    const block = asRecord(value);
-    if (!block) {
-      return;
-    }
-    const title = asNonEmptyString(block.title) ?? "Untitled block";
-    const scheduledFor = asNonEmptyString(block.scheduledFor);
-    lines.push(`- ${title}${scheduledFor ? ` (${scheduledFor})` : ""}`);
-  });
-  if (blocks.length > 4) {
-    lines.push(`- +${blocks.length - 4} more`);
-  }
-
-  return lines.join("\n");
-}
-
 function buildNutritionCustomFoodsFallbackSection(response: unknown): string | null {
   const payload = asRecord(response);
   if (!payload) {
@@ -1577,15 +1549,10 @@ function buildToolDataFallbackReply(
         break;
       case "logMeal":
       case "deleteMeal":
-      case "upsertMealPlanBlock":
-      case "removeMealPlanBlock":
       case "createNutritionCustomFood":
       case "updateNutritionCustomFood":
       case "deleteNutritionCustomFood":
         section = buildNutritionMutationFallbackSection(result.rawResponse);
-        break;
-      case "getMealPlan":
-        section = buildMealPlanFallbackSection(result.rawResponse);
         break;
       case "getGitHubCourseContent":
         section = buildGitHubCourseFallbackSection(result.rawResponse);
@@ -1981,7 +1948,6 @@ function compactNutritionSummaryForModel(response: unknown): unknown {
 
   const totals = asRecord(payload.totals);
   const meals = Array.isArray(payload.meals) ? payload.meals : [];
-  const blocks = Array.isArray(payload.mealPlanBlocks) ? payload.mealPlanBlocks : [];
 
   return {
     date: asNonEmptyString(payload.date) ?? null,
@@ -2008,47 +1974,7 @@ function compactNutritionSummaryForModel(response: unknown): unknown {
         fatGrams: typeof meal.fatGrams === "number" ? meal.fatGrams : 0
       };
     }),
-    mealPlanBlocks: blocks.slice(0, TOOL_RESULT_ITEM_LIMIT).map((value) => {
-      const block = asRecord(value);
-      if (!block) {
-        return {};
-      }
-      return {
-        id: asNonEmptyString(block.id) ?? "",
-        title: compactTextValue(asNonEmptyString(block.title) ?? "", 100),
-        scheduledFor: asNonEmptyString(block.scheduledFor) ?? null
-      };
-    }),
-    mealsTruncated: meals.length > TOOL_RESULT_ITEM_LIMIT,
-    blocksTruncated: blocks.length > TOOL_RESULT_ITEM_LIMIT
-  };
-}
-
-function compactMealPlanForModel(response: unknown): unknown {
-  const payload = asRecord(response);
-  if (!payload) {
-    return compactGenericValue(response);
-  }
-
-  const blocks = Array.isArray(payload.blocks) ? payload.blocks : [];
-  return {
-    total: typeof payload.total === "number" ? payload.total : blocks.length,
-    blocks: blocks.slice(0, TOOL_RESULT_ITEM_LIMIT).map((value) => {
-      const block = asRecord(value);
-      if (!block) {
-        return {};
-      }
-      return {
-        id: asNonEmptyString(block.id) ?? "",
-        title: compactTextValue(asNonEmptyString(block.title) ?? "", 100),
-        scheduledFor: asNonEmptyString(block.scheduledFor) ?? null,
-        targetCalories: typeof block.targetCalories === "number" ? block.targetCalories : null,
-        targetProteinGrams: typeof block.targetProteinGrams === "number" ? block.targetProteinGrams : null,
-        targetCarbsGrams: typeof block.targetCarbsGrams === "number" ? block.targetCarbsGrams : null,
-        targetFatGrams: typeof block.targetFatGrams === "number" ? block.targetFatGrams : null
-      };
-    }),
-    truncated: blocks.length > TOOL_RESULT_ITEM_LIMIT
+    mealsTruncated: meals.length > TOOL_RESULT_ITEM_LIMIT
   };
 }
 
@@ -2186,14 +2112,10 @@ function compactFunctionResponseForModel(functionName: string, response: unknown
       return compactNutritionCustomFoodsForModel(response);
     case "logMeal":
     case "deleteMeal":
-    case "upsertMealPlanBlock":
-    case "removeMealPlanBlock":
     case "createNutritionCustomFood":
     case "updateNutritionCustomFood":
     case "deleteNutritionCustomFood":
       return compactNutritionMutationForModel(response);
-    case "getMealPlan":
-      return compactMealPlanForModel(response);
     case "getGitHubCourseContent":
       return compactGitHubCourseContentForModel(response);
     default:
@@ -2529,26 +2451,6 @@ function collectToolCitations(
       });
     });
 
-    const blocks = Array.isArray(payload.mealPlanBlocks) ? payload.mealPlanBlocks : [];
-    blocks.forEach((value) => {
-      const block = asRecord(value);
-      if (!block) {
-        return;
-      }
-      const id = asNonEmptyString(block.id);
-      const title = asNonEmptyString(block.title);
-      const scheduledFor = asNonEmptyString(block.scheduledFor);
-      if (!id || !title) {
-        return;
-      }
-      next.push({
-        id,
-        type: "nutrition-meal-plan",
-        label: title,
-        timestamp: scheduledFor ?? undefined
-      });
-    });
-
     return next;
   }
 
@@ -2606,66 +2508,6 @@ function collectToolCitations(
         id,
         type: "nutrition-meal",
         label: name
-      }
-    ];
-  }
-
-  if (functionName === "getMealPlan") {
-    const payload = asRecord(response);
-    const blocks = Array.isArray(payload?.blocks) ? payload.blocks : [];
-    const next: ChatCitation[] = [];
-    blocks.forEach((value) => {
-      const block = asRecord(value);
-      if (!block) {
-        return;
-      }
-      const id = asNonEmptyString(block.id);
-      const title = asNonEmptyString(block.title);
-      const scheduledFor = asNonEmptyString(block.scheduledFor);
-      if (!id || !title) {
-        return;
-      }
-      next.push({
-        id,
-        type: "nutrition-meal-plan",
-        label: title,
-        timestamp: scheduledFor ?? undefined
-      });
-    });
-    return next;
-  }
-
-  if (functionName === "upsertMealPlanBlock") {
-    const payload = asRecord(response);
-    const block = asRecord(payload?.block);
-    const id = asNonEmptyString(block?.id);
-    const title = asNonEmptyString(block?.title);
-    const scheduledFor = asNonEmptyString(block?.scheduledFor);
-    if (!id || !title) {
-      return [];
-    }
-    return [
-      {
-        id,
-        type: "nutrition-meal-plan",
-        label: title,
-        timestamp: scheduledFor ?? undefined
-      }
-    ];
-  }
-
-  if (functionName === "removeMealPlanBlock") {
-    const payload = asRecord(response);
-    const id = asNonEmptyString(payload?.blockId);
-    const title = asNonEmptyString(payload?.blockTitle);
-    if (!id || !title) {
-      return [];
-    }
-    return [
-      {
-        id,
-        type: "nutrition-meal-plan",
-        label: title
       }
     ];
   }

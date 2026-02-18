@@ -85,7 +85,7 @@ Response `200`:
 
 ### `GET /api/nutrition/summary?date=YYYY-MM-DD`
 
-Returns daily macro totals (`calories`, `proteinGrams`, `carbsGrams`, `fatGrams`) plus meals, meal-plan blocks, optional `targetProfile`, and computed `remainingToTarget`.
+Returns daily macro totals (`calories`, `proteinGrams`, `carbsGrams`, `fatGrams`) plus logged meals, optional `targetProfile`, and computed `remainingToTarget`.
 
 ### `GET /api/nutrition/targets?date=YYYY-MM-DD`
 
@@ -184,9 +184,9 @@ Updates a meal log. Provide `items` to replace the meal composition; totals are 
 
 Deletes a meal log. Response `204` or `404`.
 
-### `GET /api/nutrition/plan?date=YYYY-MM-DD`
+### Legacy compatibility: `/api/nutrition/plan*`
 
-Returns meal-plan blocks for the selected date/time filter.
+`GET /api/nutrition/plan`, `POST /api/nutrition/plan`, `PUT /api/nutrition/plan/:id`, and `DELETE /api/nutrition/plan/:id` are legacy compatibility endpoints. The active nutrition workflow is item-based meal logging plus custom-food templates.
 
 ### `GET /api/nutrition/custom-foods?query=...&limit=200`
 
@@ -234,18 +234,6 @@ Updates one or more custom-food fields. Response `200` with `{ "food": ... }`.
 ### `DELETE /api/nutrition/custom-foods/:id`
 
 Deletes a custom food. Response `204` or `404`.
-
-### `POST /api/nutrition/plan`
-
-Creates a meal-plan block. Response `201` with `{ "block": ... }`.
-
-### `PUT /api/nutrition/plan/:id`
-
-Upserts a meal-plan block by id. Response `200` with `{ "block": ... }`.
-
-### `DELETE /api/nutrition/plan/:id`
-
-Deletes a meal-plan block. Response `204` or `404`.
 
 ## Journal
 

@@ -68,7 +68,6 @@ export type ChatCitationType =
   | "habit"
   | "goal"
   | "nutrition-meal"
-  | "nutrition-meal-plan"
   | "nutrition-custom-food"
   | "email"
   | "social-youtube"
