@@ -2317,6 +2317,76 @@ button:disabled {
   background: var(--accent-surface);
 }
 
+.chat-citation-stack-chip {
+  position: relative;
+  border: none;
+  background: transparent;
+  padding: 0 22px 0 0;
+  min-height: 24px;
+  cursor: pointer;
+}
+
+.chat-citation-stack-layer {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid var(--border-soft);
+  font-size: 0.69rem;
+  line-height: 1.2;
+  padding: 3px 8px;
+  white-space: nowrap;
+}
+
+.chat-citation-stack-layer-back {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: calc(100% - 24px);
+  height: 100%;
+  background: var(--surface-soft);
+  transform: translate(6px, -2px);
+  z-index: 1;
+}
+
+.chat-citation-stack-layer-mid {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: calc(100% - 24px);
+  height: 100%;
+  background: var(--surface);
+  transform: translate(3px, -1px);
+  z-index: 2;
+}
+
+.chat-citation-stack-layer-front {
+  position: relative;
+  background: var(--surface);
+  color: var(--text);
+  z-index: 3;
+}
+
+.chat-citation-stack-count {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  border: 1px solid var(--border-soft);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.65rem;
+  line-height: 1;
+  padding: 4px 6px;
+  z-index: 4;
+}
+
+.chat-citation-stack-chip:hover .chat-citation-stack-layer-front,
+.chat-citation-stack-chip:hover .chat-citation-stack-count {
+  border-color: var(--accent-border);
+  background: var(--accent-surface);
+}
+
 .chat-pending-action-list {
   display: grid;
   gap: 8px;

@@ -1,5 +1,5 @@
 import { Fragment, ReactNode, useEffect, useRef, useState } from "react";
-import { sendChatMessageStream, getChatHistory, submitJournalEntry } from "../lib/api";
+import { sendChatMessageStream, getChatHistory } from "../lib/api";
 import { ChatCitation, ChatImageAttachment, ChatMessage, ChatPendingAction } from "../types";
 
 function getSpeechRecognitionCtor(): (new () => SpeechRecognition) | null {
@@ -180,8 +180,6 @@ export function ChatView(): JSX.Element {
   const [pendingAttachments, setPendingAttachments] = useState<ChatImageAttachment[]>([]);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [savedMessageIds, setSavedMessageIds] = useState<Set<string>>(new Set());
-  const [savingMessageId, setSavingMessageId] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -483,28 +481,6 @@ export function ChatView(): JSX.Element {
     window.dispatchEvent(new Event("popstate"));
   };
 
-  const handleSaveToJournal = async (message: ChatMessage): Promise<void> => {
-    if (savedMessageIds.has(message.id) || savingMessageId === message.id) return;
-
-    setSavingMessageId(message.id);
-    try {
-      const submitted = await submitJournalEntry(message.content, crypto.randomUUID());
-
-      if (!submitted) {
-        throw new Error("Unable to save journal entry on server.");
-      }
-
-      // Create a new Set to trigger React re-render
-      setSavedMessageIds((prev) => new Set([...prev, message.id]));
-    } catch (err) {
-      console.error("Failed to save to journal:", err);
-      setError("Failed to save to journal. Please try again.");
-      setTimeout(() => setError(null), 3000);
-    } finally {
-      setSavingMessageId(null);
-    }
-  };
-
   const quickActions = [
     { label: "What's next?", prompt: "What's next on my schedule today?" },
     { label: "How's my week?", prompt: "How is my week looking? Any deadlines coming up?" },
@@ -537,6 +513,7 @@ export function ChatView(): JSX.Element {
         {messages.map((msg) => {
           const attachments = msg.metadata?.attachments ?? [];
           const hasAttachments = attachments.length > 0;
+          const citations = msg.metadata?.citations ?? [];
           const pendingActions = msg.metadata?.pendingActions ?? [];
 
           return (
@@ -559,19 +536,33 @@ export function ChatView(): JSX.Element {
                 )}
                 {renderMessageAttachments(attachments)}
               </div>
-              {msg.role === "assistant" && !msg.streaming && (msg.metadata?.citations?.length ?? 0) > 0 && (
+              {msg.role === "assistant" && !msg.streaming && citations.length > 0 && (
                 <div className="chat-citation-list" role="list" aria-label="Message citations">
-                  {(msg.metadata?.citations ?? []).map((citation) => (
+                  {citations.length === 1 ? (
                     <button
-                      key={`${citation.type}-${citation.id}`}
+                      key={`${citations[0]!.type}-${citations[0]!.id}`}
                       type="button"
                       className="chat-citation-chip"
-                      onClick={() => handleCitationClick(citation)}
-                      title={citation.label}
+                      onClick={() => handleCitationClick(citations[0]!)}
+                      title={citations[0]!.label}
                     >
-                      {formatCitationChipLabel(citation)}
+                      {formatCitationChipLabel(citations[0]!)}
                     </button>
-                  ))}
+                  ) : (
+                    <button
+                      type="button"
+                      className="chat-citation-stack-chip"
+                      onClick={() => handleCitationClick(citations[0]!)}
+                      title={citations.map((citation) => citation.label).join("\n")}
+                    >
+                      <span className="chat-citation-stack-layer chat-citation-stack-layer-back" aria-hidden="true" />
+                      <span className="chat-citation-stack-layer chat-citation-stack-layer-mid" aria-hidden="true" />
+                      <span className="chat-citation-stack-layer chat-citation-stack-layer-front">
+                        {formatCitationChipLabel(citations[0]!)}
+                      </span>
+                      <span className="chat-citation-stack-count">+{citations.length - 1}</span>
+                    </button>
+                  )}
                 </div>
               )}
               {msg.role === "assistant" && !msg.streaming && pendingActions.length > 0 && (
@@ -613,21 +604,6 @@ export function ChatView(): JSX.Element {
                     hour12: false
                   })}
                 </div>
-                {msg.role === "assistant" && !msg.streaming && (
-                  <button
-                    type="button"
-                    className="chat-save-to-journal-btn"
-                    onClick={() => handleSaveToJournal(msg)}
-                    disabled={savedMessageIds.has(msg.id) || savingMessageId === msg.id}
-                    title={savedMessageIds.has(msg.id) ? "Saved to journal" : "Save to journal"}
-                  >
-                    {savingMessageId === msg.id
-                      ? "💾..."
-                      : savedMessageIds.has(msg.id)
-                      ? "✓ Saved"
-                      : "📔 Save to journal"}
-                  </button>
-                )}
               </div>
             </div>
           );
