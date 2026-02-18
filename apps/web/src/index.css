@@ -3086,7 +3086,7 @@ body.keyboard-open .chat-input-container {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: calc(var(--keyboard-gap) + 4px);
+  bottom: var(--keyboard-gap);
   z-index: 6;
   padding: 4px 6px 4px;
   border-top: 1px solid var(--border-soft);
@@ -4338,7 +4338,7 @@ body.keyboard-open .pull-to-refresh-container {
 @media (max-width: 640px) {
   .app-shell-chat-active {
     padding:
-      max(4px, calc(4px + env(safe-area-inset-top)))
+      env(safe-area-inset-top)
       0
       0
       0;
@@ -4397,7 +4397,7 @@ body.keyboard-open .pull-to-refresh-container {
   }
 
   body.keyboard-open .chat-input-container {
-    bottom: calc(var(--keyboard-gap) + 4px);
+    bottom: var(--keyboard-gap);
     padding-bottom: 4px;
   }
 }

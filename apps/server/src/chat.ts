@@ -2806,6 +2806,7 @@ export async function sendChatMessage(
   const citations = new Map<string, ChatCitation>();
   const maxFunctionRounds = 8;
   const workingMessages: GeminiMessage[] = [...messages];
+  const requiresThoughtSignatureReplay = /gemini-3/i.test(config.GEMINI_LIVE_MODEL);
 
   try {
     for (let round = 0; round < maxFunctionRounds; round += 1) {
@@ -2857,18 +2858,40 @@ export async function sendChatMessage(
         ...roundResponses.flatMap((fnResp) => extractPendingActions(fnResp.rawResponse))
       ];
 
+      const replayableRoundEntries = functionCalls
+        .map((call, index) => ({ call, responseEntry: roundResponses[index] }))
+        .filter(({ call }) => {
+          if (!requiresThoughtSignatureReplay) {
+            return true;
+          }
+          const signature = (call as unknown as { thought_signature?: unknown; thoughtSignature?: unknown })
+            .thought_signature
+            ?? (call as unknown as { thought_signature?: unknown; thoughtSignature?: unknown }).thoughtSignature;
+          return typeof signature === "string" && signature.trim().length > 0;
+        });
+      if (replayableRoundEntries.length === 0) {
+        response = {
+          text: "",
+          finishReason: roundResponse.finishReason,
+          usageMetadata: roundResponse.usageMetadata
+        };
+        break;
+      }
+
       workingMessages.push({
         role: "model",
-        parts: functionCalls.map((call) => ({ functionCall: call })) as Part[]
+        parts: replayableRoundEntries
+          .map(({ call }) => ({ functionCall: call })) as Part[]
       });
       workingMessages.push({
         role: "function",
-        parts: roundResponses.map((responseEntry) => ({
-          functionResponse: {
-            name: responseEntry.name,
-            response: responseEntry.modelResponse
-          }
-        })) as Part[]
+        parts: replayableRoundEntries
+          .map(({ responseEntry }) => ({
+            functionResponse: {
+              name: responseEntry.name,
+              response: responseEntry.modelResponse
+            }
+          })) as Part[]
       });
     }
   } catch (error) {

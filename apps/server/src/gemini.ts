@@ -776,11 +776,35 @@ export class GeminiClient {
         consumeSseBlock(buffer);
       }
 
+      const hasThoughtSignature = (call: FunctionCall): boolean => {
+        const signature = (call as unknown as { thought_signature?: unknown; thoughtSignature?: unknown })
+          .thought_signature
+          ?? (call as unknown as { thought_signature?: unknown; thoughtSignature?: unknown }).thoughtSignature;
+        return typeof signature === "string" && signature.trim().length > 0;
+      };
+      const argsJson = (call: FunctionCall): string =>
+        call.args && typeof call.args === "object" && !Array.isArray(call.args)
+          ? JSON.stringify(call.args)
+          : "{}";
+      const sanitizedFunctionCalls = functionCalls.filter((call, index) => {
+        if (hasThoughtSignature(call)) {
+          return true;
+        }
+        const callArgs = argsJson(call);
+        return !functionCalls.some((candidate, candidateIndex) => {
+          if (candidateIndex === index || candidate.name !== call.name || !hasThoughtSignature(candidate)) {
+            return false;
+          }
+          const candidateArgs = argsJson(candidate);
+          return candidateArgs === callArgs || candidateArgs === "{}" || callArgs === "{}";
+        });
+      });
+
       return {
         text,
         finishReason,
         usageMetadata,
-        functionCalls: functionCalls.length > 0 ? functionCalls : undefined
+        functionCalls: sanitizedFunctionCalls.length > 0 ? sanitizedFunctionCalls : undefined
       };
     } catch (error) {
       if (error instanceof RateLimitError || error instanceof GeminiError) {
