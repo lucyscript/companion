@@ -68,7 +68,10 @@ import {
   AuthRole,
   AuthSession,
   AuthUser,
-  AuthUserWithPassword
+  AuthUserWithPassword,
+  WithingsData,
+  WithingsSleepSummaryEntry,
+  WithingsWeightEntry
 } from "./types.js";
 import { isAssignmentOrExamDeadline } from "./deadline-eligibility.js";
 import { makeId, nowIso } from "./utils.js";
@@ -80,7 +83,7 @@ const agentNames: AgentName[] = [
   "orchestrator"
 ];
 const TAG_ID_LIKE_REGEX = /^tag-[a-zA-Z0-9_-]+$/;
-const integrationNames: IntegrationSyncName[] = ["tp", "canvas", "gmail"];
+const integrationNames: IntegrationSyncName[] = ["tp", "canvas", "gmail", "withings"];
 const integrationRootCauses: IntegrationSyncRootCause[] = [
   "none",
   "auth",
@@ -607,6 +610,20 @@ export class RuntimeStore {
         messages TEXT DEFAULT '[]',
         lastSyncedAt TEXT
       );
+
+      CREATE TABLE IF NOT EXISTS withings_data (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        refreshToken TEXT,
+        accessToken TEXT,
+        tokenExpiresAt TEXT,
+        userId TEXT,
+        scope TEXT,
+        connectedAt TEXT,
+        tokenSource TEXT,
+        weightJson TEXT NOT NULL DEFAULT '[]',
+        sleepJson TEXT NOT NULL DEFAULT '[]',
+        lastSyncedAt TEXT
+      );
     `);
 
     // Removed nutrition meal-plan feature: purge deprecated table/index from older runtimes.
@@ -665,6 +682,20 @@ export class RuntimeStore {
     const hasTokenSourceColumn = gmailColumns.some((col) => col.name === "tokenSource");
     if (!hasTokenSourceColumn) {
       this.db.prepare("ALTER TABLE gmail_data ADD COLUMN tokenSource TEXT").run();
+    }
+
+    const withingsColumns = this.db.prepare("PRAGMA table_info(withings_data)").all() as Array<{ name: string }>;
+    const hasWeightJsonColumn = withingsColumns.some((col) => col.name === "weightJson");
+    if (!hasWeightJsonColumn) {
+      this.db.prepare("ALTER TABLE withings_data ADD COLUMN weightJson TEXT NOT NULL DEFAULT '[]'").run();
+    }
+    const hasSleepJsonColumn = withingsColumns.some((col) => col.name === "sleepJson");
+    if (!hasSleepJsonColumn) {
+      this.db.prepare("ALTER TABLE withings_data ADD COLUMN sleepJson TEXT NOT NULL DEFAULT '[]'").run();
+    }
+    const hasWithingsLastSyncedAtColumn = withingsColumns.some((col) => col.name === "lastSyncedAt");
+    if (!hasWithingsLastSyncedAtColumn) {
+      this.db.prepare("ALTER TABLE withings_data ADD COLUMN lastSyncedAt TEXT").run();
     }
 
     const githubCourseColumns = this.db.prepare("PRAGMA table_info(github_course_data)").all() as Array<{ name: string }>;
@@ -6361,6 +6392,138 @@ export class RuntimeStore {
     }
 
     return { messages, lastSyncedAt: row.lastSyncedAt };
+  }
+
+  setWithingsTokens(data: {
+    refreshToken?: string;
+    accessToken?: string;
+    tokenExpiresAt?: string;
+    userId?: string;
+    scope?: string;
+    connectedAt: string;
+    source?: "oauth" | "env" | "unknown";
+  }): void {
+    const existing = this.getWithingsTokens();
+    const stmt = this.db.prepare(`
+      INSERT INTO withings_data (
+        id, refreshToken, accessToken, tokenExpiresAt, userId, scope, connectedAt, tokenSource
+      ) VALUES (1, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        refreshToken = excluded.refreshToken,
+        accessToken = excluded.accessToken,
+        tokenExpiresAt = excluded.tokenExpiresAt,
+        userId = excluded.userId,
+        scope = excluded.scope,
+        connectedAt = excluded.connectedAt,
+        tokenSource = excluded.tokenSource
+    `);
+
+    stmt.run(
+      data.refreshToken ?? existing?.refreshToken ?? null,
+      data.accessToken ?? existing?.accessToken ?? null,
+      data.tokenExpiresAt ?? existing?.tokenExpiresAt ?? null,
+      data.userId ?? existing?.userId ?? null,
+      data.scope ?? existing?.scope ?? null,
+      data.connectedAt,
+      data.source ?? existing?.source ?? "oauth"
+    );
+  }
+
+  getWithingsTokens(): {
+    refreshToken?: string;
+    accessToken?: string;
+    tokenExpiresAt?: string;
+    userId?: string;
+    scope?: string;
+    connectedAt: string;
+    source: "oauth" | "env" | "unknown";
+  } | null {
+    const stmt = this.db.prepare(`
+      SELECT refreshToken, accessToken, tokenExpiresAt, userId, scope, connectedAt, tokenSource
+      FROM withings_data WHERE id = 1
+    `);
+
+    const row = stmt.get() as {
+      refreshToken: string | null;
+      accessToken: string | null;
+      tokenExpiresAt: string | null;
+      userId: string | null;
+      scope: string | null;
+      connectedAt: string | null;
+      tokenSource: string | null;
+    } | undefined;
+
+    if (!row || (!row.refreshToken && !row.accessToken)) {
+      return null;
+    }
+
+    return {
+      ...(row.refreshToken ? { refreshToken: row.refreshToken } : {}),
+      ...(row.accessToken ? { accessToken: row.accessToken } : {}),
+      ...(row.tokenExpiresAt ? { tokenExpiresAt: row.tokenExpiresAt } : {}),
+      ...(row.userId ? { userId: row.userId } : {}),
+      ...(row.scope ? { scope: row.scope } : {}),
+      connectedAt: row.connectedAt ?? new Date().toISOString(),
+      source:
+        row.tokenSource === "oauth" || row.tokenSource === "env"
+          ? row.tokenSource
+          : "unknown"
+    };
+  }
+
+  setWithingsData(weight: WithingsWeightEntry[], sleepSummary: WithingsSleepSummaryEntry[], lastSyncedAt: string): void {
+    const stmt = this.db.prepare(`
+      INSERT INTO withings_data (id, weightJson, sleepJson, lastSyncedAt)
+      VALUES (1, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        weightJson = excluded.weightJson,
+        sleepJson = excluded.sleepJson,
+        lastSyncedAt = excluded.lastSyncedAt
+    `);
+
+    stmt.run(JSON.stringify(weight), JSON.stringify(sleepSummary), lastSyncedAt);
+  }
+
+  getWithingsData(): WithingsData {
+    const stmt = this.db.prepare(`
+      SELECT weightJson, sleepJson, lastSyncedAt
+      FROM withings_data WHERE id = 1
+    `);
+
+    const row = stmt.get() as {
+      weightJson: string | null;
+      sleepJson: string | null;
+      lastSyncedAt: string | null;
+    } | undefined;
+
+    if (!row) {
+      return {
+        weight: [],
+        sleepSummary: [],
+        lastSyncedAt: null
+      };
+    }
+
+    let weight: WithingsWeightEntry[] = [];
+    let sleepSummary: WithingsSleepSummaryEntry[] = [];
+
+    try {
+      weight = row.weightJson ? (JSON.parse(row.weightJson) as WithingsWeightEntry[]) : [];
+    } catch {
+      weight = [];
+    }
+
+    try {
+      sleepSummary = row.sleepJson ? (JSON.parse(row.sleepJson) as WithingsSleepSummaryEntry[]) : [];
+    } catch {
+      sleepSummary = [];
+    }
+
+    return {
+      weight,
+      sleepSummary,
+      lastSyncedAt: row.lastSyncedAt
+    };
   }
 }
 

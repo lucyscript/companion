@@ -14,7 +14,9 @@ import {
   NutritionDailySummary,
   NutritionCustomFood,
   NutritionMeal,
-  NutritionMealType
+  NutritionMealType,
+  WithingsSleepSummaryEntry,
+  WithingsWeightEntry
 } from "./types.js";
 import { applyRoutinePresetPlacements } from "./routine-presets.js";
 
@@ -121,6 +123,21 @@ export const functionDeclarations: FunctionDeclaration[] = [
         unreadOnly: {
           type: SchemaType.BOOLEAN,
           description: "Set true to return only unread emails"
+        }
+      },
+      required: []
+    }
+  },
+  {
+    name: "getWithingsHealthSummary",
+    description:
+      "Get recent Withings body/sleep metrics synced from the user's smart scale and sleep data. Returns latest weight trend and sleep summaries for a date window.",
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        daysBack: {
+          type: SchemaType.NUMBER,
+          description: "Number of days to include (default: 14, max: 90)."
         }
       },
       required: []
@@ -1466,6 +1483,48 @@ export function handleGetEmails(
     });
 
   return messages.slice(0, limit);
+}
+
+export function handleGetWithingsHealthSummary(
+  store: RuntimeStore,
+  args: Record<string, unknown> = {}
+): {
+  connected: boolean;
+  lastSyncedAt: string | null;
+  latestWeight: WithingsWeightEntry | null;
+  latestSleep: WithingsSleepSummaryEntry | null;
+  weight: WithingsWeightEntry[];
+  sleepSummary: WithingsSleepSummaryEntry[];
+} {
+  const daysBack = clampNumber(args.daysBack, 14, 1, 90);
+  const data = store.getWithingsData();
+  const connected = store.getWithingsTokens() !== null;
+  const cutoffMs = Date.now() - daysBack * 24 * 60 * 60 * 1000;
+
+  const weight = data.weight
+    .filter((entry) => {
+      const measuredMs = Date.parse(entry.measuredAt);
+      return Number.isFinite(measuredMs) && measuredMs >= cutoffMs;
+    })
+    .sort((left, right) => Date.parse(right.measuredAt) - Date.parse(left.measuredAt))
+    .slice(0, 60);
+
+  const sleepSummary = data.sleepSummary
+    .filter((entry) => {
+      const dayMs = Date.parse(`${entry.date}T00:00:00.000Z`);
+      return Number.isFinite(dayMs) && dayMs >= cutoffMs;
+    })
+    .sort((left, right) => right.date.localeCompare(left.date))
+    .slice(0, 60);
+
+  return {
+    connected,
+    lastSyncedAt: data.lastSyncedAt,
+    latestWeight: weight[0] ?? null,
+    latestSleep: sleepSummary[0] ?? null,
+    weight,
+    sleepSummary
+  };
 }
 
 export function handleGetSocialDigest(
@@ -4436,6 +4495,9 @@ export function executeFunctionCall(
       break;
     case "getEmails":
       response = handleGetEmails(store, args);
+      break;
+    case "getWithingsHealthSummary":
+      response = handleGetWithingsHealthSummary(store, args);
       break;
     case "getSocialDigest":
       response = handleGetSocialDigest(store, args);

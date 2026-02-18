@@ -28,6 +28,9 @@ function toCitationTarget(citation: ChatCitation): CitationLinkTarget {
       return { tab: "habits" };
     case "nutrition-meal":
       return { tab: "nutrition" };
+    case "withings-weight":
+    case "withings-sleep":
+      return { tab: "habits" };
     case "email":
       return { tab: "settings", section: "integrations" };
     case "social-youtube":

@@ -419,6 +419,8 @@ export type ChatCitationType =
   | "nutrition-meal"
   | "nutrition-custom-food"
   | "email"
+  | "withings-weight"
+  | "withings-sleep"
   | "social-youtube"
   | "social-x"
   | "github-course-doc";
@@ -653,7 +655,7 @@ export interface GeminiStatus {
   error?: string;
 }
 
-export type IntegrationSyncName = "tp" | "canvas" | "gmail";
+export type IntegrationSyncName = "tp" | "canvas" | "gmail" | "withings";
 export type IntegrationSyncAttemptStatus = "success" | "failure";
 export type IntegrationSyncRootCause = "none" | "auth" | "network" | "rate_limit" | "validation" | "provider" | "unknown";
 

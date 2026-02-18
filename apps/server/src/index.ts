@@ -30,6 +30,8 @@ import { XSyncService } from "./x-sync.js";
 import { SocialMediaSummarizer } from "./social-media-summarizer.js";
 import { GmailOAuthService } from "./gmail-oauth.js";
 import { GmailSyncService } from "./gmail-sync.js";
+import { WithingsOAuthService } from "./withings-oauth.js";
+import { WithingsSyncService } from "./withings-sync.js";
 import { buildStudyPlanCalendarIcs } from "./study-plan-export.js";
 import { generateWeeklyStudyPlan } from "./study-plan.js";
 import { generateContentRecommendations } from "./content-recommendations.js";
@@ -144,6 +146,8 @@ const youtubeSyncService = new YouTubeSyncService(store);
 const xSyncService = new XSyncService(store);
 const gmailOAuthService = new GmailOAuthService(store);
 const gmailSyncService = new GmailSyncService(store, gmailOAuthService);
+const withingsOAuthService = new WithingsOAuthService(store);
+const withingsSyncService = new WithingsSyncService(store, withingsOAuthService);
 const syncFailureRecovery = new SyncFailureRecoveryTracker();
 const CANVAS_ON_DEMAND_SYNC_MIN_INTERVAL_MS = 5 * 60 * 1000;
 const CANVAS_ON_DEMAND_SYNC_STALE_MS = 25 * 60 * 1000;
@@ -330,6 +334,7 @@ githubCourseSyncService.start();
 youtubeSyncService.start();
 xSyncService.start();
 gmailSyncService.start();
+withingsSyncService.start();
 
 async function maybeAutoSyncCanvasData(): Promise<void> {
   try {
@@ -476,7 +481,9 @@ function isPublicApiRoute(method: string, path: string): boolean {
     (method === "POST" && path === "/api/auth/login") ||
     (method === "GET" && path === "/api/auth/status") ||
     (method === "GET" && path === "/api/auth/gmail") ||
-    (method === "GET" && path === "/api/auth/gmail/callback")
+    (method === "GET" && path === "/api/auth/gmail/callback") ||
+    (method === "GET" && path === "/api/auth/withings") ||
+    (method === "GET" && path === "/api/auth/withings/callback")
   );
 }
 
@@ -1260,6 +1267,10 @@ const tpSyncSchema = z.object({
   futureDays: z.coerce.number().int().min(1).max(730).optional()
 });
 
+const withingsSyncSchema = z.object({
+  daysBack: z.coerce.number().int().min(1).max(90).optional()
+});
+
 const integrationScopePreviewSchema = z.object({
   semester: z.string().trim().min(1).max(16).optional(),
   tpCourseIds: z.array(z.string().trim().min(1).max(32)).max(100).optional(),
@@ -1269,7 +1280,7 @@ const integrationScopePreviewSchema = z.object({
 });
 
 const integrationHealthLogQuerySchema = z.object({
-  integration: z.enum(["tp", "canvas", "gmail"]).optional(),
+  integration: z.enum(["tp", "canvas", "gmail", "withings"]).optional(),
   status: z.enum(["success", "failure"]).optional(),
   limit: z.coerce.number().int().min(1).max(2000).optional().default(200),
   hours: z.coerce.number().int().min(1).max(24 * 365).optional()
@@ -2493,9 +2504,11 @@ app.get("/api/sync/status", (_req, res) => {
   const xData = store.getXData();
   const youtubeData = store.getYouTubeData();
   const gmailData = store.getGmailData();
+  const withingsData = store.getWithingsData();
   const geminiClient = getGeminiClient();
   const githubConfigured = githubCourseSyncService.isConfigured();
   const gmailConnection = gmailOAuthService.getConnectionInfo();
+  const withingsConnection = withingsOAuthService.getConnectionInfo();
   const gmailConnectionSource = gmailConnection.connected ? gmailConnection.source : null;
   const gmailTokenBootstrap = gmailConnection.connected ? gmailConnection.tokenBootstrap : false;
   const gmailHasRefreshToken = gmailConnection.connected ? gmailConnection.hasRefreshToken : false;
@@ -2551,13 +2564,24 @@ app.get("/api/sync/status", (_req, res) => {
       hasRefreshToken: gmailHasRefreshToken,
       hasAccessToken: gmailHasAccessToken
     },
+    withings: {
+      lastSyncAt: withingsData.lastSyncedAt,
+      status: withingsConnection.connected ? "ok" : "not_connected",
+      connected: withingsConnection.connected,
+      connectionSource: withingsConnection.connected ? withingsConnection.source ?? null : null,
+      hasRefreshToken: withingsConnection.connected ? withingsConnection.hasRefreshToken ?? false : false,
+      hasAccessToken: withingsConnection.connected ? withingsConnection.hasAccessToken ?? false : false,
+      weightsTracked: withingsData.weight.length,
+      sleepDaysTracked: withingsData.sleepSummary.length
+    },
     autoHealing: {
       tp: tpSyncService.getAutoHealingStatus(),
       canvas: canvasSyncService.getAutoHealingStatus(),
       github: githubCourseSyncService.getAutoHealingStatus(),
       youtube: youtubeSyncService.getAutoHealingStatus(),
       x: xSyncService.getAutoHealingStatus(),
-      gmail: gmailSyncService.getAutoHealingStatus()
+      gmail: gmailSyncService.getAutoHealingStatus(),
+      withings: withingsSyncService.getAutoHealingStatus()
     }
   });
 });
@@ -2948,6 +2972,121 @@ app.get("/api/gmail/status", (_req, res) => {
   return res.json(connectionInfo);
 });
 
+app.get("/api/auth/withings", (_req, res) => {
+  try {
+    const authUrl = withingsOAuthService.getAuthUrl();
+    return res.redirect(authUrl);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    return res.status(500).json({ error: `Withings OAuth error: ${errorMessage}` });
+  }
+});
+
+app.get("/api/auth/withings/callback", async (req, res) => {
+  const error = typeof req.query.error === "string" ? req.query.error : null;
+  if (error) {
+    const errorDescription = typeof req.query.error_description === "string" ? req.query.error_description : error;
+    return res.status(400).json({
+      error: "Withings authorization failed",
+      details: errorDescription
+    });
+  }
+
+  const code = typeof req.query.code === "string" ? req.query.code : null;
+  const state = typeof req.query.state === "string" ? req.query.state : null;
+
+  if (!code) {
+    return res.status(400).json({ error: "Missing authorization code" });
+  }
+
+  try {
+    const result = await withingsOAuthService.handleCallback(code, state);
+    return res.json({
+      status: "connected",
+      connectedAt: result.connectedAt,
+      userId: result.userId ?? null,
+      scope: result.scope ?? null
+    });
+  } catch (oauthError) {
+    const errorMessage = oauthError instanceof Error ? oauthError.message : "Unknown error";
+    return res.status(500).json({ error: `Withings authorization failed: ${errorMessage}` });
+  }
+});
+
+app.get("/api/withings/status", (_req, res) => {
+  const connection = withingsOAuthService.getConnectionInfo();
+  const data = withingsSyncService.getData();
+  return res.json({
+    ...connection,
+    lastSyncedAt: data.lastSyncedAt,
+    weightsTracked: data.weight.length,
+    sleepDaysTracked: data.sleepSummary.length
+  });
+});
+
+app.post("/api/withings/sync", async (req, res) => {
+  const parsed = withingsSyncSchema.safeParse(req.body ?? {});
+  const syncStartedAt = Date.now();
+
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid Withings sync payload", issues: parsed.error.issues });
+  }
+
+  try {
+    const result = await withingsSyncService.triggerSync({
+      daysBack: parsed.data.daysBack
+    });
+
+    if (result.success) {
+      syncFailureRecovery.recordSuccess("withings");
+      recordIntegrationAttempt("withings", syncStartedAt, true);
+    } else {
+      const recoveryPrompt = syncFailureRecovery.recordFailure("withings", result.error ?? "Withings sync failed");
+      publishSyncRecoveryPrompt(recoveryPrompt);
+      recordIntegrationAttempt("withings", syncStartedAt, false, result.error ?? "Withings sync failed");
+      return res.status(500).json({
+        ...result,
+        recoveryPrompt
+      });
+    }
+
+    return res.json({
+      ...result,
+      startedAt: new Date(syncStartedAt).toISOString(),
+      data: withingsSyncService.getData()
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    const recoveryPrompt = syncFailureRecovery.recordFailure("withings", errorMessage);
+    publishSyncRecoveryPrompt(recoveryPrompt);
+    recordIntegrationAttempt("withings", syncStartedAt, false, errorMessage);
+    return res.status(500).json({ error: errorMessage, recoveryPrompt });
+  }
+});
+
+app.get("/api/withings/summary", (req, res) => {
+  const parsedDays = typeof req.query.daysBack === "string" ? Number(req.query.daysBack) : 14;
+  const daysBack = Number.isFinite(parsedDays) ? Math.max(1, Math.min(90, Math.round(parsedDays))) : 14;
+  const data = withingsSyncService.getData();
+  const cutoff = Date.now() - daysBack * 24 * 60 * 60 * 1000;
+
+  const weight = data.weight.filter((entry) => Date.parse(entry.measuredAt) >= cutoff);
+  const sleepSummary = data.sleepSummary.filter((entry) => {
+    const dayMs = Date.parse(`${entry.date}T00:00:00.000Z`);
+    return Number.isFinite(dayMs) && dayMs >= cutoff;
+  });
+
+  return res.json({
+    generatedAt: nowIso(),
+    daysBack,
+    lastSyncedAt: data.lastSyncedAt,
+    latestWeight: weight[0] ?? null,
+    latestSleep: sleepSummary[0] ?? null,
+    weight,
+    sleepSummary
+  });
+});
+
 app.get("/api/integrations/recovery-prompts", (_req, res) => {
   return res.json(syncFailureRecovery.getSnapshot());
 });
@@ -3113,6 +3252,7 @@ const shutdown = (): void => {
   youtubeSyncService.stop();
   xSyncService.stop();
   gmailSyncService.stop();
+  withingsSyncService.stop();
 
   const finalize = async (): Promise<void> => {
     if (persistenceContext.postgresSnapshotStore) {

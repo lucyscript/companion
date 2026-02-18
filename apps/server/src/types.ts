@@ -72,6 +72,8 @@ export type ChatCitationType =
   | "nutrition-meal"
   | "nutrition-custom-food"
   | "email"
+  | "withings-weight"
+  | "withings-sleep"
   | "social-youtube"
   | "social-x"
   | "github-course-doc";
@@ -813,7 +815,7 @@ export interface SyncQueueStatus {
   recentItems: SyncQueueItem[];
 }
 
-export type IntegrationSyncName = "tp" | "canvas" | "gmail";
+export type IntegrationSyncName = "tp" | "canvas" | "gmail" | "withings";
 export type IntegrationSyncAttemptStatus = "success" | "failure";
 export type IntegrationSyncRootCause = "none" | "auth" | "network" | "rate_limit" | "validation" | "provider" | "unknown";
 
@@ -949,6 +951,40 @@ export interface GmailData {
 export interface GmailSyncResult {
   success: boolean;
   messagesCount: number;
+  error?: string;
+}
+
+export interface WithingsWeightEntry {
+  measuredAt: string;
+  weightKg: number;
+  fatRatioPercent?: number;
+  fatMassKg?: number;
+  muscleMassKg?: number;
+}
+
+export interface WithingsSleepSummaryEntry {
+  date: string;
+  totalSleepSeconds: number;
+  deepSleepSeconds?: number;
+  lightSleepSeconds?: number;
+  remSleepSeconds?: number;
+  awakeSeconds?: number;
+  sleepEfficiency?: number;
+  hrAverage?: number;
+  hrMin?: number;
+  hrMax?: number;
+}
+
+export interface WithingsData {
+  weight: WithingsWeightEntry[];
+  sleepSummary: WithingsSleepSummaryEntry[];
+  lastSyncedAt: string | null;
+}
+
+export interface WithingsSyncResult {
+  success: boolean;
+  weightsCount: number;
+  sleepDaysCount: number;
   error?: string;
 }
 

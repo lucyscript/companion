@@ -6,6 +6,7 @@ import {
   handleGetDeadlines,
   handleSearchJournal,
   handleGetEmails,
+  handleGetWithingsHealthSummary,
   handleGetSocialDigest,
   handleGetHabitsGoalsStatus,
   handleUpdateHabitCheckIn,
@@ -53,8 +54,8 @@ describe("gemini-tools", () => {
   });
 
   describe("functionDeclarations", () => {
-    it("should define 38 function declarations", () => {
-      expect(functionDeclarations).toHaveLength(38);
+    it("should define 39 function declarations", () => {
+      expect(functionDeclarations).toHaveLength(39);
     });
 
     it("should include getSchedule function", () => {
@@ -85,6 +86,12 @@ describe("gemini-tools", () => {
       const getEmails = functionDeclarations.find((f) => f.name === "getEmails");
       expect(getEmails).toBeDefined();
       expect(getEmails?.description).toContain("email");
+    });
+
+    it("should include getWithingsHealthSummary function", () => {
+      const getWithings = functionDeclarations.find((f) => f.name === "getWithingsHealthSummary");
+      expect(getWithings).toBeDefined();
+      expect(getWithings?.description).toContain("Withings");
     });
 
     it("should include getSocialDigest function", () => {
@@ -427,6 +434,54 @@ describe("gemini-tools", () => {
       expect(Array.isArray(result)).toBe(true);
       expect(result).toHaveLength(1);
       expect(result[0]?.id).toBe("gmail-newer");
+    });
+  });
+
+  describe("handleGetWithingsHealthSummary", () => {
+    it("returns connection status false when Withings is not connected", () => {
+      const result = handleGetWithingsHealthSummary(store);
+      expect(result.connected).toBe(false);
+      expect(result.weight).toHaveLength(0);
+      expect(result.sleepSummary).toHaveLength(0);
+    });
+
+    it("returns latest weight/sleep data within requested window", () => {
+      store.setWithingsTokens({
+        refreshToken: "refresh-token",
+        accessToken: "access-token",
+        connectedAt: "2026-02-17T10:00:00.000Z",
+        source: "env"
+      });
+      store.setWithingsData(
+        [
+          {
+            measuredAt: "2026-02-17T07:00:00.000Z",
+            weightKg: 73.2
+          },
+          {
+            measuredAt: "2026-01-01T07:00:00.000Z",
+            weightKg: 74.1
+          }
+        ],
+        [
+          {
+            date: "2026-02-17",
+            totalSleepSeconds: 26400
+          },
+          {
+            date: "2026-01-01",
+            totalSleepSeconds: 25200
+          }
+        ],
+        "2026-02-17T07:01:00.000Z"
+      );
+
+      const result = handleGetWithingsHealthSummary(store, { daysBack: 14 });
+      expect(result.connected).toBe(true);
+      expect(result.latestWeight?.weightKg).toBe(73.2);
+      expect(result.latestSleep?.date).toBe("2026-02-17");
+      expect(result.weight).toHaveLength(1);
+      expect(result.sleepSummary).toHaveLength(1);
     });
   });
 

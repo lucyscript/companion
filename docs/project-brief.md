@@ -30,7 +30,8 @@ The key difference from a generic chatbot: Companion has **context**. It knows y
 - **Canvas LMS sync** — Pulls courses, assignments, deadlines, announcements, grades, and modules from `stavanger.instructure.com` via Canvas REST API with a personal access token
 - **TP EduCloud sync** — Pulls lecture schedule from UiS TP (DAT520, DAT560, DAT600) via public iCal subscription feed (no auth required)
 - **Course GitHub sync** — Pulls lab assignments, deadlines, and descriptions from course GitHub organizations (`dat520-2026`, `dat560-2026`) via GitHub API
-- **Auto-refresh** — Background jobs sync Canvas every ~30 min, TP weekly, and GitHub daily (schedules rarely change mid-semester)
+- **Withings health sync** — Pulls body metrics + sleep summaries via Withings OAuth (`weight`, `sleep`) so Gemini can adapt coaching from real daily health signals
+- **Auto-refresh** — Background jobs sync Canvas every ~30 min, TP weekly, GitHub daily, and Withings daily
 
 ### Social Media Summary (NEW — Content Digest)
 - **YouTube digest** — Fetches recent uploads from subscribed channels via YouTube Data API v3, summarizes video titles/descriptions using Gemini
@@ -436,3 +437,4 @@ Features are built in priority order. The orchestrator reads this section to dec
 | ✅ done | `nutrition-meal-plan-backend-removal` | backend-engineer | Remove legacy nutrition meal-plan backend surface (plan endpoints/types/store methods) so nutrition contracts only expose item-based meal logging + custom foods + target profiles. Tracked in issue #461. |
 | ✅ done | `nutrition-meal-plan-table-drop-migration` | backend-engineer | Add startup cleanup migration that drops deprecated `nutrition_meal_plan_blocks` table/index so persisted SQLite schemas match active nutrition contracts after backend removal. Tracked in issue #463. |
 | ✅ done | `weekly-growth-review-v2` | fullstack-engineer | Generate a weekly Gemini growth review combining schedule adherence, deadline completion, and habit momentum with explicit next-week commitments and an optional Sunday push summary. |
+| ✅ done | `withings-health-sync` | fullstack-engineer | Add Withings OAuth + daily sync (weight + sleep summary), persist metrics in runtime storage, expose `/api/withings/*` endpoints, and provide Gemini tool/context access for health-aware coaching without adding a dedicated tab. |

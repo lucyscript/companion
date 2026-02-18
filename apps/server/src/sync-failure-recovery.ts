@@ -1,6 +1,6 @@
 import { nowIso } from "./utils.js";
 
-export type SyncIntegration = "canvas" | "tp" | "gmail";
+export type SyncIntegration = "canvas" | "tp" | "gmail" | "withings";
 
 type PromptSeverity = "medium" | "high";
 
@@ -48,7 +48,8 @@ const PROMPT_THRESHOLD = 2;
 const staleMinutesByIntegration: Record<SyncIntegration, number> = {
   canvas: 180,
   gmail: 180,
-  tp: 24 * 60
+  tp: 24 * 60,
+  withings: 24 * 60
 };
 
 function defaultState(): IntegrationFailureState {
@@ -89,9 +90,12 @@ function buildSuggestedActions(integration: SyncIntegration, error: string): str
   } else if (integration === "tp") {
     actions.push("Verify TP semester/course IDs and that the iCal endpoint is reachable.");
     actions.push("Retry TP sync after confirming network connectivity.");
-  } else {
+  } else if (integration === "gmail") {
     actions.push("Reconnect Gmail OAuth and verify gmail.readonly consent is granted.");
     actions.push("Retry Gmail sync after OAuth reconnect.");
+  } else {
+    actions.push("Reconnect Withings OAuth and verify Body+ Sleep scopes are granted.");
+    actions.push("Retry Withings sync after reconnecting.");
   }
 
   if (lowered.includes("429") || lowered.includes("rate limit")) {
@@ -123,7 +127,8 @@ export class SyncFailureRecoveryTracker {
   private readonly byIntegration: Record<SyncIntegration, IntegrationFailureState> = {
     canvas: defaultState(),
     tp: defaultState(),
-    gmail: defaultState()
+    gmail: defaultState(),
+    withings: defaultState()
   };
 
   recordSuccess(integration: SyncIntegration, syncedAt: string = nowIso()): void {
@@ -205,7 +210,8 @@ export class SyncFailureRecoveryTracker {
     const rootCauseHint = inferRootCause(error);
     const actions = buildSuggestedActions(integration, error);
     const severity: PromptSeverity = stale || state.consecutiveFailures >= 4 ? "high" : "medium";
-    const titlePrefix = integration === "tp" ? "TP" : integration === "gmail" ? "Gmail" : "Canvas";
+    const titlePrefix =
+      integration === "tp" ? "TP" : integration === "gmail" ? "Gmail" : integration === "withings" ? "Withings" : "Canvas";
 
     return {
       id: `sync-recovery-${integration}-${state.consecutiveFailures}`,

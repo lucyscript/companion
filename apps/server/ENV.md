@@ -87,13 +87,22 @@ This file documents all environment variables required to run the Companion serv
 - `GMAIL_ACCESS_TOKEN` (optional) — Bootstrap Gmail access token for non-interactive production startup
 - `GMAIL_REFRESH_TOKEN` (optional) — Bootstrap Gmail refresh token for non-interactive production startup
 
+### Withings Health Integration
+- `WITHINGS_API_ENDPOINT` (default: `https://wbsapi.withings.net`) — Withings API base URL
+- `WITHINGS_CLIENT_ID` (optional) — Withings OAuth client ID
+- `WITHINGS_API_SECRET` (optional) — Withings OAuth client secret
+- `WITHINGS_CALLBACK_URL` (default: `http://localhost:8787/api/auth/withings/callback`) — OAuth callback URL registered in Withings developer settings
+- `WITHINGS_SCOPE` (default: `user.info,user.metrics,user.sleepevents`) — OAuth scopes requested during connect flow
+- `WITHINGS_ACCESS_TOKEN` (optional) — Bootstrap access token for non-interactive startup
+- `WITHINGS_REFRESH_TOKEN` (optional) — Bootstrap refresh token for non-interactive startup
+
 ## Deployment Checklist
 
 1. **Set required variables**: `TIMEZONE`, `USER_NAME`, and Vertex Live auth vars (`GEMINI_VERTEX_PROJECT_ID` + service account auth)
 2. **Generate VAPID keys**: `npx web-push generate-vapid-keys`
 3. **Set VAPID keys**: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`
 4. **Configure auth**: Set `AUTH_ADMIN_EMAIL` and `AUTH_ADMIN_PASSWORD` (and optionally `AUTH_REQUIRED=true`)
-5. **Optional integrations**: Set Canvas, GitHub, YouTube, X keys if needed
+5. **Optional integrations**: Set Canvas, GitHub, YouTube, X, Gmail, and Withings keys if needed
 6. **Set production port**: `PORT=8787` (or Railway's auto-assigned port)
 7. **Verify health check**: `curl http://<server-url>/api/health` should return `{"status":"ok"}`
 
@@ -164,4 +173,13 @@ GMAIL_CLIENT_ID=your-gmail-client-id
 GMAIL_CLIENT_SECRET=your-gmail-client-secret
 GMAIL_ACCESS_TOKEN=your-gmail-access-token
 GMAIL_REFRESH_TOKEN=your-gmail-refresh-token
+
+# Withings bootstrap (optional)
+WITHINGS_API_ENDPOINT=https://wbsapi.withings.net
+WITHINGS_CLIENT_ID=your-withings-client-id
+WITHINGS_API_SECRET=your-withings-api-secret
+WITHINGS_CALLBACK_URL=https://<your-server-domain>/api/auth/withings/callback
+WITHINGS_SCOPE=user.info,user.metrics,user.sleepevents
+WITHINGS_ACCESS_TOKEN=your-withings-access-token
+WITHINGS_REFRESH_TOKEN=your-withings-refresh-token
 ```

@@ -1732,7 +1732,7 @@ Response `200`:
 
 ### `GET /api/integrations/health-log?integration=canvas&status=failure&limit=50&hours=168`
 
-Returns persisted TP/Canvas/Gmail sync attempts (success/failure, latency, root-cause).
+Returns persisted TP/Canvas/Gmail/Withings sync attempts (success/failure, latency, root-cause).
 
 Response `200`:
 
@@ -1756,7 +1756,7 @@ Response `200`:
 
 ### `GET /api/integrations/health-log/summary?hours=168`
 
-Returns aggregated reliability metrics for TP/Canvas/Gmail syncs.
+Returns aggregated reliability metrics for TP/Canvas/Gmail/Withings syncs.
 
 Response `200`:
 
@@ -1771,5 +1771,92 @@ Response `200`:
     "successRate": 81.8
   },
   "integrations": []
+}
+```
+
+## Withings Integration
+
+### `GET /api/auth/withings`
+
+Redirects to Withings OAuth consent screen.
+
+Response: `302` redirect to Withings OAuth URL.
+
+### `GET /api/auth/withings/callback?code=...&state=...`
+
+Completes OAuth callback and stores access/refresh tokens.
+
+Response `200`:
+
+```json
+{
+  "status": "connected",
+  "connectedAt": "2026-02-18T17:00:00.000Z",
+  "userId": "12345678",
+  "scope": "user.info,user.metrics,user.sleepevents"
+}
+```
+
+### `GET /api/withings/status`
+
+Returns Withings connection and sync state.
+
+Response `200`:
+
+```json
+{
+  "connected": true,
+  "connectedAt": "2026-02-18T17:00:00.000Z",
+  "source": "oauth",
+  "lastSyncedAt": "2026-02-18T17:10:00.000Z",
+  "weightsTracked": 30,
+  "sleepDaysTracked": 30
+}
+```
+
+### `POST /api/withings/sync`
+
+Runs manual Withings sync (body metrics + sleep summaries).
+
+Request:
+
+```json
+{
+  "daysBack": 14
+}
+```
+
+Response `200`:
+
+```json
+{
+  "success": true,
+  "weightsCount": 14,
+  "sleepDaysCount": 14,
+  "startedAt": "2026-02-18T17:10:00.000Z"
+}
+```
+
+### `GET /api/withings/summary?daysBack=14`
+
+Returns recent synced Withings metrics.
+
+Response `200`:
+
+```json
+{
+  "generatedAt": "2026-02-18T17:10:10.000Z",
+  "daysBack": 14,
+  "lastSyncedAt": "2026-02-18T17:10:01.000Z",
+  "latestWeight": {
+    "measuredAt": "2026-02-18T07:00:00.000Z",
+    "weightKg": 73.2
+  },
+  "latestSleep": {
+    "date": "2026-02-17",
+    "totalSleepSeconds": 26400
+  },
+  "weight": [],
+  "sleepSummary": []
 }
 ```

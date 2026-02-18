@@ -694,7 +694,7 @@ Response:
 
 ### GET `/api/integrations/health-log?integration=canvas&status=failure&limit=50&hours=168`
 
-Return persisted TP/Canvas/Gmail sync attempts for troubleshooting.
+Return persisted TP/Canvas/Gmail/Withings sync attempts for troubleshooting.
 
 Response:
 
@@ -718,7 +718,7 @@ Response:
 
 ### GET `/api/integrations/health-log/summary?hours=168`
 
-Return reliability analytics for TP/Canvas/Gmail sync attempts.
+Return reliability analytics for TP/Canvas/Gmail/Withings sync attempts.
 
 Response:
 
@@ -941,6 +941,114 @@ The `GET /api/sync/status` response adds a `gmail` field:
     "messagesProcessed": 12,
     "connected": true
   }
+}
+```
+
+And a `withings` field:
+
+```json
+{
+  "withings": {
+    "lastSyncAt": "2026-02-18T17:00:00.000Z",
+    "status": "ok",
+    "connected": true,
+    "weightsTracked": 30,
+    "sleepDaysTracked": 30
+  }
+}
+```
+
+---
+
+## Phase 5: Withings Integration
+
+### GET `/api/auth/withings`
+
+Redirect to Withings OAuth consent screen for body/sleep scopes.
+
+Response: `302 Redirect` to Withings OAuth URL.
+
+### GET `/api/auth/withings/callback?code=...&state=...`
+
+Handle OAuth callback, exchange code for tokens, and persist refresh/access tokens.
+
+Response:
+
+```json
+{
+  "status": "connected",
+  "connectedAt": "2026-02-18T17:00:00.000Z",
+  "userId": "12345678",
+  "scope": "user.info,user.metrics,user.sleepevents"
+}
+```
+
+### GET `/api/withings/status`
+
+Return connection + sync state.
+
+Response:
+
+```json
+{
+  "connected": true,
+  "connectedAt": "2026-02-18T17:00:00.000Z",
+  "source": "oauth",
+  "lastSyncedAt": "2026-02-18T17:10:00.000Z",
+  "weightsTracked": 30,
+  "sleepDaysTracked": 30
+}
+```
+
+### POST `/api/withings/sync`
+
+Trigger manual Withings sync (weight + sleep summary).
+
+Request:
+
+```json
+{
+  "daysBack": 14
+}
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "weightsCount": 14,
+  "sleepDaysCount": 14,
+  "startedAt": "2026-02-18T17:10:00.000Z",
+  "data": {
+    "lastSyncedAt": "2026-02-18T17:10:01.000Z",
+    "weight": [],
+    "sleepSummary": []
+  }
+}
+```
+
+### GET `/api/withings/summary?daysBack=14`
+
+Return recent synced Withings metrics for assistant/tooling consumption.
+
+Response:
+
+```json
+{
+  "generatedAt": "2026-02-18T17:10:10.000Z",
+  "daysBack": 14,
+  "lastSyncedAt": "2026-02-18T17:10:01.000Z",
+  "latestWeight": {
+    "measuredAt": "2026-02-18T07:00:00.000Z",
+    "weightKg": 73.2
+  },
+  "latestSleep": {
+    "date": "2026-02-17",
+    "totalSleepSeconds": 26400
+  },
+  "weight": [],
+  "sleepSummary": []
 }
 ```
 

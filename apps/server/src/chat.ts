@@ -157,6 +157,48 @@ function buildGmailContextSummary(store: RuntimeStore, now: Date = new Date()): 
   return parts.join("\n");
 }
 
+function buildWithingsContextSummary(store: RuntimeStore, now: Date = new Date()): string {
+  const data = store.getWithingsData();
+  if (data.weight.length === 0 && data.sleepSummary.length === 0) {
+    return "";
+  }
+
+  const cutoffMs = now.getTime() - 7 * 24 * 60 * 60 * 1000;
+  const recentWeight = data.weight
+    .filter((entry) => {
+      const measuredMs = Date.parse(entry.measuredAt);
+      return Number.isFinite(measuredMs) && measuredMs >= cutoffMs;
+    })
+    .sort((left, right) => Date.parse(right.measuredAt) - Date.parse(left.measuredAt));
+
+  const recentSleep = data.sleepSummary
+    .filter((entry) => {
+      const dayMs = Date.parse(`${entry.date}T00:00:00.000Z`);
+      return Number.isFinite(dayMs) && dayMs >= cutoffMs;
+    })
+    .sort((left, right) => right.date.localeCompare(left.date));
+
+  const latestWeight = recentWeight[0] ?? data.weight[0];
+  const latestSleep = recentSleep[0] ?? data.sleepSummary[0];
+
+  const parts: string[] = ["**Withings health (last 7 days):**"];
+
+  if (latestWeight) {
+    parts.push(`- Latest weight: ${latestWeight.weightKg} kg (${latestWeight.measuredAt})`);
+  }
+
+  if (latestSleep) {
+    const hours = Math.round((latestSleep.totalSleepSeconds / 3600) * 10) / 10;
+    parts.push(`- Latest sleep: ${hours}h on ${latestSleep.date}`);
+  }
+
+  if (data.lastSyncedAt) {
+    parts.push(`- Last synced: ${data.lastSyncedAt}`);
+  }
+
+  return parts.join("\n");
+}
+
 function buildContentRecommendationSummary(store: RuntimeStore, now: Date = new Date()): string {
   const result = generateContentRecommendations(
     store.getAcademicDeadlines(now),
@@ -252,6 +294,7 @@ export function buildChatContext(store: RuntimeStore, now: Date = new Date(), hi
   const recommendationContext = buildContentRecommendationSummary(store, now);
   const githubCourseContext = buildGitHubCourseContextSummary(store);
   const nutritionContext = buildNutritionContextSummary(store, now);
+  const withingsContext = buildWithingsContextSummary(store, now);
 
   const contextWindow = buildContextWindow({
     todaySchedule,
@@ -263,7 +306,8 @@ export function buildChatContext(store: RuntimeStore, now: Date = new Date(), hi
       gmailContext,
       recommendationContext,
       githubCourseContext,
-      nutritionContext
+      nutritionContext,
+      withingsContext
     ]
       .filter((section) => section.length > 0)
       .join("\n\n")
@@ -716,6 +760,7 @@ Core behavior:
 - For habits and goals questions, call getHabitsGoalsStatus first. For create/delete requests, use createHabit/deleteHabit/createGoal/deleteGoal. For check-ins, use updateHabitCheckIn/updateGoalCheckIn.
 - For nutrition requests, use nutrition tools and focus on macro tracking only: calories, protein, carbs, and fat.
 - You can control the full Food tab via tools: nutrition targets, meals, meal items, and custom foods.
+- For body metrics, weight trends, or sleep questions, call getWithingsHealthSummary.
 - Do not hallucinate user-specific data. If data is unavailable, say so explicitly and suggest the next sync step.
 - For email follow-ups like "what did it contain?" after inbox discussion, call getEmails again and answer from sender/subject/snippet.
 - For deadline completion and snooze/extension requests, use queueDeadlineAction and apply immediately (no confirmation step).
@@ -861,6 +906,50 @@ function buildEmailsFallbackSection(response: unknown): string | null {
   if (response.length > 4) {
     lines.push(`- +${response.length - 4} more`);
   }
+  return lines.join("\n");
+}
+
+function buildWithingsFallbackSection(response: unknown): string | null {
+  const payload = asRecord(response);
+  if (!payload) {
+    return null;
+  }
+
+  const connected = payload.connected === true;
+  if (!connected) {
+    return "Withings: not connected yet.";
+  }
+
+  const latestWeight = asRecord(payload.latestWeight);
+  const latestSleep = asRecord(payload.latestSleep);
+  const lines: string[] = ["Withings health summary:"];
+
+  if (latestWeight) {
+    const weightKg = typeof latestWeight.weightKg === "number" ? latestWeight.weightKg : null;
+    const measuredAt = asNonEmptyString(latestWeight.measuredAt);
+    if (weightKg !== null) {
+      lines.push(`- Latest weight: ${weightKg} kg${measuredAt ? ` (${measuredAt})` : ""}`);
+    }
+  }
+
+  if (latestSleep) {
+    const totalSleepSeconds = typeof latestSleep.totalSleepSeconds === "number" ? latestSleep.totalSleepSeconds : null;
+    const date = asNonEmptyString(latestSleep.date);
+    if (totalSleepSeconds !== null) {
+      const sleepHours = Math.round((totalSleepSeconds / 3600) * 10) / 10;
+      lines.push(`- Latest sleep: ${sleepHours}h${date ? ` on ${date}` : ""}`);
+    }
+  }
+
+  const lastSyncedAt = asNonEmptyString(payload.lastSyncedAt);
+  if (lastSyncedAt) {
+    lines.push(`- Last synced: ${lastSyncedAt}`);
+  }
+
+  if (lines.length === 1) {
+    return "Withings: connected, but no recent weight/sleep records are synced.";
+  }
+
   return lines.join("\n");
 }
 
@@ -1259,6 +1348,9 @@ function buildToolDataFallbackReply(
       case "getEmails":
         section = buildEmailsFallbackSection(result.rawResponse);
         break;
+      case "getWithingsHealthSummary":
+        section = buildWithingsFallbackSection(result.rawResponse);
+        break;
       case "getSocialDigest":
         section = buildSocialFallbackSection(result.rawResponse);
         break;
@@ -1566,6 +1658,57 @@ function compactEmailsForModel(response: unknown): unknown {
       };
     }),
     truncated: response.length > TOOL_RESULT_ITEM_LIMIT
+  };
+}
+
+function compactWithingsForModel(response: unknown): unknown {
+  const payload = asRecord(response);
+  if (!payload) {
+    return compactGenericValue(response);
+  }
+
+  const latestWeight = asRecord(payload.latestWeight);
+  const latestSleep = asRecord(payload.latestSleep);
+  const weight = Array.isArray(payload.weight) ? payload.weight : [];
+  const sleepSummary = Array.isArray(payload.sleepSummary) ? payload.sleepSummary : [];
+
+  return {
+    connected: payload.connected === true,
+    lastSyncedAt: asNonEmptyString(payload.lastSyncedAt) ?? null,
+    latestWeight: latestWeight
+      ? {
+          measuredAt: asNonEmptyString(latestWeight.measuredAt) ?? null,
+          weightKg: typeof latestWeight.weightKg === "number" ? latestWeight.weightKg : null
+        }
+      : null,
+    latestSleep: latestSleep
+      ? {
+          date: asNonEmptyString(latestSleep.date) ?? null,
+          totalSleepSeconds:
+            typeof latestSleep.totalSleepSeconds === "number" ? latestSleep.totalSleepSeconds : null
+        }
+      : null,
+    weight: weight.slice(0, TOOL_RESULT_ITEM_LIMIT).map((value) => {
+      const record = asRecord(value);
+      if (!record) {
+        return {};
+      }
+      return {
+        measuredAt: asNonEmptyString(record.measuredAt) ?? null,
+        weightKg: typeof record.weightKg === "number" ? record.weightKg : null
+      };
+    }),
+    sleepSummary: sleepSummary.slice(0, TOOL_RESULT_ITEM_LIMIT).map((value) => {
+      const record = asRecord(value);
+      if (!record) {
+        return {};
+      }
+      return {
+        date: asNonEmptyString(record.date) ?? null,
+        totalSleepSeconds: typeof record.totalSleepSeconds === "number" ? record.totalSleepSeconds : null
+      };
+    }),
+    truncated: weight.length > TOOL_RESULT_ITEM_LIMIT || sleepSummary.length > TOOL_RESULT_ITEM_LIMIT
   };
 }
 
@@ -1963,6 +2106,8 @@ function compactFunctionResponseForModel(functionName: string, response: unknown
       return compactJournalCreateForModel(response);
     case "getEmails":
       return compactEmailsForModel(response);
+    case "getWithingsHealthSummary":
+      return compactWithingsForModel(response);
     case "getSocialDigest":
       return compactSocialDigestForModel(response);
     case "getHabitsGoalsStatus":
@@ -2099,6 +2244,47 @@ function collectToolCitations(
         timestamp: timestamp ?? undefined
       }
     ];
+  }
+
+  if (functionName === "getWithingsHealthSummary") {
+    const payload = asRecord(response);
+    if (!payload) {
+      return [];
+    }
+
+    const next: ChatCitation[] = [];
+    const latestWeight = asRecord(payload.latestWeight);
+    const latestSleep = asRecord(payload.latestSleep);
+
+    if (latestWeight) {
+      const measuredAt = asNonEmptyString(latestWeight.measuredAt);
+      const weightKg = typeof latestWeight.weightKg === "number" ? latestWeight.weightKg : null;
+      if (measuredAt && weightKg !== null) {
+        next.push({
+          id: `weight-${measuredAt}`,
+          type: "withings-weight",
+          label: `Weight ${weightKg} kg`,
+          timestamp: measuredAt
+        });
+      }
+    }
+
+    if (latestSleep) {
+      const date = asNonEmptyString(latestSleep.date);
+      const totalSleepSeconds =
+        typeof latestSleep.totalSleepSeconds === "number" ? latestSleep.totalSleepSeconds : null;
+      if (date && totalSleepSeconds !== null) {
+        const sleepHours = Math.round((totalSleepSeconds / 3600) * 10) / 10;
+        next.push({
+          id: `sleep-${date}`,
+          type: "withings-sleep",
+          label: `Sleep ${sleepHours}h`,
+          timestamp: `${date}T00:00:00.000Z`
+        });
+      }
+    }
+
+    return next;
   }
 
   if (functionName === "getEmails") {
