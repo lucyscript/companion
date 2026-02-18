@@ -2324,6 +2324,7 @@ button:disabled {
   padding: 0 22px 0 0;
   min-height: 24px;
   cursor: pointer;
+  text-align: left;
 }
 
 .chat-citation-stack-layer {
@@ -2385,6 +2386,17 @@ button:disabled {
 .chat-citation-stack-chip:hover .chat-citation-stack-count {
   border-color: var(--accent-border);
   background: var(--accent-surface);
+}
+
+.chat-citation-stack {
+  display: grid;
+  gap: 6px;
+}
+
+.chat-citation-stack-menu {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .chat-pending-action-list {

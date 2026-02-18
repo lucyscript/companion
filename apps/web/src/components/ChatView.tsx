@@ -180,6 +180,7 @@ export function ChatView(): JSX.Element {
   const [pendingAttachments, setPendingAttachments] = useState<ChatImageAttachment[]>([]);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [expandedCitationMessageIds, setExpandedCitationMessageIds] = useState<Set<string>>(new Set());
   const [isListening, setIsListening] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -481,6 +482,18 @@ export function ChatView(): JSX.Element {
     window.dispatchEvent(new Event("popstate"));
   };
 
+  const toggleCitationStack = (messageId: string): void => {
+    setExpandedCitationMessageIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(messageId)) {
+        next.delete(messageId);
+      } else {
+        next.add(messageId);
+      }
+      return next;
+    });
+  };
+
   const quickActions = [
     { label: "What's next?", prompt: "What's next on my schedule today?" },
     { label: "How's my week?", prompt: "How is my week looking? Any deadlines coming up?" },
@@ -549,19 +562,38 @@ export function ChatView(): JSX.Element {
                       {formatCitationChipLabel(citations[0]!)}
                     </button>
                   ) : (
-                    <button
-                      type="button"
-                      className="chat-citation-stack-chip"
-                      onClick={() => handleCitationClick(citations[0]!)}
-                      title={citations.map((citation) => citation.label).join("\n")}
-                    >
-                      <span className="chat-citation-stack-layer chat-citation-stack-layer-back" aria-hidden="true" />
-                      <span className="chat-citation-stack-layer chat-citation-stack-layer-mid" aria-hidden="true" />
-                      <span className="chat-citation-stack-layer chat-citation-stack-layer-front">
-                        {formatCitationChipLabel(citations[0]!)}
-                      </span>
-                      <span className="chat-citation-stack-count">+{citations.length - 1}</span>
-                    </button>
+                    <div className="chat-citation-stack">
+                      <button
+                        type="button"
+                        className="chat-citation-stack-chip"
+                        onClick={() => toggleCitationStack(msg.id)}
+                        title={citations.map((citation) => citation.label).join("\n")}
+                        aria-expanded={expandedCitationMessageIds.has(msg.id)}
+                        aria-label={`Show ${citations.length} citations`}
+                      >
+                        <span className="chat-citation-stack-layer chat-citation-stack-layer-back" aria-hidden="true" />
+                        <span className="chat-citation-stack-layer chat-citation-stack-layer-mid" aria-hidden="true" />
+                        <span className="chat-citation-stack-layer chat-citation-stack-layer-front">
+                          {formatCitationChipLabel(citations[0]!)}
+                        </span>
+                        <span className="chat-citation-stack-count">+{citations.length - 1}</span>
+                      </button>
+                      {expandedCitationMessageIds.has(msg.id) && (
+                        <div className="chat-citation-stack-menu" role="list" aria-label="Expanded citations">
+                          {citations.map((citation) => (
+                            <button
+                              key={`${citation.type}-${citation.id}`}
+                              type="button"
+                              className="chat-citation-chip"
+                              onClick={() => handleCitationClick(citation)}
+                              title={citation.label}
+                            >
+                              {formatCitationChipLabel(citation)}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               )}
