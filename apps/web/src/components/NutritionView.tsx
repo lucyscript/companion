@@ -43,10 +43,8 @@ interface NutritionTargetDraft {
   weightKg: string;
   maintenanceCalories: string;
   surplusCalories: string;
-  targetCalories: string;
-  targetProteinGrams: string;
-  targetCarbsGrams: string;
-  targetFatGrams: string;
+  proteinGramsPerLb: string;
+  fatGramsPerLb: string;
 }
 
 interface NutritionDaySnapshotMeal {
@@ -69,6 +67,7 @@ const MAX_DAY_SNAPSHOTS = 24;
 const MEAL_AMOUNT_STEP = 5;
 const MEAL_AMOUNT_HOLD_DELAY_MS = 300;
 const MEAL_AMOUNT_HOLD_INTERVAL_MS = 110;
+const KG_TO_LB = 2.2046226218;
 
 function toDateKey(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -277,21 +276,24 @@ function toTargetDraft(profile: NutritionTargetProfile | null): NutritionTargetD
       weightKg: "",
       maintenanceCalories: "",
       surplusCalories: "",
-      targetCalories: "",
-      targetProteinGrams: "",
-      targetCarbsGrams: "",
-      targetFatGrams: ""
+      proteinGramsPerLb: "0.8",
+      fatGramsPerLb: "0.4"
     };
   }
+
+  const weightKg = typeof profile.weightKg === "number" ? profile.weightKg : null;
+  const weightLb = weightKg && weightKg > 0 ? weightKg * KG_TO_LB : null;
+  const proteinPerLb =
+    weightLb && typeof profile.targetProteinGrams === "number" ? roundToTenth(profile.targetProteinGrams / weightLb) : 0.8;
+  const fatPerLb =
+    weightLb && typeof profile.targetFatGrams === "number" ? roundToTenth(profile.targetFatGrams / weightLb) : 0.4;
 
   return {
     weightKg: toNumberString(profile.weightKg),
     maintenanceCalories: toNumberString(profile.maintenanceCalories),
     surplusCalories: toNumberString(profile.surplusCalories),
-    targetCalories: toNumberString(profile.targetCalories),
-    targetProteinGrams: toNumberString(profile.targetProteinGrams),
-    targetCarbsGrams: toNumberString(profile.targetCarbsGrams),
-    targetFatGrams: toNumberString(profile.targetFatGrams)
+    proteinGramsPerLb: toNumberString(proteinPerLb),
+    fatGramsPerLb: toNumberString(fatPerLb)
   };
 }
 
@@ -312,59 +314,33 @@ function deriveTargetsFromDraft(draft: NutritionTargetDraft): {
   targetProteinGrams: number;
   targetCarbsGrams: number;
   targetFatGrams: number;
+  proteinGramsPerLb: number;
+  fatGramsPerLb: number;
 } | null {
   const weightKg = parseOptionalNumber(draft.weightKg);
   const maintenanceCalories = parseOptionalNumber(draft.maintenanceCalories);
   const surplusCalories = parseOptionalNumber(draft.surplusCalories);
 
-  const hasBase = weightKg !== null && maintenanceCalories !== null && surplusCalories !== null;
-  let targetCalories: number | null = null;
-  let targetProteinGrams: number | null = null;
-  let targetCarbsGrams: number | null = null;
-  let targetFatGrams: number | null = null;
-
-  if (hasBase) {
-    const weightLb = weightKg * 2.2046226218;
-    targetCalories = roundToTenth(maintenanceCalories + surplusCalories);
-    const proteinMin = weightLb * 0.7;
-    const proteinMax = weightLb * 1.0;
-    const fatMin = weightLb * 0.3;
-    const fatMax = weightLb * 0.5;
-    const defaultProtein = weightLb * 0.8;
-    const defaultFat = weightLb * 0.4;
-
-    const overrideProtein = parseOptionalNumber(draft.targetProteinGrams);
-    const overrideFat = parseOptionalNumber(draft.targetFatGrams);
-    targetProteinGrams = roundToTenth(clamp(overrideProtein ?? defaultProtein, proteinMin, proteinMax));
-    targetFatGrams = roundToTenth(clamp(overrideFat ?? defaultFat, fatMin, fatMax));
-
-    const remainingCalories = Math.max(0, targetCalories - targetProteinGrams * 4 - targetFatGrams * 9);
-    targetCarbsGrams = roundToTenth(remainingCalories / 4);
-  } else {
-    const overrideProtein = parseOptionalNumber(draft.targetProteinGrams);
-    const overrideFat = parseOptionalNumber(draft.targetFatGrams);
-    if (overrideProtein !== null) targetProteinGrams = roundToTenth(overrideProtein);
-    if (overrideFat !== null) targetFatGrams = roundToTenth(overrideFat);
-    const overrideCalories = parseOptionalNumber(draft.targetCalories);
-    const overrideCarbs = parseOptionalNumber(draft.targetCarbsGrams);
-    if (overrideCalories !== null) targetCalories = roundToTenth(overrideCalories);
-    if (overrideCarbs !== null) targetCarbsGrams = roundToTenth(overrideCarbs);
-  }
-
-  if (
-    targetCalories === null ||
-    targetProteinGrams === null ||
-    targetCarbsGrams === null ||
-    targetFatGrams === null
-  ) {
+  if (weightKg === null || maintenanceCalories === null || surplusCalories === null || weightKg <= 0) {
     return null;
   }
+
+  const weightLb = weightKg * KG_TO_LB;
+  const proteinPerLb = clamp(parseOptionalNumber(draft.proteinGramsPerLb) ?? 0.8, 0.7, 1.0);
+  const fatPerLb = clamp(parseOptionalNumber(draft.fatGramsPerLb) ?? 0.4, 0.3, 0.5);
+  const targetCalories = roundToTenth(maintenanceCalories + surplusCalories);
+  const targetProteinGrams = roundToTenth(weightLb * proteinPerLb);
+  const targetFatGrams = roundToTenth(weightLb * fatPerLb);
+  const remainingCalories = Math.max(0, targetCalories - targetProteinGrams * 4 - targetFatGrams * 9);
+  const targetCarbsGrams = roundToTenth(remainingCalories / 4);
 
   return {
     targetCalories,
     targetProteinGrams,
     targetCarbsGrams,
-    targetFatGrams
+    targetFatGrams,
+    proteinGramsPerLb: roundToTenth(proteinPerLb),
+    fatGramsPerLb: roundToTenth(fatPerLb)
   };
 }
 
@@ -373,6 +349,8 @@ function completeTargetsFromProfile(profile: NutritionTargetProfile | null): {
   targetProteinGrams: number;
   targetCarbsGrams: number;
   targetFatGrams: number;
+  proteinGramsPerLb: number | null;
+  fatGramsPerLb: number | null;
 } | null {
   if (
     !profile ||
@@ -384,11 +362,20 @@ function completeTargetsFromProfile(profile: NutritionTargetProfile | null): {
     return null;
   }
 
+  const weightKg = typeof profile.weightKg === "number" ? profile.weightKg : null;
+  const weightLb = weightKg && weightKg > 0 ? weightKg * KG_TO_LB : null;
+  const proteinPerLb =
+    weightLb !== null ? roundToTenth(profile.targetProteinGrams / weightLb) : null;
+  const fatPerLb =
+    weightLb !== null ? roundToTenth(profile.targetFatGrams / weightLb) : null;
+
   return {
     targetCalories: roundToTenth(profile.targetCalories),
     targetProteinGrams: roundToTenth(profile.targetProteinGrams),
     targetCarbsGrams: roundToTenth(profile.targetCarbsGrams),
-    targetFatGrams: roundToTenth(profile.targetFatGrams)
+    targetFatGrams: roundToTenth(profile.targetFatGrams),
+    proteinGramsPerLb: proteinPerLb,
+    fatGramsPerLb: fatPerLb
   };
 }
 
@@ -420,7 +407,7 @@ export function NutritionView(): JSX.Element {
   const [summary, setSummary] = useState<NutritionDailySummary | null>(null);
   const [meals, setMeals] = useState<NutritionMeal[]>([]);
   const [customFoods, setCustomFoods] = useState<NutritionCustomFood[]>([]);
-  const [activeTab, setActiveTab] = useState<"meals" | "settings">("meals");
+  const [activeTab, setActiveTab] = useState<"meals" | "log-foods" | "settings">("meals");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [editingCustomFoodId, setEditingCustomFoodId] = useState<string | null>(null);
@@ -431,6 +418,7 @@ export function NutritionView(): JSX.Element {
   const [daySnapshotName, setDaySnapshotName] = useState("");
   const [selectedDaySnapshotId, setSelectedDaySnapshotId] = useState("");
   const [dayControlBusy, setDayControlBusy] = useState(false);
+  const [showDayControlPanel, setShowDayControlPanel] = useState(false);
 
   const [mealDraft, setMealDraft] = useState<MealDraft>({
     name: ""
@@ -479,8 +467,12 @@ export function NutritionView(): JSX.Element {
     if (weightKg === null) {
       return null;
     }
-    const weightLb = weightKg * 2.2046226218;
+    const weightLb = weightKg * KG_TO_LB;
     return {
+      proteinPerLbMin: 0.7,
+      proteinPerLbMax: 1.0,
+      fatPerLbMin: 0.3,
+      fatPerLbMax: 0.5,
       proteinMin: roundToTenth(weightLb * 0.7),
       proteinMax: roundToTenth(weightLb * 1.0),
       fatMin: roundToTenth(weightLb * 0.3),
@@ -662,15 +654,21 @@ export function NutritionView(): JSX.Element {
     setSavingTargets(true);
 
     const derived = deriveTargetsFromDraft(targetDraft);
+    if (!derived) {
+      setSavingTargets(false);
+      setMessage("Set weight, maintenance, and surplus to save targets.");
+      return;
+    }
+
     const saved = await upsertNutritionTargetProfile({
       date: todayKey,
       weightKg: parseOptionalNumber(targetDraft.weightKg),
       maintenanceCalories: parseOptionalNumber(targetDraft.maintenanceCalories),
       surplusCalories: parseOptionalNumber(targetDraft.surplusCalories),
-      targetCalories: derived ? derived.targetCalories : parseOptionalNumber(targetDraft.targetCalories),
-      targetProteinGrams: derived ? derived.targetProteinGrams : parseOptionalNumber(targetDraft.targetProteinGrams),
-      targetCarbsGrams: derived ? derived.targetCarbsGrams : parseOptionalNumber(targetDraft.targetCarbsGrams),
-      targetFatGrams: derived ? derived.targetFatGrams : parseOptionalNumber(targetDraft.targetFatGrams)
+      targetCalories: derived.targetCalories,
+      targetProteinGrams: derived.targetProteinGrams,
+      targetCarbsGrams: derived.targetCarbsGrams,
+      targetFatGrams: derived.targetFatGrams
     });
 
     setSavingTargets(false);
@@ -949,6 +947,14 @@ export function NutritionView(): JSX.Element {
         </button>
         <button
           type="button"
+          className={activeTab === "log-foods" ? "nutrition-tab-switcher-active" : ""}
+          onClick={() => setActiveTab("log-foods")}
+          aria-pressed={activeTab === "log-foods"}
+        >
+          Log & Foods
+        </button>
+        <button
+          type="button"
           className={activeTab === "settings" ? "nutrition-tab-switcher-active" : ""}
           onClick={() => setActiveTab("settings")}
           aria-pressed={activeTab === "settings"}
@@ -959,7 +965,7 @@ export function NutritionView(): JSX.Element {
 
       {message && <p className="nutrition-message">{message}</p>}
 
-      {activeTab === "settings" && (
+      {activeTab === "meals" && (
         <>
           <article className="nutrition-card nutrition-plan-hero">
             <div className="nutrition-plan-hero-main">
@@ -975,8 +981,12 @@ export function NutritionView(): JSX.Element {
               >
                 Reset Day
               </button>
-              <button type="button" onClick={handleSaveDaySnapshot} disabled={dayControlBusy || loading}>
-                Save
+              <button
+                type="button"
+                onClick={() => setShowDayControlPanel((current) => !current)}
+                disabled={dayControlBusy}
+              >
+                {showDayControlPanel ? "Save ▲" : "Save ▼"}
               </button>
               <button
                 type="button"
@@ -989,182 +999,104 @@ export function NutritionView(): JSX.Element {
             </div>
           </article>
 
-          <article className="nutrition-card nutrition-day-controls">
-            <div className="nutrition-day-controls-header">
-              <h3>Day controls</h3>
-              <p className="nutrition-item-meta">Save, load, or reset today&apos;s macro plan in one tap.</p>
-            </div>
-            <div className="nutrition-day-controls-grid">
-              <label>
-                Snapshot name
-                <input
-                  type="text"
-                  value={daySnapshotName}
-                  onChange={(event) => setDaySnapshotName(event.target.value)}
-                  maxLength={80}
-                  placeholder="e.g. Lean bulk weekday"
-                />
-              </label>
-              <button type="button" onClick={handleSaveDaySnapshot} disabled={dayControlBusy || loading}>
-                Save day
-              </button>
-              <label>
-                Saved snapshots
-                <select
-                  value={selectedDaySnapshotId}
-                  onChange={(event) => setSelectedDaySnapshotId(event.target.value)}
-                  disabled={dayControlBusy}
-                >
-                  <option value="">Select snapshot</option>
-                  {daySnapshots.map((snapshot) => (
-                    <option key={snapshot.id} value={snapshot.id}>
-                      {snapshot.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div className="nutrition-inline-actions">
-                <button
-                  type="button"
-                  onClick={() => void handleLoadDaySnapshot()}
-                  disabled={dayControlBusy || !selectedDaySnapshotId}
-                >
-                  Load day
-                </button>
-                <button
-                  type="button"
-                  className="nutrition-secondary-button"
-                  onClick={() => void handleResetDay()}
-                  disabled={dayControlBusy || loading}
-                >
-                  Reset day
-                </button>
-                <button
-                  type="button"
-                  className="nutrition-secondary-button"
-                  onClick={handleDeleteDaySnapshot}
-                  disabled={dayControlBusy || !selectedDaySnapshotId}
-                >
-                  Delete saved
-                </button>
+          {showDayControlPanel && (
+            <article className="nutrition-card nutrition-day-controls">
+              <div className="nutrition-day-controls-header">
+                <h3>Day controls</h3>
+                <p className="nutrition-item-meta">Save or load complete day snapshots without using extra space.</p>
               </div>
-            </div>
-          </article>
+              <div className="nutrition-day-controls-grid">
+                <label>
+                  Snapshot name
+                  <input
+                    type="text"
+                    value={daySnapshotName}
+                    onChange={(event) => setDaySnapshotName(event.target.value)}
+                    maxLength={80}
+                    placeholder="e.g. Lean bulk weekday"
+                  />
+                </label>
+                <label>
+                  Saved snapshots
+                  <select
+                    value={selectedDaySnapshotId}
+                    onChange={(event) => setSelectedDaySnapshotId(event.target.value)}
+                    disabled={dayControlBusy}
+                  >
+                    <option value="">Select snapshot</option>
+                    {daySnapshots.map((snapshot) => (
+                      <option key={snapshot.id} value={snapshot.id}>
+                        {snapshot.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="nutrition-inline-actions">
+                  <button type="button" onClick={handleSaveDaySnapshot} disabled={dayControlBusy || loading}>
+                    Save day
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleLoadDaySnapshot()}
+                    disabled={dayControlBusy || !selectedDaySnapshotId}
+                  >
+                    Load day
+                  </button>
+                  <button
+                    type="button"
+                    className="nutrition-secondary-button"
+                    onClick={handleDeleteDaySnapshot}
+                    disabled={dayControlBusy || !selectedDaySnapshotId}
+                  >
+                    Delete saved
+                  </button>
+                </div>
+              </div>
+            </article>
+          )}
 
           <article className="nutrition-card">
             <div>
-              <h3>Plan settings</h3>
+              <h3>Target macros</h3>
               <p className="nutrition-item-meta">
-                Set weight, maintenance, and surplus to derive targets. Protein/fat stay in recommended ranges and
-                carbs are auto-filled from remaining calories.
+                Protein and fat are set using g/lb bodyweight. Carbs are automatically calculated from remaining calories.
               </p>
             </div>
-            <div className="nutrition-form">
-              <div className="nutrition-form-row nutrition-target-grid">
-                <label>
-                  Weight (kg)
-                  <input
-                    type="number"
-                    min={0}
-                    step="0.1"
-                    value={targetDraft.weightKg}
-                    onChange={(event) => updateTargetDraftField("weightKg", event.target.value)}
-                  />
-                </label>
-                <label>
-                  Maintenance calories
-                  <input
-                    type="number"
-                    min={0}
-                    step="1"
-                    value={targetDraft.maintenanceCalories}
-                    onChange={(event) => updateTargetDraftField("maintenanceCalories", event.target.value)}
-                  />
-                </label>
-                <label>
-                  Surplus calories
-                  <input
-                    type="number"
-                    min={-5000}
-                    step="1"
-                    value={targetDraft.surplusCalories}
-                    onChange={(event) => updateTargetDraftField("surplusCalories", event.target.value)}
-                  />
-                </label>
-              </div>
 
-              <div className="nutrition-summary-grid nutrition-target-dashboard">
-                <article className="summary-tile nutrition-target-card nutrition-target-card-protein">
-                  <p className="summary-label">Target protein</p>
-                  <p className="summary-value">{activeTargets ? `${formatMetric(activeTargets.targetProteinGrams)}g` : "—"}</p>
-                </article>
-                <article className="summary-tile nutrition-target-card nutrition-target-card-carbs">
-                  <p className="summary-label">Target carbs</p>
-                  <p className="summary-value">{activeTargets ? `${formatMetric(activeTargets.targetCarbsGrams)}g` : "—"}</p>
-                </article>
-                <article className="summary-tile nutrition-target-card nutrition-target-card-fat">
-                  <p className="summary-label">Target fat</p>
-                  <p className="summary-value">{activeTargets ? `${formatMetric(activeTargets.targetFatGrams)}g` : "—"}</p>
-                </article>
-                <article className="summary-tile nutrition-target-card nutrition-target-card-calories">
-                  <p className="summary-label">Target calories</p>
-                  <p className="summary-value">{activeTargets ? `${formatMetric(activeTargets.targetCalories)} kcal` : "—"}</p>
-                </article>
-              </div>
-
-              <div className="nutrition-form-row nutrition-target-grid">
-                <label>
-                  Protein target (optional)
-                  <input
-                    type="number"
-                    min={0}
-                    step="0.1"
-                    value={targetDraft.targetProteinGrams}
-                    onChange={(event) => updateTargetDraftField("targetProteinGrams", event.target.value)}
-                  />
-                  {macroRanges && (
-                    <small>
-                      Recommended: {formatMetric(macroRanges.proteinMin)}-{formatMetric(macroRanges.proteinMax)} g
-                    </small>
-                  )}
-                </label>
-                <label>
-                  Fat target (optional)
-                  <input
-                    type="number"
-                    min={0}
-                    step="0.1"
-                    value={targetDraft.targetFatGrams}
-                    onChange={(event) => updateTargetDraftField("targetFatGrams", event.target.value)}
-                  />
-                  {macroRanges && (
-                    <small>
-                      Recommended: {formatMetric(macroRanges.fatMin)}-{formatMetric(macroRanges.fatMax)} g
-                    </small>
-                  )}
-                </label>
-              </div>
-
-              <div className="nutrition-inline-actions">
-                <button type="button" onClick={() => void handleSaveTargets()} disabled={savingTargets || loading}>
-                  {savingTargets ? "Saving..." : "Save targets"}
-                </button>
-                <button
-                  type="button"
-                  className="nutrition-secondary-button"
-                  onClick={handleResetTargets}
-                  disabled={!targetDraftDirty || savingTargets}
-                >
-                  Reset
-                </button>
-              </div>
+            <div className="nutrition-summary-grid nutrition-target-dashboard">
+              <article className="summary-tile nutrition-target-card nutrition-target-card-protein">
+                <p className="summary-label">Target protein</p>
+                <p className="summary-value">{activeTargets ? `${formatMetric(activeTargets.targetProteinGrams)}g` : "—"}</p>
+                <p className="nutrition-item-meta">
+                  {activeTargets && activeTargets.proteinGramsPerLb !== null
+                    ? `${formatMetric(activeTargets.proteinGramsPerLb)} g/lb`
+                    : "—"}
+                </p>
+              </article>
+              <article className="summary-tile nutrition-target-card nutrition-target-card-carbs">
+                <p className="summary-label">Target carbs</p>
+                <p className="summary-value">{activeTargets ? `${formatMetric(activeTargets.targetCarbsGrams)}g` : "—"}</p>
+              </article>
+              <article className="summary-tile nutrition-target-card nutrition-target-card-fat">
+                <p className="summary-label">Target fat</p>
+                <p className="summary-value">{activeTargets ? `${formatMetric(activeTargets.targetFatGrams)}g` : "—"}</p>
+                <p className="nutrition-item-meta">
+                  {activeTargets && activeTargets.fatGramsPerLb !== null
+                    ? `${formatMetric(activeTargets.fatGramsPerLb)} g/lb`
+                    : "—"}
+                </p>
+              </article>
+              <article className="summary-tile nutrition-target-card nutrition-target-card-calories">
+                <p className="summary-label">Target calories</p>
+                <p className="summary-value">{activeTargets ? `${formatMetric(activeTargets.targetCalories)} kcal` : "—"}</p>
+              </article>
             </div>
+            <p className="nutrition-item-meta">
+              Carbs are automatically calculated to fill the remaining calories:{" "}
+              {activeTargets ? `${formatMetric(activeTargets.targetCarbsGrams)}g` : "—"}.
+            </p>
           </article>
-        </>
-      )}
 
-      {activeTab === "meals" && (
-        <>
           <article className="nutrition-card">
             <h3>Meals</h3>
             {meals.length === 0 ? (
@@ -1241,6 +1173,48 @@ export function NutritionView(): JSX.Element {
             )}
           </article>
 
+          <article className="nutrition-card nutrition-daily-dashboard">
+            <h3>Daily totals</h3>
+            {loading ? (
+              <p>Loading nutrition...</p>
+            ) : (
+              <div className="nutrition-summary-grid nutrition-daily-grid">
+                <article className="nutrition-daily-metric">
+                  <p className="summary-label">Protein</p>
+                  <p className="summary-value">{summary ? `${formatMetric(summary.totals.proteinGrams)}g` : "0g"}</p>
+                  <p className={`nutrition-daily-delta ${intakeDeltas ? deltaToneClass(intakeDeltas.proteinGrams) : "nutrition-delta-neutral"}`}>
+                    {intakeDeltas ? formatSignedDelta(intakeDeltas.proteinGrams, "g") : "Set targets"}
+                  </p>
+                </article>
+                <article className="nutrition-daily-metric">
+                  <p className="summary-label">Carbs</p>
+                  <p className="summary-value">{summary ? `${formatMetric(summary.totals.carbsGrams)}g` : "0g"}</p>
+                  <p className={`nutrition-daily-delta ${intakeDeltas ? deltaToneClass(intakeDeltas.carbsGrams) : "nutrition-delta-neutral"}`}>
+                    {intakeDeltas ? formatSignedDelta(intakeDeltas.carbsGrams, "g") : "Set targets"}
+                  </p>
+                </article>
+                <article className="nutrition-daily-metric">
+                  <p className="summary-label">Fat</p>
+                  <p className="summary-value">{summary ? `${formatMetric(summary.totals.fatGrams)}g` : "0g"}</p>
+                  <p className={`nutrition-daily-delta ${intakeDeltas ? deltaToneClass(intakeDeltas.fatGrams) : "nutrition-delta-neutral"}`}>
+                    {intakeDeltas ? formatSignedDelta(intakeDeltas.fatGrams, "g") : "Set targets"}
+                  </p>
+                </article>
+                <article className="nutrition-daily-metric">
+                  <p className="summary-label">Calories</p>
+                  <p className="summary-value">{summary ? String(Math.round(summary.totals.calories)) : "0"} kcal</p>
+                  <p className={`nutrition-daily-delta ${intakeDeltas ? deltaToneClass(intakeDeltas.calories) : "nutrition-delta-neutral"}`}>
+                    {intakeDeltas ? formatSignedDelta(intakeDeltas.calories, " kcal") : "Set targets"}
+                  </p>
+                </article>
+              </div>
+            )}
+          </article>
+        </>
+      )}
+
+      {activeTab === "log-foods" && (
+        <>
           <article className="nutrition-card">
             <h3>Log meal</h3>
             {customFoods.length === 0 && (
@@ -1476,45 +1450,126 @@ export function NutritionView(): JSX.Element {
               </div>
             )}
           </article>
-
-          <article className="nutrition-card nutrition-daily-dashboard">
-            <h3>Daily totals</h3>
-            {loading ? (
-              <p>Loading nutrition...</p>
-            ) : (
-              <div className="nutrition-summary-grid nutrition-daily-grid">
-                <article className="nutrition-daily-metric">
-                  <p className="summary-label">Protein</p>
-                  <p className="summary-value">{summary ? `${formatMetric(summary.totals.proteinGrams)}g` : "0g"}</p>
-                  <p className={`nutrition-daily-delta ${intakeDeltas ? deltaToneClass(intakeDeltas.proteinGrams) : "nutrition-delta-neutral"}`}>
-                    {intakeDeltas ? formatSignedDelta(intakeDeltas.proteinGrams, "g") : "Set targets"}
-                  </p>
-                </article>
-                <article className="nutrition-daily-metric">
-                  <p className="summary-label">Carbs</p>
-                  <p className="summary-value">{summary ? `${formatMetric(summary.totals.carbsGrams)}g` : "0g"}</p>
-                  <p className={`nutrition-daily-delta ${intakeDeltas ? deltaToneClass(intakeDeltas.carbsGrams) : "nutrition-delta-neutral"}`}>
-                    {intakeDeltas ? formatSignedDelta(intakeDeltas.carbsGrams, "g") : "Set targets"}
-                  </p>
-                </article>
-                <article className="nutrition-daily-metric">
-                  <p className="summary-label">Fat</p>
-                  <p className="summary-value">{summary ? `${formatMetric(summary.totals.fatGrams)}g` : "0g"}</p>
-                  <p className={`nutrition-daily-delta ${intakeDeltas ? deltaToneClass(intakeDeltas.fatGrams) : "nutrition-delta-neutral"}`}>
-                    {intakeDeltas ? formatSignedDelta(intakeDeltas.fatGrams, "g") : "Set targets"}
-                  </p>
-                </article>
-                <article className="nutrition-daily-metric">
-                  <p className="summary-label">Calories</p>
-                  <p className="summary-value">{summary ? String(Math.round(summary.totals.calories)) : "0"} kcal</p>
-                  <p className={`nutrition-daily-delta ${intakeDeltas ? deltaToneClass(intakeDeltas.calories) : "nutrition-delta-neutral"}`}>
-                    {intakeDeltas ? formatSignedDelta(intakeDeltas.calories, " kcal") : "Set targets"}
-                  </p>
-                </article>
-              </div>
-            )}
-          </article>
         </>
+      )}
+
+      {activeTab === "settings" && (
+        <article className="nutrition-card">
+          <div>
+            <h3>Plan settings</h3>
+            <p className="nutrition-item-meta">
+              Set weight, maintenance, and surplus to derive targets. Protein/fat use g/lb bodyweight and carbs are
+              auto-filled from remaining calories.
+            </p>
+          </div>
+          <div className="nutrition-form">
+            <div className="nutrition-form-row nutrition-target-grid">
+              <label>
+                Weight (kg)
+                <input
+                  type="number"
+                  min={0}
+                  step="0.1"
+                  value={targetDraft.weightKg}
+                  onChange={(event) => updateTargetDraftField("weightKg", event.target.value)}
+                />
+              </label>
+              <label>
+                Maintenance calories
+                <input
+                  type="number"
+                  min={0}
+                  step="1"
+                  value={targetDraft.maintenanceCalories}
+                  onChange={(event) => updateTargetDraftField("maintenanceCalories", event.target.value)}
+                />
+              </label>
+              <label>
+                Surplus calories
+                <input
+                  type="number"
+                  min={-5000}
+                  step="1"
+                  value={targetDraft.surplusCalories}
+                  onChange={(event) => updateTargetDraftField("surplusCalories", event.target.value)}
+                />
+              </label>
+            </div>
+
+            <div className="nutrition-form-row nutrition-target-grid">
+              <label>
+                Protein target (g/lb bodyweight)
+                <input
+                  type="number"
+                  min={0.7}
+                  max={1}
+                  step="0.01"
+                  value={targetDraft.proteinGramsPerLb}
+                  onChange={(event) => updateTargetDraftField("proteinGramsPerLb", event.target.value)}
+                />
+                {macroRanges && (
+                  <small>
+                    Recommended {formatMetric(macroRanges.proteinPerLbMin)}-{formatMetric(macroRanges.proteinPerLbMax)} g/lb
+                    ({formatMetric(macroRanges.proteinMin)}-{formatMetric(macroRanges.proteinMax)}g)
+                  </small>
+                )}
+              </label>
+              <label>
+                Fat target (g/lb bodyweight)
+                <input
+                  type="number"
+                  min={0.3}
+                  max={0.5}
+                  step="0.01"
+                  value={targetDraft.fatGramsPerLb}
+                  onChange={(event) => updateTargetDraftField("fatGramsPerLb", event.target.value)}
+                />
+                {macroRanges && (
+                  <small>
+                    Recommended {formatMetric(macroRanges.fatPerLbMin)}-{formatMetric(macroRanges.fatPerLbMax)} g/lb
+                    ({formatMetric(macroRanges.fatMin)}-{formatMetric(macroRanges.fatMax)}g)
+                  </small>
+                )}
+              </label>
+            </div>
+            <p className="nutrition-item-meta">
+              Carbs are automatically calculated to fill the remaining calories:{" "}
+              {activeTargets ? `${formatMetric(activeTargets.targetCarbsGrams)}g` : "—"}.
+            </p>
+
+            <div className="nutrition-inline-actions">
+              <button type="button" onClick={() => void handleSaveTargets()} disabled={savingTargets || loading}>
+                {savingTargets ? "Saving..." : "Save targets"}
+              </button>
+              <button
+                type="button"
+                className="nutrition-secondary-button"
+                onClick={handleResetTargets}
+                disabled={!targetDraftDirty || savingTargets}
+              >
+                Reset
+              </button>
+            </div>
+            <div className="nutrition-summary-grid nutrition-target-dashboard">
+              <article className="summary-tile nutrition-target-card nutrition-target-card-protein">
+                <p className="summary-label">Protein</p>
+                <p className="summary-value">{activeTargets ? `${formatMetric(activeTargets.targetProteinGrams)}g` : "—"}</p>
+              </article>
+              <article className="summary-tile nutrition-target-card nutrition-target-card-carbs">
+                <p className="summary-label">Carbs</p>
+                <p className="summary-value">{activeTargets ? `${formatMetric(activeTargets.targetCarbsGrams)}g` : "—"}</p>
+              </article>
+              <article className="summary-tile nutrition-target-card nutrition-target-card-fat">
+                <p className="summary-label">Fat</p>
+                <p className="summary-value">{activeTargets ? `${formatMetric(activeTargets.targetFatGrams)}g` : "—"}</p>
+              </article>
+              <article className="summary-tile nutrition-target-card nutrition-target-card-calories">
+                <p className="summary-label">Calories</p>
+                <p className="summary-value">{activeTargets ? `${formatMetric(activeTargets.targetCalories)} kcal` : "—"}</p>
+              </article>
+            </div>
+          </div>
+        </article>
       )}
     </section>
   );
