@@ -597,6 +597,12 @@ export class RuntimeStore {
       );
     `);
 
+    // Removed nutrition meal-plan feature: purge deprecated table/index from older runtimes.
+    this.db.exec(`
+      DROP INDEX IF EXISTS idx_nutrition_meal_plan_blocks_scheduledFor;
+      DROP TABLE IF EXISTS nutrition_meal_plan_blocks;
+    `);
+
     const journalColumns = this.db.prepare("PRAGMA table_info(journal_entries)").all() as Array<{ name: string }>;
     const hasPhotosColumn = journalColumns.some((col) => col.name === "photos");
     if (!hasPhotosColumn) {
