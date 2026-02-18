@@ -712,6 +712,7 @@ function buildFunctionCallingSystemInstruction(userName: string): string {
 
 Core behavior:
 - For factual questions about schedule, deadlines, journal, email, or GitHub course materials, use tools before answering.
+- For simple greetings/small talk (for example "hi", "hello", "yo"), reply naturally without tool calls.
 - For habits and goals questions, call getHabitsGoalsStatus first. For create/delete requests, use createHabit/deleteHabit/createGoal/deleteGoal. For check-ins, use updateHabitCheckIn/updateGoalCheckIn.
 - For nutrition requests, use nutrition tools and focus on macro tracking only: calories, protein, carbs, and fat.
 - Do not hallucinate user-specific data. If data is unavailable, say so explicitly and suggest the next sync step.
@@ -1269,9 +1270,26 @@ function buildToolDataFallbackReply(
   });
 
   if (sections.length === 0) {
-    const toolNames = Array.from(new Set(functionResponses.map((result) => result.name))).slice(0, 5);
-    const label = toolNames.length > 0 ? toolNames.join(", ") : "tool calls";
-    return `I fetched data from ${label}, but couldn't format it into a final reply. Please retry.`;
+    const genericLines = functionResponses
+      .slice(0, 5)
+      .map((result) => {
+        const compact = compactFunctionResponseForModel(result.name, result.rawResponse);
+        if (compact === null || compact === undefined) {
+          return `- ${result.name}: no data returned`;
+        }
+        if (typeof compact === "string") {
+          return `- ${result.name}: ${textSnippet(compact, 180)}`;
+        }
+        if (typeof compact === "number" || typeof compact === "boolean") {
+          return `- ${result.name}: ${String(compact)}`;
+        }
+        try {
+          return `- ${result.name}: ${textSnippet(JSON.stringify(compact), 180)}`;
+        } catch {
+          return `- ${result.name}: result available`;
+        }
+      });
+    return [introLine, "", ...genericLines].join("\n");
   }
 
   return [
