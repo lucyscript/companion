@@ -288,7 +288,6 @@ export function buildChatContext(store: RuntimeStore, now: Date = new Date(), hi
     })
     .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
 
-  const recentJournals = store.getJournalEntries(3);
   const userState: UserContext = store.getUserContext();
   const canvasContext = buildCanvasContextSummary(store, now);
   const gmailContext = buildGmailContextSummary(store, now);
@@ -300,7 +299,6 @@ export function buildChatContext(store: RuntimeStore, now: Date = new Date(), hi
   const contextWindow = buildContextWindow({
     todaySchedule,
     upcomingDeadlines,
-    recentJournals,
     userState,
     customContext: [
       canvasContext,
@@ -410,7 +408,6 @@ interface ExecutedFunctionResponse {
 const ACTION_ID_REGEX = /\baction-[a-zA-Z0-9_-]+\b/i;
 const AFFIRMATIVE_ACTION_REGEX = /^(yes|yep|yeah|sure|ok|okay|go ahead|do it|please do|save it|sounds good)\b/i;
 const NEGATIVE_ACTION_REGEX = /^(no|nope|cancel|stop|do not|don't|never mind|not now)\b/i;
-
 function isAffirmativeActionReply(input: string): boolean {
   return AFFIRMATIVE_ACTION_REGEX.test(input.trim());
 }
@@ -852,7 +849,7 @@ function buildFunctionCallingSystemInstruction(
   return `You are Companion, a personal AI assistant for ${userName}, a university student at UiS (University of Stavanger).
 
 Core behavior:
-- For factual questions about schedule, deadlines, journal, email, or GitHub course materials, use tools before answering.
+- For factual questions about schedule, deadlines, email, or GitHub course materials, use tools before answering.
 - For simple greetings/small talk (for example "hi", "hello", "yo"), reply naturally without tool calls.
 - For habits and goals questions, call getHabitsGoalsStatus first. For create/delete requests, use createHabit/deleteHabit/createGoal/deleteGoal. For check-ins, use updateHabitCheckIn/updateGoalCheckIn.
 - For nutrition requests, use nutrition tools and focus on macro tracking only: calories, protein, carbs, and fat.
@@ -872,7 +869,7 @@ Core behavior:
 - If user intent is clear from context, do not ask for extra confirmation before logging a habit/goal check-in.
 - Never tell the user to use the habits/goals tab for check-ins; handle it in chat.
 - If user asks to "clear", "free up", or remove the rest of today's plan, prefer clearScheduleWindow.
-- For journal-save requests, call createJournalEntry directly and do not ask for confirm/cancel commands.
+- If the user asks to save/update a meal plan, persist it via nutrition tools (targets/meals/items/custom foods).
 - When user intent to mutate data is clear, execute the available mutation tool directly instead of asking for extra permission.
 - Never claim a write action succeeded unless a tool call in this turn returned success.
 - If a tool call is needed, emit tool calls only first and wait to write user-facing text until tool results are available.
@@ -1119,46 +1116,6 @@ function buildSocialFallbackSection(response: unknown): string | null {
     return "Social media: no recent items found.";
   }
   return sections.join("\n");
-}
-
-function buildJournalFallbackSection(response: unknown): string | null {
-  if (!Array.isArray(response)) {
-    return null;
-  }
-  if (response.length === 0) {
-    return "Journal: no matching entries found.";
-  }
-
-  const lines: string[] = [`Journal matches (${response.length}):`];
-  response.slice(0, 3).forEach((value) => {
-    const record = asRecord(value);
-    if (!record) {
-      return;
-    }
-    const content = asNonEmptyString(record.content) ?? "";
-    lines.push(`- ${textSnippet(content, 110)}`);
-  });
-  if (response.length > 3) {
-    lines.push(`- +${response.length - 3} more`);
-  }
-  return lines.join("\n");
-}
-
-function buildJournalCreateFallbackSection(response: unknown): string | null {
-  const payload = asRecord(response);
-  if (!payload) {
-    return null;
-  }
-
-  const message = asNonEmptyString(payload.message) ?? "Journal entry saved.";
-  const entry = asRecord(payload.entry);
-  const content = asNonEmptyString(entry?.content);
-
-  if (!content) {
-    return message;
-  }
-
-  return `${message}\n- ${textSnippet(content, 110)}`;
 }
 
 function buildHabitsGoalsFallbackSection(response: unknown): string | null {
@@ -1470,12 +1427,6 @@ function buildToolDataFallbackReply(
       case "getSocialDigest":
         section = buildSocialFallbackSection(result.rawResponse);
         break;
-      case "searchJournal":
-        section = buildJournalFallbackSection(result.rawResponse);
-        break;
-      case "createJournalEntry":
-        section = buildJournalCreateFallbackSection(result.rawResponse);
-        break;
       case "getHabitsGoalsStatus":
         section = buildHabitsGoalsFallbackSection(result.rawResponse);
         break;
@@ -1710,48 +1661,6 @@ function compactDeadlinesForModel(response: unknown): unknown {
       };
     }),
     truncated: response.length > DEADLINE_TOOL_RESULT_LIMIT
-  };
-}
-
-function compactJournalForModel(response: unknown): unknown {
-  if (!Array.isArray(response)) {
-    return compactGenericValue(response);
-  }
-
-  return {
-    total: response.length,
-    entries: response.slice(0, TOOL_RESULT_ITEM_LIMIT).map((value) => {
-      const record = asRecord(value);
-      if (!record) {
-        return {};
-      }
-      return {
-        id: asNonEmptyString(record.id) ?? "",
-        timestamp: asNonEmptyString(record.timestamp) ?? null,
-        contentSnippet: compactTextValue(asNonEmptyString(record.content) ?? "", 180)
-      };
-    }),
-    truncated: response.length > TOOL_RESULT_ITEM_LIMIT
-  };
-}
-
-function compactJournalCreateForModel(response: unknown): unknown {
-  const payload = asRecord(response);
-  if (!payload) {
-    return compactGenericValue(response);
-  }
-
-  const entry = asRecord(payload.entry);
-  return {
-    success: Boolean(payload.success),
-    message: asNonEmptyString(payload.message) ?? null,
-    entry: entry
-      ? {
-          id: asNonEmptyString(entry.id) ?? "",
-          timestamp: asNonEmptyString(entry.timestamp) ?? null,
-          contentSnippet: compactTextValue(asNonEmptyString(entry.content) ?? "", 180)
-        }
-      : null
   };
 }
 
@@ -2219,10 +2128,6 @@ function compactFunctionResponseForModel(functionName: string, response: unknown
       return compactScheduleForModel(response);
     case "getDeadlines":
       return compactDeadlinesForModel(response);
-    case "searchJournal":
-      return compactJournalForModel(response);
-    case "createJournalEntry":
-      return compactJournalCreateForModel(response);
     case "getEmails":
       return compactEmailsForModel(response);
     case "getWithingsHealthSummary":
@@ -2319,50 +2224,6 @@ function collectToolCitations(
       });
     });
     return next;
-  }
-
-  if (functionName === "searchJournal" && Array.isArray(response)) {
-    const next: ChatCitation[] = [];
-    response.forEach((value) => {
-      const record = asRecord(value);
-      if (!record) {
-        return;
-      }
-      const id = asNonEmptyString(record.id);
-      const content = asNonEmptyString(record.content);
-      const timestamp = asNonEmptyString(record.timestamp);
-      if (!id || !content) {
-        return;
-      }
-      next.push({
-        id,
-        type: "journal",
-        label: textSnippet(content),
-        timestamp: timestamp ?? undefined
-      });
-    });
-    return next;
-  }
-
-  if (functionName === "createJournalEntry") {
-    const payload = asRecord(response);
-    const entry = asRecord(payload?.entry);
-    const id = asNonEmptyString(entry?.id);
-    const content = asNonEmptyString(entry?.content);
-    const timestamp = asNonEmptyString(entry?.timestamp);
-
-    if (!id || !content) {
-      return [];
-    }
-
-    return [
-      {
-        id,
-        type: "journal",
-        label: textSnippet(content),
-        timestamp: timestamp ?? undefined
-      }
-    ];
   }
 
   if (functionName === "getWithingsHealthSummary") {
@@ -3501,7 +3362,18 @@ export async function sendChatMessage(
             ? (call.args as Record<string, unknown>)
             : {};
         const args = hydrateFunctionArgsForRequest(call.name, callArgs, userInput);
-        const result = executeFunctionCall(call.name, args, store);
+        let result: { name: string; response: unknown };
+        try {
+          result = executeFunctionCall(call.name, args, store);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Tool call failed";
+          return {
+            id: `${round + 1}-${callIndex}`,
+            name: call.name,
+            rawResponse: { error: message },
+            modelResponse: { error: message }
+          };
+        }
         const nextCitations = collectToolCitations(store, result.name, result.response);
         nextCitations.forEach((citation) => addCitation(citations, citation));
         return {

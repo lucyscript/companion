@@ -703,8 +703,10 @@ describe("chat service", () => {
     });
 
     const firstRequest = generateChatResponse.mock.calls[0][0] as { systemInstruction: string };
-    expect(firstRequest.systemInstruction).toContain("For factual questions about schedule, deadlines, journal, email");
-    expect(firstRequest.systemInstruction).toContain("For journal-save requests, call createJournalEntry directly");
+    expect(firstRequest.systemInstruction).toContain("For factual questions about schedule, deadlines, email, or GitHub course materials, use tools before answering.");
+    expect(firstRequest.systemInstruction).toContain(
+      "If the user asks to save/update a meal plan, persist it via nutrition tools (targets/meals/items/custom foods)."
+    );
     expect(firstRequest.systemInstruction).toContain(
       "For deadline completion and snooze/extension requests, use queueDeadlineAction and apply immediately (no confirmation step)."
     );
@@ -1130,38 +1132,6 @@ describe("chat service", () => {
     expect(suggestion.assistantMessage.metadata?.pendingActions).toBeUndefined();
     expect(suggestion.assistantMessage.metadata?.actionExecution?.status).toBe("confirmed");
     expect(store.getHabitById(habit.id)?.targetPerWeek).toBe(4);
-  });
-
-  it("creates journal entries immediately when Gemini calls createJournalEntry", async () => {
-    generateChatResponse = vi
-      .fn()
-      .mockResolvedValueOnce({
-        text: "",
-        finishReason: "stop",
-        functionCalls: [
-          {
-            name: "createJournalEntry",
-            args: { content: "First conversation with my AI assistant." }
-          }
-        ]
-      })
-      .mockResolvedValueOnce({
-        text: "Saved your journal entry.",
-        finishReason: "stop"
-      });
-    fakeGemini = {
-      generateChatResponse,
-      generateLiveChatResponse
-    } as unknown as GeminiClient;
-
-    const result = await sendChatMessage(store, "Add this to my journal: First conversation with my AI assistant.", {
-      geminiClient: fakeGemini,
-    });
-
-    expect(generateChatResponse).toHaveBeenCalledTimes(2);
-    expect(result.assistantMessage.metadata?.pendingActions ?? []).toHaveLength(0);
-    expect(result.reply).toContain("Saved your journal entry.");
-    expect(store.searchJournalEntries({ query: "First conversation with my AI assistant.", limit: 5 }).length).toBe(1);
   });
 
   it("adds habit/goal citations when getHabitsGoalsStatus tool is used", async () => {

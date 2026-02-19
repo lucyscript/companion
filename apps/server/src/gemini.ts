@@ -2,7 +2,7 @@ import { GoogleGenerativeAI, GenerativeModel, GenerateContentResult, FunctionDec
 import { google } from "googleapis";
 import WebSocket, { RawData } from "ws";
 import { config } from "./config.js";
-import { Deadline, JournalEntry, LectureEvent, UserContext } from "./types.js";
+import { Deadline, LectureEvent, UserContext } from "./types.js";
 
 export interface GeminiMessage {
   role: "user" | "model" | "function";
@@ -57,7 +57,6 @@ export interface GeminiStreamChatRequest extends GeminiChatRequest {
 export interface ContextWindow {
   todaySchedule: LectureEvent[];
   upcomingDeadlines: Deadline[];
-  recentJournals: JournalEntry[];
   userState?: UserContext;
   customContext?: string;
 }
@@ -1460,18 +1459,6 @@ export function buildContextWindow(context: ContextWindow): string {
     });
   }
 
-  if (context.recentJournals.length > 0) {
-    parts.push("\n**Recent Journal Entries:**");
-    context.recentJournals.forEach((entry) => {
-      const date = new Date(entry.timestamp).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric"
-      });
-      const preview = entry.content.slice(0, 100);
-      parts.push(`- ${date}: ${preview}${entry.content.length > 100 ? "..." : ""}`);
-    });
-  }
-
   if (context.userState) {
     parts.push(
       `\n**User State:** Energy: ${context.userState.energyLevel}, Stress: ${context.userState.stressLevel}, Mode: ${context.userState.mode}`
@@ -1486,7 +1473,7 @@ export function buildContextWindow(context: ContextWindow): string {
 }
 
 export function buildSystemPrompt(userName: string, contextWindow: string): string {
-  return `You are Companion, a personal AI assistant for ${userName}, a university student at UiS (University of Stavanger). You have access to their full academic context including schedule, deadlines, and journal entries.
+  return `You are Companion, a personal AI assistant for ${userName}, a university student at UiS (University of Stavanger). You have access to their full academic context including schedule and deadlines.
 
 ${contextWindow}
 

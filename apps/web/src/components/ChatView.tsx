@@ -21,8 +21,6 @@ function toCitationTarget(citation: ChatCitation): CitationLinkTarget {
       return { tab: "schedule", deadlineId: citation.id };
     case "schedule":
       return { tab: "schedule", lectureId: citation.id };
-    case "journal":
-      return { tab: "habits" };
     case "habit":
     case "goal":
       return { tab: "habits" };
@@ -650,7 +648,7 @@ export function ChatView(): JSX.Element {
         {messages.length === 0 && (
           <div className="chat-welcome">
             <h2>👋 Hi there!</h2>
-            <p>I'm your personal AI companion. I know your schedule, deadlines, and journal history.</p>
+            <p>I'm your personal AI companion. I know your schedule, deadlines, and food plan context.</p>
             <p>Ask me anything about your academic life!</p>
             <div className="chat-quick-actions">
               {quickActions.map((action) => (

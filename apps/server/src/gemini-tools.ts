@@ -91,25 +91,6 @@ export const functionDeclarations: FunctionDeclaration[] = [
     }
   },
   {
-    name: "searchJournal",
-    description:
-      "Search journal entries by keywords or date range. Returns journal entries matching the search criteria. Use this when user wants to recall past entries, reflect on previous experiences, or find specific journal content.",
-    parameters: {
-      type: SchemaType.OBJECT,
-      properties: {
-        query: {
-          type: SchemaType.STRING,
-          description: "Search query to match against journal content"
-        },
-        limit: {
-          type: SchemaType.NUMBER,
-          description: "Maximum number of entries to return (default: 10)"
-        }
-      },
-      required: []
-    }
-  },
-  {
     name: "getEmails",
     description:
       "Get recent Gmail inbox messages. Returns sender, subject, snippet, read status, and received timestamp. Use this when user asks about emails, inbox, what their latest email said, or message contents.",
@@ -1080,21 +1061,6 @@ export const functionDeclarations: FunctionDeclaration[] = [
         }
       },
       required: []
-    }
-  },
-  {
-    name: "createJournalEntry",
-    description:
-      "Create and save a journal entry immediately. Use this when the user asks to save something to their journal right now.",
-    parameters: {
-      type: SchemaType.OBJECT,
-      properties: {
-        content: {
-          type: SchemaType.STRING,
-          description: "Journal text content to save immediately"
-        }
-      },
-      required: ["content"]
     }
   }
 ];
@@ -4667,9 +4633,6 @@ export function executeFunctionCall(
     case "getDeadlines":
       response = handleGetDeadlines(store, args);
       break;
-    case "searchJournal":
-      response = handleSearchJournal(store, args);
-      break;
     case "getEmails":
       response = handleGetEmails(store, args);
       break;
@@ -4783,9 +4746,6 @@ export function executeFunctionCall(
       break;
     case "queueUpdateRoutinePreset":
       response = handleQueueUpdateRoutinePreset(store, args);
-      break;
-    case "createJournalEntry":
-      response = handleCreateJournalEntry(store, args);
       break;
     default:
       throw new Error(`Unknown function: ${name}`);

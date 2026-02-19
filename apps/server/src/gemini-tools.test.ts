@@ -54,8 +54,8 @@ describe("gemini-tools", () => {
   });
 
   describe("functionDeclarations", () => {
-    it("should define 39 function declarations", () => {
-      expect(functionDeclarations).toHaveLength(39);
+    it("should define 37 function declarations", () => {
+      expect(functionDeclarations).toHaveLength(37);
     });
 
     it("should include getSchedule function", () => {
@@ -74,12 +74,6 @@ describe("gemini-tools", () => {
       const getDeadlines = functionDeclarations.find((f) => f.name === "getDeadlines");
       expect(getDeadlines).toBeDefined();
       expect(getDeadlines?.description).toContain("deadline");
-    });
-
-    it("should include searchJournal function", () => {
-      const searchJournal = functionDeclarations.find((f) => f.name === "searchJournal");
-      expect(searchJournal).toBeDefined();
-      expect(searchJournal?.description).toContain("journal");
     });
 
     it("should include getEmails function", () => {
@@ -143,7 +137,6 @@ describe("gemini-tools", () => {
       expect(functionDeclarations.find((f) => f.name === "clearScheduleWindow")).toBeDefined();
       expect(functionDeclarations.find((f) => f.name === "queueCreateRoutinePreset")).toBeDefined();
       expect(functionDeclarations.find((f) => f.name === "queueUpdateRoutinePreset")).toBeDefined();
-      expect(functionDeclarations.find((f) => f.name === "createJournalEntry")).toBeDefined();
     });
   });
 
@@ -1329,13 +1322,6 @@ describe("gemini-tools", () => {
       expect(Array.isArray(result.response)).toBe(true);
     });
 
-    it("should execute searchJournal function", () => {
-      const result = executeFunctionCall("searchJournal", { query: "test", limit: 5 }, store);
-
-      expect(result.name).toBe("searchJournal");
-      expect(Array.isArray(result.response)).toBe(true);
-    });
-
     it("should execute getEmails function", () => {
       const result = executeFunctionCall("getEmails", { limit: 5 }, store);
 
@@ -1700,13 +1686,6 @@ describe("gemini-tools", () => {
       expect(updateResult.name).toBe("queueUpdateRoutinePreset");
       expect(updateResult.response).toHaveProperty("requiresConfirmation", false);
       expect(updateResult.response).toHaveProperty("success", true);
-    });
-
-    it("should execute createJournalEntry function", () => {
-      const result = executeFunctionCall("createJournalEntry", { content: "Saved from tool call." }, store);
-
-      expect(result.name).toBe("createJournalEntry");
-      expect(result.response).toHaveProperty("success", true);
     });
 
     it("should throw error for unknown function", () => {

@@ -9,7 +9,7 @@ import {
   type GeminiChatRequest,
   type ContextWindow
 } from "./gemini.js";
-import type { Deadline, JournalEntry, LectureEvent, UserContext } from "./types.js";
+import type { Deadline, LectureEvent, UserContext } from "./types.js";
 
 describe("GeminiClient", () => {
   describe("initialization", () => {
@@ -426,8 +426,7 @@ describe("buildContextWindow", () => {
 
     const context: ContextWindow = {
       todaySchedule: schedule,
-      upcomingDeadlines: [],
-      recentJournals: []
+      upcomingDeadlines: []
     };
 
     const result = buildContextWindow(context);
@@ -449,59 +448,13 @@ describe("buildContextWindow", () => {
 
     const context: ContextWindow = {
       todaySchedule: [],
-      upcomingDeadlines: deadlines,
-      recentJournals: []
+      upcomingDeadlines: deadlines
     };
 
     const result = buildContextWindow(context);
     expect(result).toContain("Upcoming Deadlines:");
     expect(result).toContain("DAT520: Lab 1");
     expect(result).toContain("Priority: high");
-  });
-
-  it("should build context with journal entries", () => {
-    const journals: JournalEntry[] = [
-      {
-        id: "1",
-        content: "Had a great lecture today on distributed systems",
-        timestamp: "2026-02-16T14:30:00.000Z",
-        updatedAt: "2026-02-16T14:30:00.000Z",
-        version: 1
-      }
-    ];
-
-    const context: ContextWindow = {
-      todaySchedule: [],
-      upcomingDeadlines: [],
-      recentJournals: journals
-    };
-
-    const result = buildContextWindow(context);
-    expect(result).toContain("Recent Journal Entries:");
-    expect(result).toContain("Had a great lecture today");
-  });
-
-  it("should truncate long journal entries", () => {
-    const longContent = "a".repeat(150);
-    const journals: JournalEntry[] = [
-      {
-        id: "1",
-        content: longContent,
-        timestamp: "2026-02-16T14:30:00.000Z",
-        updatedAt: "2026-02-16T14:30:00.000Z",
-        version: 1
-      }
-    ];
-
-    const context: ContextWindow = {
-      todaySchedule: [],
-      upcomingDeadlines: [],
-      recentJournals: journals
-    };
-
-    const result = buildContextWindow(context);
-    expect(result).toContain("...");
-    expect(result.length).toBeLessThan(longContent.length + 100);
   });
 
   it("should include user state", () => {
@@ -514,7 +467,6 @@ describe("buildContextWindow", () => {
     const context: ContextWindow = {
       todaySchedule: [],
       upcomingDeadlines: [],
-      recentJournals: [],
       userState
     };
 
@@ -529,7 +481,6 @@ describe("buildContextWindow", () => {
     const context: ContextWindow = {
       todaySchedule: [],
       upcomingDeadlines: [],
-      recentJournals: [],
       customContext: "Additional context information"
     };
 
@@ -559,16 +510,6 @@ describe("buildContextWindow", () => {
       }
     ];
 
-    const journals: JournalEntry[] = [
-      {
-        id: "1",
-        content: "Started working on Lab 1",
-        timestamp: "2026-02-16T14:30:00.000Z",
-        updatedAt: "2026-02-16T14:30:00.000Z",
-        version: 1
-      }
-    ];
-
     const userState: UserContext = {
       energyLevel: "medium",
       stressLevel: "medium",
@@ -578,7 +519,6 @@ describe("buildContextWindow", () => {
     const context: ContextWindow = {
       todaySchedule: schedule,
       upcomingDeadlines: deadlines,
-      recentJournals: journals,
       userState,
       customContext: "Working on distributed systems course"
     };
@@ -586,7 +526,6 @@ describe("buildContextWindow", () => {
     const result = buildContextWindow(context);
     expect(result).toContain("Today's Schedule:");
     expect(result).toContain("Upcoming Deadlines:");
-    expect(result).toContain("Recent Journal Entries:");
     expect(result).toContain("User State:");
     expect(result).toContain("Working on distributed systems course");
   });
@@ -613,8 +552,7 @@ describe("buildContextWindow", () => {
 
     const context: ContextWindow = {
       todaySchedule: [],
-      upcomingDeadlines: deadlines,
-      recentJournals: []
+      upcomingDeadlines: deadlines
     };
 
     const result = buildContextWindow(context);
@@ -646,8 +584,7 @@ describe("buildSystemPrompt", () => {
           priority: "high",
           completed: false
         }
-      ],
-      recentJournals: []
+      ]
     });
 
     const result = buildSystemPrompt("TestUser", contextWindow);
