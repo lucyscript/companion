@@ -877,6 +877,34 @@ const reflectionCaptureDeclaration: FunctionDeclaration = {
   }
 };
 
+const reflectionCaptureGateDeclaration: FunctionDeclaration = {
+  name: "gateReflectionCapture",
+  description:
+    "Decide if this turn should be saved as a structured reflection entry for growth analytics.",
+  parameters: {
+    type: SchemaType.OBJECT,
+    properties: {
+      capture: {
+        type: SchemaType.BOOLEAN,
+        description: "True when this turn contains durable signal worth capturing."
+      },
+      salience: {
+        type: SchemaType.NUMBER,
+        description: "Importance score from 0.0 to 1.0."
+      },
+      reason: {
+        type: SchemaType.STRING,
+        description: "Short reason for the decision."
+      },
+      snippet: {
+        type: SchemaType.STRING,
+        description: "Short snippet from the user message that should be retained."
+      }
+    },
+    required: ["capture", "salience", "reason", "snippet"]
+  }
+};
+
 function asNonEmptyReflectionField(value: unknown, fallback: string, maxLength = 220): string {
   if (typeof value !== "string") {
     return fallback;
@@ -888,11 +916,89 @@ function asNonEmptyReflectionField(value: unknown, fallback: string, maxLength =
   return trimmed.length > maxLength ? `${trimmed.slice(0, maxLength - 3)}...` : trimmed;
 }
 
-async function extractStructuredReflectionWithGemini(
+function normalizeSalience(value: unknown, fallback = 0.5): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return fallback;
+  }
+  return Math.max(0, Math.min(1, value));
+}
+
+async function evaluateReflectionCaptureGateWithGemini(
   geminiClient: GeminiClient,
   store: RuntimeStore,
   userMessage: ChatMessage,
   assistantMessage: ChatMessage
+): Promise<{
+  capture: boolean;
+  salience: number;
+  reason: string;
+  snippet: string;
+} | null> {
+  if (!geminiClient.isConfigured()) {
+    return null;
+  }
+
+  const userState = store.getUserContext();
+  const systemInstruction = [
+    "You decide whether a completed chat turn should be captured as structured reflection memory.",
+    "Never produce conversational text.",
+    "Call gateReflectionCapture exactly once.",
+    "Set capture=true only when the turn has durable planning/emotional/progress signal.",
+    "Set capture=false for trivial chatter, confirmations, or low-value noise."
+  ].join("\n");
+
+  const userPrompt = [
+    "Evaluate this turn for structured reflection capture.",
+    `Timestamp: ${userMessage.timestamp}`,
+    `User state: stress=${userState.stressLevel}, energy=${userState.energyLevel}, mode=${userState.mode}`,
+    "",
+    "User message:",
+    userMessage.content,
+    "",
+    "Assistant response:",
+    assistantMessage.content
+  ].join("\n");
+
+  const gateResponse = await geminiClient.generateChatResponse({
+    messages: [
+      {
+        role: "user",
+        parts: [{ text: userPrompt }]
+      }
+    ],
+    systemInstruction,
+    tools: [reflectionCaptureGateDeclaration]
+  });
+
+  const gateCall = gateResponse.functionCalls?.find((call) => call.name === "gateReflectionCapture");
+  if (!gateCall || !gateCall.args || typeof gateCall.args !== "object" || Array.isArray(gateCall.args)) {
+    return null;
+  }
+
+  const args = gateCall.args as Record<string, unknown>;
+  return {
+    capture: args.capture === true,
+    salience: normalizeSalience(args.salience, 0.5),
+    reason: asNonEmptyReflectionField(args.reason, "No reason provided.", 180),
+    snippet: asNonEmptyReflectionField(
+      args.snippet,
+      textSnippet(userMessage.content.replace(/\s+/g, " "), 180),
+      180
+    )
+  };
+}
+
+async function extractStructuredReflectionWithGemini(
+  geminiClient: GeminiClient,
+  store: RuntimeStore,
+  userMessage: ChatMessage,
+  assistantMessage: ChatMessage,
+  gateDecision: {
+    capture: boolean;
+    salience: number;
+    reason: string;
+    snippet: string;
+  }
 ): Promise<{
   event: string;
   feelingStress: string;
@@ -918,6 +1024,8 @@ async function extractStructuredReflectionWithGemini(
     "Extract one structured reflection entry from this completed chat turn.",
     `Timestamp: ${userMessage.timestamp}`,
     `User state context: stress=${userState.stressLevel}, energy=${userState.energyLevel}, mode=${userState.mode}`,
+    `Gate decision: capture=${gateDecision.capture}, salience=${gateDecision.salience}, reason=${gateDecision.reason}`,
+    `Gate snippet: ${gateDecision.snippet}`,
     "",
     "User message:",
     userMessage.content,
@@ -970,20 +1078,6 @@ function shouldSkipStructuredReflection(input: string): boolean {
   return false;
 }
 
-const REFLECTION_HIGH_SIGNAL_REGEX =
-  /\b(deadline|assignment|exam|lab|schedule|lecture|habit|goal|streak|progress|plan|stress|anxious|overwhelmed|tired|sleep|food|meal|calorie|protein|carb|fat|inbox|email|gym|routine|study|reflect)\b/i;
-
-function shouldCaptureStructuredReflection(input: string): boolean {
-  const trimmed = input.trim();
-  if (trimmed.length >= 36) {
-    return true;
-  }
-  if (COMMITMENT_CUE_REGEX.test(trimmed)) {
-    return true;
-  }
-  return REFLECTION_HIGH_SIGNAL_REGEX.test(trimmed);
-}
-
 async function autoWriteStructuredReflectionEntry(
   store: RuntimeStore,
   userMessage: ChatMessage,
@@ -997,19 +1091,51 @@ async function autoWriteStructuredReflectionEntry(
   if (shouldSkipStructuredReflection(input)) {
     return;
   }
-  if (!shouldCaptureStructuredReflection(input)) {
-    return;
-  }
 
   const userState = store.getUserContext();
   const resolvedGeminiClient = geminiClient ?? getGeminiClient();
+  const fallbackSnippet = textSnippet(input.replace(/\s+/g, " "), 180);
+  let gateDecision:
+    | {
+        capture: boolean;
+        salience: number;
+        reason: string;
+        snippet: string;
+      }
+    | null = null;
+
+  try {
+    gateDecision = await evaluateReflectionCaptureGateWithGemini(
+      resolvedGeminiClient,
+      store,
+      userMessage,
+      assistantMessage
+    );
+  } catch {
+    gateDecision = null;
+  }
+
+  if (!gateDecision) {
+    gateDecision = {
+      capture: true,
+      salience: 0.5,
+      reason: "Capture gate unavailable; stored with default salience.",
+      snippet: fallbackSnippet
+    };
+  }
+
+  if (!gateDecision.capture) {
+    return;
+  }
+
   let extracted: Awaited<ReturnType<typeof extractStructuredReflectionWithGemini>> = null;
   try {
     extracted = await extractStructuredReflectionWithGemini(
       resolvedGeminiClient,
       store,
       userMessage,
-      assistantMessage
+      assistantMessage,
+      gateDecision
     );
   } catch {
     extracted = null;
@@ -1022,7 +1148,7 @@ async function autoWriteStructuredReflectionEntry(
       intent: "Share context",
       commitment: "none",
       outcome: inferReflectionOutcome(assistantMessage),
-      evidenceSnippet: textSnippet(input.replace(/\s+/g, " "), 260)
+      evidenceSnippet: gateDecision.snippet
     };
   }
 
@@ -1032,6 +1158,8 @@ async function autoWriteStructuredReflectionEntry(
     intent: extracted.intent,
     commitment: extracted.commitment,
     outcome: extracted.outcome,
+    salience: gateDecision.salience,
+    captureReason: gateDecision.reason,
     timestamp: userMessage.timestamp,
     evidenceSnippet: extracted.evidenceSnippet,
     sourceMessageId: userMessage.id

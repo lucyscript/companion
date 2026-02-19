@@ -140,6 +140,8 @@ export interface ReflectionEntry {
   intent: string;
   commitment: string;
   outcome: string;
+  salience: number;
+  captureReason: string;
   timestamp: string;
   evidenceSnippet: string;
   sourceMessageId: string;

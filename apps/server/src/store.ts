@@ -198,6 +198,8 @@ export class RuntimeStore {
         intent TEXT NOT NULL,
         commitment TEXT NOT NULL,
         outcome TEXT NOT NULL,
+        salience REAL NOT NULL DEFAULT 0.5,
+        captureReason TEXT NOT NULL DEFAULT '',
         timestamp TEXT NOT NULL,
         evidenceSnippet TEXT NOT NULL,
         sourceMessageId TEXT NOT NULL UNIQUE,
@@ -773,6 +775,16 @@ export class RuntimeStore {
     if (!hasCheckInNoteColumn) {
       this.db.prepare("ALTER TABLE study_plan_sessions ADD COLUMN checkInNote TEXT").run();
     }
+
+    const reflectionColumns = this.db.prepare("PRAGMA table_info(reflection_entries)").all() as Array<{ name: string }>;
+    const hasSalienceColumn = reflectionColumns.some((col) => col.name === "salience");
+    if (!hasSalienceColumn) {
+      this.db.prepare("ALTER TABLE reflection_entries ADD COLUMN salience REAL NOT NULL DEFAULT 0.5").run();
+    }
+    const hasCaptureReasonColumn = reflectionColumns.some((col) => col.name === "captureReason");
+    if (!hasCaptureReasonColumn) {
+      this.db.prepare("ALTER TABLE reflection_entries ADD COLUMN captureReason TEXT NOT NULL DEFAULT ''").run();
+    }
   }
 
   private loadOrInitializeDefaults(): void {
@@ -1049,6 +1061,8 @@ export class RuntimeStore {
     intent: string;
     commitment: string;
     outcome: string;
+    salience: number;
+    captureReason: string;
     timestamp: string;
     evidenceSnippet: string;
     sourceMessageId: string;
@@ -1061,6 +1075,8 @@ export class RuntimeStore {
       intent: row.intent,
       commitment: row.commitment,
       outcome: row.outcome,
+      salience: Number.isFinite(row.salience) ? row.salience : 0.5,
+      captureReason: row.captureReason,
       timestamp: row.timestamp,
       evidenceSnippet: row.evidenceSnippet,
       sourceMessageId: row.sourceMessageId,
@@ -1074,6 +1090,8 @@ export class RuntimeStore {
     intent: string;
     commitment: string;
     outcome: string;
+    salience?: number;
+    captureReason?: string;
     timestamp: string;
     evidenceSnippet: string;
     sourceMessageId: string;
@@ -1081,7 +1099,7 @@ export class RuntimeStore {
     const updatedAt = nowIso();
     const existing = this.db
       .prepare(
-        "SELECT id, event, feelingStress, intent, commitment, outcome, timestamp, evidenceSnippet, sourceMessageId, updatedAt FROM reflection_entries WHERE sourceMessageId = ?"
+        "SELECT id, event, feelingStress, intent, commitment, outcome, salience, captureReason, timestamp, evidenceSnippet, sourceMessageId, updatedAt FROM reflection_entries WHERE sourceMessageId = ?"
       )
       .get(input.sourceMessageId) as
       | {
@@ -1091,6 +1109,8 @@ export class RuntimeStore {
           intent: string;
           commitment: string;
           outcome: string;
+          salience: number;
+          captureReason: string;
           timestamp: string;
           evidenceSnippet: string;
           sourceMessageId: string;
@@ -1100,12 +1120,18 @@ export class RuntimeStore {
 
     const id = existing?.id ?? makeId("reflection");
 
+    const normalizedSalience = Number.isFinite(input.salience)
+      ? Math.max(0, Math.min(1, Number(input.salience)))
+      : 0.5;
+    const normalizedCaptureReason =
+      typeof input.captureReason === "string" ? input.captureReason.slice(0, 220) : "";
+
     this.db
       .prepare(
         `INSERT INTO reflection_entries (
-           id, event, feelingStress, intent, commitment, outcome, timestamp, evidenceSnippet, sourceMessageId, updatedAt, insertOrder
+           id, event, feelingStress, intent, commitment, outcome, salience, captureReason, timestamp, evidenceSnippet, sourceMessageId, updatedAt, insertOrder
          ) VALUES (
-           ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(insertOrder), 0) + 1 FROM reflection_entries)
+           ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(insertOrder), 0) + 1 FROM reflection_entries)
          )
          ON CONFLICT(sourceMessageId) DO UPDATE SET
            event = EXCLUDED.event,
@@ -1113,6 +1139,8 @@ export class RuntimeStore {
            intent = EXCLUDED.intent,
            commitment = EXCLUDED.commitment,
            outcome = EXCLUDED.outcome,
+           salience = EXCLUDED.salience,
+           captureReason = EXCLUDED.captureReason,
            timestamp = EXCLUDED.timestamp,
            evidenceSnippet = EXCLUDED.evidenceSnippet,
            updatedAt = EXCLUDED.updatedAt`
@@ -1124,6 +1152,8 @@ export class RuntimeStore {
         input.intent,
         input.commitment,
         input.outcome,
+        normalizedSalience,
+        normalizedCaptureReason,
         input.timestamp,
         input.evidenceSnippet,
         input.sourceMessageId,
@@ -1143,7 +1173,7 @@ export class RuntimeStore {
 
     const row = this.db
       .prepare(
-        "SELECT id, event, feelingStress, intent, commitment, outcome, timestamp, evidenceSnippet, sourceMessageId, updatedAt FROM reflection_entries WHERE sourceMessageId = ?"
+        "SELECT id, event, feelingStress, intent, commitment, outcome, salience, captureReason, timestamp, evidenceSnippet, sourceMessageId, updatedAt FROM reflection_entries WHERE sourceMessageId = ?"
       )
       .get(input.sourceMessageId) as
       | {
@@ -1153,6 +1183,8 @@ export class RuntimeStore {
           intent: string;
           commitment: string;
           outcome: string;
+          salience: number;
+          captureReason: string;
           timestamp: string;
           evidenceSnippet: string;
           sourceMessageId: string;
@@ -1168,6 +1200,8 @@ export class RuntimeStore {
         intent: input.intent,
         commitment: input.commitment,
         outcome: input.outcome,
+        salience: normalizedSalience,
+        captureReason: normalizedCaptureReason,
         timestamp: input.timestamp,
         evidenceSnippet: input.evidenceSnippet,
         sourceMessageId: input.sourceMessageId,
@@ -1185,7 +1219,7 @@ export class RuntimeStore {
 
     const rows = this.db
       .prepare(
-        "SELECT id, event, feelingStress, intent, commitment, outcome, timestamp, evidenceSnippet, sourceMessageId, updatedAt FROM reflection_entries ORDER BY insertOrder DESC LIMIT ?"
+        "SELECT id, event, feelingStress, intent, commitment, outcome, salience, captureReason, timestamp, evidenceSnippet, sourceMessageId, updatedAt FROM reflection_entries ORDER BY insertOrder DESC LIMIT ?"
       )
       .all(limit) as Array<{
       id: string;
@@ -1194,6 +1228,8 @@ export class RuntimeStore {
       intent: string;
       commitment: string;
       outcome: string;
+      salience: number;
+      captureReason: string;
       timestamp: string;
       evidenceSnippet: string;
       sourceMessageId: string;
@@ -1208,6 +1244,7 @@ export class RuntimeStore {
     const rows = this.db
       .prepare(
         `SELECT id, event, feelingStress, intent, commitment, outcome, timestamp, evidenceSnippet, sourceMessageId, updatedAt
+           , salience, captureReason
            FROM reflection_entries
           WHERE timestamp >= ? AND timestamp <= ?
           ORDER BY timestamp DESC
@@ -1220,6 +1257,8 @@ export class RuntimeStore {
       intent: string;
       commitment: string;
       outcome: string;
+      salience: number;
+      captureReason: string;
       timestamp: string;
       evidenceSnippet: string;
       sourceMessageId: string;
