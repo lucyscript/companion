@@ -414,12 +414,22 @@ function formatSignedDelta(value: number, unit: string): string {
   return `${rounded > 0 ? "+" : ""}${formatMetric(rounded)}${unit}`;
 }
 
-function deltaToneClass(value: number): string {
+type DeltaMetric = "proteinGrams" | "carbsGrams" | "fatGrams" | "calories";
+
+function deltaToneClass(metric: DeltaMetric, value: number): string {
   const rounded = roundToTenth(value);
-  if (Math.abs(rounded) < 0.1) {
-    return "nutrition-delta-neutral";
+  const absoluteDelta = Math.abs(rounded);
+  const closeThresholdByMetric: Record<DeltaMetric, number> = {
+    proteinGrams: 5,
+    carbsGrams: 10,
+    fatGrams: 5,
+    calories: 50
+  };
+
+  if (absoluteDelta <= closeThresholdByMetric[metric]) {
+    return "nutrition-delta-positive";
   }
-  return rounded > 0 ? "nutrition-delta-positive" : "nutrition-delta-negative";
+  return "nutrition-delta-warning";
 }
 
 function stripMealItemId(item: NutritionMealItem): Omit<NutritionMealItem, "id"> {
@@ -1713,28 +1723,28 @@ export function NutritionView(): JSX.Element {
                 <article className="nutrition-daily-metric">
                   <p className="summary-label">Protein</p>
                   <p className="summary-value">{summary ? `${formatMetric(summary.totals.proteinGrams)}g` : "0g"}</p>
-                  <p className={`nutrition-daily-delta ${intakeDeltas ? deltaToneClass(intakeDeltas.proteinGrams) : "nutrition-delta-neutral"}`}>
+                  <p className={`nutrition-daily-delta ${intakeDeltas ? deltaToneClass("proteinGrams", intakeDeltas.proteinGrams) : "nutrition-delta-neutral"}`}>
                     {intakeDeltas ? formatSignedDelta(intakeDeltas.proteinGrams, "g") : "Set targets"}
                   </p>
                 </article>
                 <article className="nutrition-daily-metric">
                   <p className="summary-label">Carbs</p>
                   <p className="summary-value">{summary ? `${formatMetric(summary.totals.carbsGrams)}g` : "0g"}</p>
-                  <p className={`nutrition-daily-delta ${intakeDeltas ? deltaToneClass(intakeDeltas.carbsGrams) : "nutrition-delta-neutral"}`}>
+                  <p className={`nutrition-daily-delta ${intakeDeltas ? deltaToneClass("carbsGrams", intakeDeltas.carbsGrams) : "nutrition-delta-neutral"}`}>
                     {intakeDeltas ? formatSignedDelta(intakeDeltas.carbsGrams, "g") : "Set targets"}
                   </p>
                 </article>
                 <article className="nutrition-daily-metric">
                   <p className="summary-label">Fat</p>
                   <p className="summary-value">{summary ? `${formatMetric(summary.totals.fatGrams)}g` : "0g"}</p>
-                  <p className={`nutrition-daily-delta ${intakeDeltas ? deltaToneClass(intakeDeltas.fatGrams) : "nutrition-delta-neutral"}`}>
+                  <p className={`nutrition-daily-delta ${intakeDeltas ? deltaToneClass("fatGrams", intakeDeltas.fatGrams) : "nutrition-delta-neutral"}`}>
                     {intakeDeltas ? formatSignedDelta(intakeDeltas.fatGrams, "g") : "Set targets"}
                   </p>
                 </article>
                 <article className="nutrition-daily-metric">
                   <p className="summary-label">Calories</p>
                   <p className="summary-value">{summary ? String(Math.round(summary.totals.calories)) : "0"} kcal</p>
-                  <p className={`nutrition-daily-delta ${intakeDeltas ? deltaToneClass(intakeDeltas.calories) : "nutrition-delta-neutral"}`}>
+                  <p className={`nutrition-daily-delta ${intakeDeltas ? deltaToneClass("calories", intakeDeltas.calories) : "nutrition-delta-neutral"}`}>
                     {intakeDeltas ? formatSignedDelta(intakeDeltas.calories, " kcal") : "Set targets"}
                   </p>
                 </article>

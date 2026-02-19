@@ -4125,6 +4125,10 @@ body.keyboard-open .pull-to-refresh-container {
   color: #87d68d;
 }
 
+.nutrition-delta-warning {
+  color: #f4d37a;
+}
+
 .nutrition-delta-negative {
   color: #f5a1a1;
 }
