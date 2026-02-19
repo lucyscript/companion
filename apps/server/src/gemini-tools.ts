@@ -1705,6 +1705,10 @@ function resolveHabitTarget(
   }
 
   const needle = normalizeSearchText(habitName);
+  const exactHabit = habits.find((habit) => normalizeSearchText(habit.name) === needle);
+  if (exactHabit) {
+    return exactHabit;
+  }
   const matches = habits.filter((habit) => normalizeSearchText(habit.name).includes(needle));
   if (matches.length === 0) {
     return { error: `No habit matched "${habitName}".` };
@@ -1747,6 +1751,10 @@ function resolveGoalTarget(
   }
 
   const needle = normalizeSearchText(goalTitle);
+  const exactGoal = goals.find((goal) => normalizeSearchText(goal.title) === needle);
+  if (exactGoal) {
+    return exactGoal;
+  }
   const matches = goals.filter((goal) => normalizeSearchText(goal.title).includes(needle));
   if (matches.length === 0) {
     return { error: `No goal matched "${goalTitle}".` };
@@ -1789,6 +1797,10 @@ function resolveScheduleTarget(
   }
 
   const needle = normalizeSearchText(scheduleTitle);
+  const exactSchedule = schedule.find((event) => normalizeSearchText(event.title) === needle);
+  if (exactSchedule) {
+    return exactSchedule;
+  }
   const matches = schedule.filter((event) => normalizeSearchText(event.title).includes(needle));
   if (matches.length === 0) {
     return { error: `No schedule block matched "${scheduleTitle}".` };
@@ -1884,6 +1896,10 @@ function resolveRoutinePresetTarget(
   }
 
   const needle = normalizeSearchText(presetTitle);
+  const exactPreset = presets.find((preset) => normalizeSearchText(preset.title) === needle);
+  if (exactPreset) {
+    return exactPreset;
+  }
   const matches = presets.filter((preset) => normalizeSearchText(preset.title).includes(needle));
   if (matches.length === 0) {
     return { error: `No routine preset matched "${presetTitle}".` };
@@ -2033,6 +2049,10 @@ export function handleDeleteHabit(
     }
   } else if (habitName) {
     const needle = normalizeSearchText(habitName);
+    const exactHabit = habits.find((habit) => normalizeSearchText(habit.name) === needle);
+    if (exactHabit) {
+      target = exactHabit;
+    } else {
     const matches = habits.filter((habit) => normalizeSearchText(habit.name).includes(needle));
     if (matches.length === 0) {
       return {
@@ -2050,6 +2070,7 @@ export function handleDeleteHabit(
       };
     }
     target = matches[0]!;
+    }
   } else if (habits.length === 1) {
     target = habits[0]!;
   } else {
@@ -2157,6 +2178,10 @@ export function handleDeleteGoal(
     }
   } else if (goalTitle) {
     const needle = normalizeSearchText(goalTitle);
+    const exactGoal = goals.find((goal) => normalizeSearchText(goal.title) === needle);
+    if (exactGoal) {
+      target = exactGoal;
+    } else {
     const matches = goals.filter((goal) => normalizeSearchText(goal.title).includes(needle));
     if (matches.length === 0) {
       return {
@@ -2174,6 +2199,7 @@ export function handleDeleteGoal(
       };
     }
     target = matches[0]!;
+    }
   } else if (goals.length === 1) {
     target = goals[0]!;
   } else {
@@ -2243,6 +2269,10 @@ function resolveNutritionMealTarget(
   }
 
   const needle = normalizeSearchText(mealName);
+  const exactMeal = meals.find((meal) => normalizeSearchText(meal.name) === needle);
+  if (exactMeal) {
+    return exactMeal;
+  }
   const matches = meals.filter((meal) => normalizeSearchText(meal.name).includes(needle));
   if (matches.length === 0) {
     return { error: `No meal matched "${mealName}".` };
@@ -2280,6 +2310,12 @@ function resolveNutritionMealItemTarget(
   }
 
   const needle = normalizeSearchText(itemName);
+  const exactItemEntry = meal.items
+    .map((item, index) => ({ item, index }))
+    .find((entry) => normalizeSearchText(entry.item.name) === needle);
+  if (exactItemEntry) {
+    return exactItemEntry;
+  }
   const matches = meal.items
     .map((item, index) => ({ item, index }))
     .filter((entry) => normalizeSearchText(entry.item.name).includes(needle));
@@ -2469,6 +2505,10 @@ function resolveNutritionPlanSnapshotTarget(
   }
 
   const needle = normalizeSearchText(snapshotName);
+  const exactSnapshot = snapshots.find((snapshot) => normalizeSearchText(snapshot.name) === needle);
+  if (exactSnapshot) {
+    return exactSnapshot;
+  }
   const matches = snapshots.filter((snapshot) => normalizeSearchText(snapshot.name).includes(needle));
   if (matches.length === 0) {
     return { error: `No nutrition plan snapshot matched "${snapshotName}".` };
@@ -2636,6 +2676,10 @@ function resolveNutritionCustomFoodTarget(
   }
 
   const needle = normalizeSearchText(customFoodName);
+  const exactMatch = foods.find((food) => normalizeSearchText(food.name) === needle);
+  if (exactMatch) {
+    return exactMatch;
+  }
   const matches = foods.filter((food) => normalizeSearchText(food.name).includes(needle));
   if (matches.length === 0) {
     return { error: `No custom food matched "${customFoodName}".` };
@@ -3563,6 +3607,10 @@ export function handleDeleteMeal(
     }
   } else if (mealName) {
     const needle = normalizeSearchText(mealName);
+    const exactMeal = meals.find((meal) => normalizeSearchText(meal.name) === needle);
+    if (exactMeal) {
+      target = exactMeal;
+    } else {
     const matches = meals.filter((meal) => normalizeSearchText(meal.name).includes(needle));
     if (matches.length === 0) {
       return {
@@ -3580,6 +3628,7 @@ export function handleDeleteMeal(
       };
     }
     target = matches[0]!;
+    }
   } else if (meals.length === 1) {
     target = meals[0]!;
   } else {

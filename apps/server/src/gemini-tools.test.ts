@@ -52,8 +52,8 @@ describe("gemini-tools", () => {
   });
 
   describe("functionDeclarations", () => {
-    it("should define 41 function declarations", () => {
-      expect(functionDeclarations).toHaveLength(41);
+    it("should define 42 function declarations", () => {
+      expect(functionDeclarations).toHaveLength(42);
     });
 
     it("should include getSchedule function", () => {
