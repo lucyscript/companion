@@ -3032,10 +3032,10 @@ export function handleMoveNutritionMeal(
   const [movedMeal] = reordered.splice(index, 1);
   reordered.splice(nextIndex, 0, movedMeal!);
 
-  const dayAnchor = new Date(`${date}T23:59:00.000Z`).getTime();
+  const dayStart = new Date(`${date}T00:00:00.000Z`).getTime();
   const updatedMeals = new Map<string, NutritionMeal>();
   reordered.forEach((meal, orderIndex) => {
-    const consumedAt = new Date(dayAnchor - orderIndex * 60_000).toISOString();
+    const consumedAt = new Date(dayStart + orderIndex * 60_000).toISOString();
     const updated = store.updateNutritionMeal(meal.id, { consumedAt });
     if (updated) {
       updatedMeals.set(updated.id, updated);

@@ -963,10 +963,10 @@ export function NutritionView(): JSX.Element {
     const [moved] = reordered.splice(index, 1);
     reordered.splice(nextIndex, 0, moved!);
 
-    const dayAnchor = new Date(`${todayKey}T23:59:00.000Z`).getTime();
+    const dayStart = new Date(`${todayKey}T00:00:00.000Z`).getTime();
     const patchPlan = reordered.map((meal, orderIndex) => ({
       mealId: meal.id,
-      consumedAt: new Date(dayAnchor - orderIndex * 60_000).toISOString()
+      consumedAt: new Date(dayStart + orderIndex * 60_000).toISOString()
     }));
 
     const updatedMeals: NutritionMeal[] = [];

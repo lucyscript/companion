@@ -3523,7 +3523,7 @@ export class RuntimeStore {
     if (clauses.length > 0) {
       query += ` WHERE ${clauses.join(" AND ")}`;
     }
-    query += " ORDER BY consumedAt DESC, insertOrder DESC";
+    query += " ORDER BY consumedAt ASC, insertOrder ASC";
 
     const limit = typeof options.limit === "number" ? Math.min(Math.max(Math.round(options.limit), 1), 1000) : null;
     if (limit !== null) {

@@ -764,6 +764,12 @@ describe("gemini-tools", () => {
         throw new Error(moved.error);
       }
       expect(moved.success).toBe(true);
+
+      const ordered = handleGetNutritionMeals(store, { date: "2026-02-17", limit: 10 });
+      if ("error" in ordered) {
+        throw new Error(ordered.error);
+      }
+      expect(ordered.meals.map((meal) => meal.name)).toEqual(["Lunch", "Breakfast"]);
     });
 
     it("logs and deletes meals", () => {
