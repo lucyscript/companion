@@ -35,7 +35,6 @@ import { WithingsSyncService } from "./withings-sync.js";
 import { buildStudyPlanCalendarIcs } from "./study-plan-export.js";
 import { generateWeeklyStudyPlan } from "./study-plan.js";
 import { generateContentRecommendations } from "./content-recommendations.js";
-import { generateDailyJournalSummary } from "./daily-journal-summary.js";
 import { generateAnalyticsCoachInsight } from "./analytics-coach.js";
 import {
   buildWeeklyGrowthSundayPushSummary,
@@ -48,7 +47,6 @@ import { Notification, NotificationPreferencesPatch } from "./types.js";
 import type {
   AnalyticsCoachInsight,
   AuthUser,
-  DailyJournalSummary,
   Goal,
   Habit,
   NutritionCustomFood,
@@ -155,22 +153,14 @@ const GITHUB_ON_DEMAND_SYNC_MIN_INTERVAL_MS = 10 * 60 * 1000;
 const GITHUB_ON_DEMAND_SYNC_STALE_MS = 6 * 60 * 60 * 1000;
 let githubOnDemandSyncInFlight: Promise<void> | null = null;
 let lastGithubOnDemandSyncAt = 0;
-const MAX_DAILY_SUMMARY_CACHE_DAYS = 45;
 const MAX_ANALYTICS_CACHE_ITEMS = 15;
-const DAILY_SUMMARY_MIN_REFRESH_MS = config.GROWTH_DAILY_SUMMARY_MIN_REFRESH_MINUTES * 60 * 1000;
 const ANALYTICS_COACH_MIN_REFRESH_MS = config.GROWTH_ANALYTICS_MIN_REFRESH_MINUTES * 60 * 1000;
-
-interface DailySummaryCacheEntry {
-  signature: string;
-  summary: DailyJournalSummary;
-}
 
 interface AnalyticsCoachCacheEntry {
   signature: string;
   insight: AnalyticsCoachInsight;
 }
 
-const dailySummaryCache = new Map<string, DailySummaryCacheEntry>();
 const analyticsCoachCache = new Map<string, AnalyticsCoachCacheEntry>();
 
 function toDateKey(value: Date): string {
@@ -215,39 +205,6 @@ function isWithinWindow(value: string, startMs: number, endMs: number): boolean 
   return valueMs !== null && valueMs >= startMs && valueMs <= endMs;
 }
 
-function buildDailySummarySignature(dateKey: string): string {
-  const journals = store
-    .getJournalEntries(220)
-    .filter((entry) => startsWithDateKey(entry.timestamp, dateKey));
-
-  const chats = store
-    .getRecentChatMessages(320)
-    .filter(
-      (message) =>
-        message.role === "user" &&
-        message.content.trim().length > 0 &&
-        startsWithDateKey(message.timestamp, dateKey)
-    );
-
-  return [
-    `j:${journals.length}:${latestIso(journals.map((entry) => entry.timestamp))}`,
-    `c:${chats.length}:${latestIso(chats.map((message) => message.timestamp))}`
-  ].join("|");
-}
-
-function setCachedDailySummary(dateKey: string, entry: DailySummaryCacheEntry): void {
-  dailySummaryCache.delete(dateKey);
-  dailySummaryCache.set(dateKey, entry);
-
-  while (dailySummaryCache.size > MAX_DAILY_SUMMARY_CACHE_DAYS) {
-    const oldestKey = dailySummaryCache.keys().next().value;
-    if (!oldestKey) {
-      break;
-    }
-    dailySummaryCache.delete(oldestKey);
-  }
-}
-
 function toAnalyticsPeriodDays(value: number | undefined): AnalyticsCoachInsight["periodDays"] {
   if (value === 14 || value === 30) {
     return value;
@@ -290,20 +247,8 @@ function buildAnalyticsCoachSignature(
     .sort()
     .join(",");
 
-  const journals = store
-    .getJournalEntries(360)
-    .filter((entry) => isWithinWindow(entry.timestamp, windowStartMs, nowMs));
-  const journalSig = `${journals.length}:${latestIso(journals.map((entry) => entry.updatedAt))}`;
-
-  const reflections = store
-    .getRecentChatMessages(420)
-    .filter(
-      (message) =>
-        message.role === "user" &&
-        message.content.trim().length > 0 &&
-        isWithinWindow(message.timestamp, windowStartMs, nowMs)
-    );
-  const reflectionSig = `${reflections.length}:${latestIso(reflections.map((message) => message.timestamp))}`;
+  const reflections = store.getReflectionEntriesInRange(windowStartIso, windowEndIso, 420);
+  const reflectionSig = `${reflections.length}:${latestIso(reflections.map((entry) => entry.updatedAt || entry.timestamp))}`;
 
   const adherence = store.getStudyPlanAdherenceMetrics({
     windowStart: windowStartIso,
@@ -316,7 +261,6 @@ function buildAnalyticsCoachSignature(
     `d:${deadlines}`,
     `h:${habits}`,
     `g:${goals}`,
-    `j:${journalSig}`,
     `r:${reflectionSig}`,
     `a:${adherence.sessionsPlanned}:${adherence.sessionsDone}:${adherence.sessionsSkipped}:${adherence.completionRate}`,
     `ctx:${trends.energyLevel}:${trends.stressLevel}:${trends.mode}`
@@ -676,6 +620,56 @@ app.get("/api/analytics/coach", async (req, res) => {
   return res.json({ insight });
 });
 
+app.get("/api/growth/daily-summary", (req, res) => {
+  const parsed = growthDailySummaryQuerySchema.safeParse(req.query ?? {});
+
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid daily summary query", issues: parsed.error.issues });
+  }
+
+  const referenceDate = parsed.data.date ? new Date(parsed.data.date) : new Date();
+  if (Number.isNaN(referenceDate.getTime())) {
+    return res.status(400).json({ error: "Invalid date parameter" });
+  }
+
+  const dateKey = toDateKey(referenceDate);
+  const dayStartIso = `${dateKey}T00:00:00.000Z`;
+  const dayEndIso = `${dateKey}T23:59:59.999Z`;
+  const reflections = store.getReflectionEntriesInRange(dayStartIso, dayEndIso, 280);
+  const chats = store
+    .getRecentChatMessages(280)
+    .filter(
+      (message) =>
+        message.role === "user" &&
+        message.content.trim().length > 0 &&
+        startsWithDateKey(message.timestamp, dateKey)
+    );
+  const habitsDone = store.getHabitsWithStatus().filter((habit) => habit.todayCompleted).length;
+  const goalsDone = store.getGoalsWithStatus().filter((goal) => goal.todayCompleted).length;
+
+  const summary =
+    reflections.length === 0
+      ? "No structured reflection entries yet today. Share one quick update so I can tune your plan."
+      : `You logged ${reflections.length} structured reflection entr${reflections.length === 1 ? "y" : "ies"} today, with ${habitsDone} habit and ${goalsDone} goal check-ins completed.`;
+
+  const highlights = reflections
+    .slice(0, 5)
+    .map((entry) => `${entry.event}: ${entry.evidenceSnippet}`)
+    .filter((item) => item.length > 0)
+    .map((item) => (item.length > 120 ? `${item.slice(0, 120)}...` : item));
+
+  return res.json({
+    summary: {
+      date: dateKey,
+      generatedAt: nowIso(),
+      summary,
+      highlights,
+      reflectionEntryCount: reflections.length,
+      chatMessageCount: chats.length
+    }
+  });
+});
+
 app.post("/api/chat", async (req, res) => {
   const parsed = chatRequestSchema.safeParse(req.body ?? {});
 
@@ -867,12 +861,6 @@ app.get("/api/export", (_req, res) => {
   return res.json(exportData);
 });
 
-const journalPhotoSchema = z.object({
-  id: z.string().min(1).optional(),
-  dataUrl: z.string().min(1),
-  fileName: z.string().trim().min(1).max(240).optional()
-});
-
 // Import validation schemas
 const recurrenceRuleSchema = z.object({
   frequency: z.enum(["daily", "weekly", "monthly"]),
@@ -890,16 +878,6 @@ const recurrenceRuleSchema = z.object({
   },
   { message: "Cannot specify both count and until" }
 );
-
-const journalImportSchema = z.object({
-  id: z.string().min(1),
-  content: z.string().min(1).max(10000),
-  timestamp: z.string().datetime(),
-  updatedAt: z.string().datetime(),
-  version: z.number().int().positive(),
-  clientEntryId: z.string().min(1).optional(),
-  photos: z.array(journalPhotoSchema).optional()
-});
 
 const lectureImportSchema = z.object({
   id: z.string().min(1),
@@ -961,7 +939,6 @@ const notificationPreferencesImportSchema = z.object({
 
 const importDataSchema = z.object({
   version: z.string().optional(),
-  journals: z.array(journalImportSchema).optional(),
   schedule: z.array(lectureImportSchema).optional(),
   deadlines: z.array(deadlineImportSchema).optional(),
   habits: z.array(habitImportSchema).optional(),
@@ -1034,32 +1011,12 @@ const analyticsCoachQuerySchema = z
     }
   );
 
-const tagIdSchema = z.string().trim().min(1);
-const tagIdsSchema = z.array(tagIdSchema).max(20);
-
-const journalEntrySchema = z.object({
-  content: z.string().min(1).max(10000),
-  tags: tagIdsSchema.optional(),
-  photos: z.array(journalPhotoSchema).max(5).optional()
-});
-
-const journalSyncSchema = z.object({
-  entries: z.array(
-    z.object({
-      id: z.string().min(1).optional(),
-      clientEntryId: z.string().min(1),
-      content: z.string().min(1).max(10000),
-      timestamp: z.string().datetime(),
-      baseVersion: z.number().int().positive().optional(),
-      tags: tagIdsSchema.optional(),
-      photos: z.array(journalPhotoSchema).max(5).optional()
-    })
-  )
-});
-
-const journalDailySummaryQuerySchema = z.object({
+const growthDailySummaryQuerySchema = z.object({
   date: z.string().trim().optional()
 });
+
+const tagIdSchema = z.string().trim().min(1);
+const tagIdsSchema = z.array(tagIdSchema).max(20);
 
 const tagCreateSchema = z.object({
   name: z.string().trim().min(1).max(60)
@@ -1262,6 +1219,22 @@ const nutritionTargetProfileUpsertSchema = z
       ].some((field) => Object.prototype.hasOwnProperty.call(value, field)),
     "At least one target profile field is required"
   );
+
+const nutritionPlanSnapshotsQuerySchema = z.object({
+  query: z.string().trim().min(1).max(120).optional(),
+  limit: z.coerce.number().int().min(1).max(500).optional()
+});
+
+const nutritionPlanSnapshotCreateSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  date: nutritionDateSchema.optional(),
+  replaceId: z.string().trim().min(1).max(160).optional()
+});
+
+const nutritionPlanSnapshotApplySchema = z.object({
+  date: nutritionDateSchema.optional(),
+  replaceMeals: z.boolean().default(true)
+});
 
 const pushSubscriptionSchema = z.object({
   endpoint: z.string().url(),
@@ -1607,146 +1580,6 @@ app.delete("/api/tags/:id", (req, res) => {
 
   if (!deleted) {
     return res.status(404).json({ error: "Tag not found" });
-  }
-
-  return res.status(204).send();
-});
-
-app.post("/api/journal", (req, res) => {
-  const parsed = journalEntrySchema.safeParse(req.body ?? {});
-
-  if (!parsed.success) {
-    return res.status(400).json({ error: "Invalid journal entry", issues: parsed.error.issues });
-  }
-
-  try {
-    const tagIds = store.resolveTagIds(parsed.data.tags ?? [], { createMissing: true });
-    const entry = store.recordJournalEntry(parsed.data.content, tagIds, parsed.data.photos);
-    return res.json({ entry });
-  } catch (error) {
-    return res.status(400).json({ error: error instanceof Error ? error.message : "Unable to record journal entry" });
-  }
-});
-
-app.post("/api/journal/sync", (req, res) => {
-  const parsed = journalSyncSchema.safeParse(req.body ?? {});
-
-  if (!parsed.success) {
-    return res.status(400).json({ error: "Invalid journal sync payload", issues: parsed.error.issues });
-  }
-
-  try {
-    const normalizedEntries = parsed.data.entries.map((entry) => ({
-      ...entry,
-      tags: entry.tags ? store.resolveTagIds(entry.tags, { createMissing: true }) : undefined
-    }));
-    const result = store.syncJournalEntries(normalizedEntries);
-    return res.status(200).json(result);
-  } catch (error) {
-    return res.status(400).json({ error: error instanceof Error ? error.message : "Unable to sync journal entries" });
-  }
-});
-
-app.get("/api/journal", (req, res) => {
-  const limitParam = req.query.limit;
-  const limit = limitParam ? parseInt(limitParam as string, 10) : undefined;
-
-  if (limit !== undefined && (isNaN(limit) || limit <= 0)) {
-    return res.status(400).json({ error: "Invalid limit parameter" });
-  }
-
-  const entries = store.getJournalEntries(limit);
-  return res.json({ entries });
-});
-
-app.get("/api/journal/tags", (_req, res) => {
-  const tags = store.getTags().map((tag) => tag.name);
-  return res.json({ tags });
-});
-
-app.get("/api/journal/search", (req, res) => {
-  const { q, startDate, endDate, limit } = req.query;
-  const tagsParam = req.query.tags;
-
-  const limitValue = limit ? parseInt(limit as string, 10) : undefined;
-
-  if (limitValue !== undefined && (isNaN(limitValue) || limitValue <= 0)) {
-    return res.status(400).json({ error: "Invalid limit parameter" });
-  }
-
-  if (startDate && typeof startDate === "string" && isNaN(Date.parse(startDate))) {
-    return res.status(400).json({ error: "Invalid startDate parameter" });
-  }
-
-  if (endDate && typeof endDate === "string" && isNaN(Date.parse(endDate))) {
-    return res.status(400).json({ error: "Invalid endDate parameter" });
-  }
-
-  const parsedTags: string[] =
-    typeof tagsParam === "string"
-      ? tagsParam.split(",")
-      : Array.isArray(tagsParam)
-        ? tagsParam.map((tag) => tag.toString())
-        : [];
-  const requestedTags = parsedTags.map((tag) => tag.trim()).filter(Boolean);
-  const tagIds = store.resolveTagIds(requestedTags);
-  if (requestedTags.length > 0 && tagIds.length === 0) {
-    return res.json({ entries: [] });
-  }
-
-  const entries = store.searchJournalEntries({
-    query: q as string | undefined,
-    startDate: startDate as string | undefined,
-    endDate: endDate as string | undefined,
-    tagIds: tagIds.length > 0 ? tagIds : undefined,
-    limit: limitValue
-  });
-
-  return res.json({ entries });
-});
-
-app.get("/api/journal/daily-summary", async (req, res) => {
-  const parsed = journalDailySummaryQuerySchema.safeParse(req.query ?? {});
-
-  if (!parsed.success) {
-    return res.status(400).json({ error: "Invalid daily summary query", issues: parsed.error.issues });
-  }
-
-  const referenceDate = parsed.data.date ? new Date(parsed.data.date) : new Date();
-  if (Number.isNaN(referenceDate.getTime())) {
-    return res.status(400).json({ error: "Invalid date parameter" });
-  }
-
-  const forceRefreshRaw = typeof req.query.force === "string" ? req.query.force.trim().toLowerCase() : "";
-  const forceRefresh = forceRefreshRaw === "1" || forceRefreshRaw === "true" || forceRefreshRaw === "yes";
-
-  const dateKey = toDateKey(referenceDate);
-  const nowMs = Date.now();
-  const signature = buildDailySummarySignature(dateKey);
-  const cached = dailySummaryCache.get(dateKey);
-
-  if (!forceRefresh && cached) {
-    if (isCacheEntryFresh(cached.summary.generatedAt, DAILY_SUMMARY_MIN_REFRESH_MS, nowMs)) {
-      return res.json({ summary: cached.summary });
-    }
-    if (cached.signature === signature) {
-      return res.json({ summary: cached.summary });
-    }
-  }
-
-  const summary = await generateDailyJournalSummary(store, { now: referenceDate });
-  setCachedDailySummary(dateKey, {
-    signature,
-    summary
-  });
-  return res.json({ summary });
-});
-
-app.delete("/api/journal/:id", (req, res) => {
-  const deleted = store.deleteJournalEntry(req.params.id);
-
-  if (!deleted) {
-    return res.status(404).json({ error: "Journal entry not found" });
   }
 
   return res.status(204).send();
@@ -2349,6 +2182,64 @@ app.delete("/api/nutrition/meals/:id", (req, res) => {
   return res.status(204).send();
 });
 
+app.get("/api/nutrition/plan-snapshots", (req, res) => {
+  const parsed = nutritionPlanSnapshotsQuerySchema.safeParse(req.query ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid nutrition plan snapshot query", issues: parsed.error.issues });
+  }
+
+  const snapshots = store.getNutritionPlanSnapshots({
+    query: parsed.data.query,
+    limit: parsed.data.limit
+  });
+  return res.json({ snapshots });
+});
+
+app.post("/api/nutrition/plan-snapshots", (req, res) => {
+  const parsed = nutritionPlanSnapshotCreateSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid nutrition plan snapshot payload", issues: parsed.error.issues });
+  }
+
+  const snapshot = store.createNutritionPlanSnapshot({
+    name: parsed.data.name,
+    date: parsed.data.date,
+    replaceId: parsed.data.replaceId
+  });
+  if (!snapshot) {
+    return res.status(400).json({ error: "Unable to save nutrition plan snapshot" });
+  }
+
+  return res.status(201).json({ snapshot });
+});
+
+app.post("/api/nutrition/plan-snapshots/:id/apply", (req, res) => {
+  const parsed = nutritionPlanSnapshotApplySchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid nutrition plan snapshot apply payload", issues: parsed.error.issues });
+  }
+
+  const applied = store.applyNutritionPlanSnapshot(req.params.id, parsed.data);
+  if (!applied) {
+    return res.status(404).json({ error: "Nutrition plan snapshot not found" });
+  }
+
+  return res.json({
+    snapshot: applied.snapshot,
+    appliedDate: applied.appliedDate,
+    mealsCreated: applied.mealsCreated,
+    targetProfile: applied.targetProfile
+  });
+});
+
+app.delete("/api/nutrition/plan-snapshots/:id", (req, res) => {
+  const deleted = store.deleteNutritionPlanSnapshot(req.params.id);
+  if (!deleted) {
+    return res.status(404).json({ error: "Nutrition plan snapshot not found" });
+  }
+  return res.status(204).send();
+});
+
 app.get("/api/push/vapid-public-key", (_req, res) => {
   return res.json({
     publicKey: getVapidPublicKey(),
@@ -2492,7 +2383,6 @@ app.post("/api/push/test", (req, res) => {
 // Background Sync API endpoints
 const syncOperationSchema = z.object({
   operationType: z.enum([
-    "journal",
     "deadline",
     "context",
     "habit-checkin",

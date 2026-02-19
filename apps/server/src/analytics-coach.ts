@@ -4,11 +4,10 @@ import { RuntimeStore } from "./store.js";
 import {
   AnalyticsCoachInsight,
   AnalyticsCoachMetrics,
-  ChatMessage,
   Deadline,
   GoalWithStatus,
   HabitWithStatus,
-  JournalEntry
+  ReflectionEntry
 } from "./types.js";
 import { nowIso } from "./utils.js";
 
@@ -34,12 +33,10 @@ interface AnalyticsDataset {
   openUrgentDeadlines: Deadline[];
   habits: HabitWithStatus[];
   goals: GoalWithStatus[];
-  journals: JournalEntry[];
-  reflections: ChatMessage[];
+  reflections: ReflectionEntry[];
 }
 
 const SUPPORTED_PERIODS: Array<7 | 14 | 30> = [7, 14, 30];
-const MAX_JOURNAL_SNIPPETS = 8;
 const MAX_REFLECTION_SNIPPETS = 8;
 const MAX_DEADLINE_SNIPPETS = 8;
 const MAX_HABIT_SNIPPETS = 6;
@@ -148,20 +145,9 @@ function buildDataset(store: RuntimeStore, periodDays: 7 | 14 | 30, now: Date): 
   const habits = store.getHabitsWithStatus();
   const goals = store.getGoalsWithStatus();
 
-  const journals = store
-    .getJournalEntries(220)
-    .filter((entry) => inWindow(entry.timestamp, windowStartMs, nowMs))
-    .slice(0, MAX_JOURNAL_SNIPPETS);
-
   const reflections = store
-    .getRecentChatMessages(300)
-    .filter(
-      (message) =>
-        message.role === "user" &&
-        message.content.trim().length > 0 &&
-        inWindow(message.timestamp, windowStartMs, nowMs)
-    )
-    .slice(-MAX_REFLECTION_SNIPPETS);
+    .getReflectionEntriesInRange(windowStartIso, windowEndIso, 300)
+    .slice(0, MAX_REFLECTION_SNIPPETS);
 
   const adherence = store.getStudyPlanAdherenceMetrics({
     windowStart: windowStartIso,
@@ -178,7 +164,7 @@ function buildDataset(store: RuntimeStore, periodDays: 7 | 14 | 30, now: Date): 
     averageHabitCompletion7d: Math.round(average(habits.map((habit) => habit.completionRate7d))),
     goalsTracked: goals.length,
     goalsCompletedToday: goals.filter((goal) => goal.todayCompleted).length,
-    journalEntries: journals.length,
+    reflectionEntries: reflections.length,
     userReflections: reflections.length,
     studySessionsPlanned: adherence.sessionsPlanned,
     studySessionsDone: adherence.sessionsDone,
@@ -196,7 +182,6 @@ function buildDataset(store: RuntimeStore, periodDays: 7 | 14 | 30, now: Date): 
     openUrgentDeadlines,
     habits,
     goals,
-    journals,
     reflections
   };
 }
@@ -248,7 +233,7 @@ function buildFallbackInsight(dataset: AnalyticsDataset): AnalyticsCoachInsight 
     recommendations.push("Mark each study session as done/skipped immediately after it ends to keep plans realistic.");
   }
 
-  if (metrics.journalEntries + metrics.userReflections < 3) {
+  if (metrics.reflectionEntries + metrics.userReflections < 3) {
     risks.push("Reflection volume is low, which weakens pattern detection and coaching quality.");
     recommendations.push("Add a two-line end-of-day reflection to make tomorrow's coaching more precise.");
   }
@@ -316,12 +301,11 @@ function buildPrompt(dataset: AnalyticsDataset): string {
     )
     .join("\n");
 
-  const journalLines = dataset.journals
-    .map((entry) => `- [${entry.timestamp}] ${normalizeText(entry.content, 180)}`)
-    .join("\n");
-
   const reflectionLines = dataset.reflections
-    .map((message) => `- [${message.timestamp}] ${normalizeText(message.content, 180)}`)
+    .map(
+      (entry) =>
+        `- [${entry.timestamp}] event=${normalizeText(entry.event, 80)} | feeling=${normalizeText(entry.feelingStress, 70)} | intent=${normalizeText(entry.intent, 90)} | commitment=${normalizeText(entry.commitment, 90)} | outcome=${normalizeText(entry.outcome, 100)} | evidence=${normalizeText(entry.evidenceSnippet, 130)}`
+    )
     .join("\n");
 
   return `Analyze behavior patterns for the last ${dataset.periodDays} days.
@@ -348,7 +332,7 @@ Metrics:
 - habitsTracked=${dataset.metrics.habitsTracked}
 - averageHabitCompletion7d=${dataset.metrics.averageHabitCompletion7d}
 - goalsTracked=${dataset.metrics.goalsTracked}
-- journalEntries=${dataset.metrics.journalEntries}
+- reflectionEntries=${dataset.metrics.reflectionEntries}
 - userReflections=${dataset.metrics.userReflections}
 - studySessionsPlanned=${dataset.metrics.studySessionsPlanned}
 - studySessionsDone=${dataset.metrics.studySessionsDone}
@@ -368,10 +352,7 @@ ${habitLines || "- none"}
 Goals:
 ${goalLines || "- none"}
 
-Journal reflections:
-${journalLines || "- none"}
-
-User chat reflections:
+Structured reflection entries:
 ${reflectionLines || "- none"}`;
 }
 

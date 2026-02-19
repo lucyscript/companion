@@ -42,7 +42,17 @@ function seedAnalyticsData(store: RuntimeStore, referenceNow: Date): void {
   store.toggleGoalCheckIn(goal.id, { completed: true, date: nowIso });
 
   store.recordJournalEntry("Focused well on distributed systems reading.");
-  store.recordChatMessage("user", "I should prioritize DAT600 before the weekend.");
+  const reflectionMessage = store.recordChatMessage("user", "I should prioritize DAT600 before the weekend.");
+  store.upsertReflectionEntry({
+    event: "Deadline planning",
+    feelingStress: "neutral (stress: medium)",
+    intent: "Set an intention",
+    commitment: "Prioritize DAT600 before the weekend",
+    outcome: "Captured planning intent",
+    timestamp: reflectionMessage.timestamp,
+    evidenceSnippet: reflectionMessage.content,
+    sourceMessageId: reflectionMessage.id
+  });
 }
 
 describe("analytics-coach", () => {

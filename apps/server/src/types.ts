@@ -41,7 +41,6 @@ export type ChatActionType =
   | "clear-schedule-window"
   | "create-routine-preset"
   | "update-routine-preset"
-  | "create-journal-draft"
   | "create-habit"
   | "update-habit"
   | "create-goal"
@@ -66,7 +65,6 @@ export interface ChatActionExecution {
 export type ChatCitationType =
   | "schedule"
   | "deadline"
-  | "journal"
   | "habit"
   | "goal"
   | "nutrition-meal"
@@ -135,6 +133,19 @@ export interface ChatLongTermMemory {
   updatedAt: string;
 }
 
+export interface ReflectionEntry {
+  id: string;
+  event: string;
+  feelingStress: string;
+  intent: string;
+  commitment: string;
+  outcome: string;
+  timestamp: string;
+  evidenceSnippet: string;
+  sourceMessageId: string;
+  updatedAt: string;
+}
+
 export type AuthRole = "admin" | "user";
 
 export interface AuthUser {
@@ -195,7 +206,7 @@ export interface DashboardSnapshot {
     todayFocus: string;
     pendingDeadlines: number;
     activeAgents: number;
-    journalStreak: number;
+    growthStreak: number;
   };
   agentStates: AgentState[];
   notifications: Notification[];
@@ -563,6 +574,38 @@ export interface NutritionTargetProfile {
   updatedAt: string;
 }
 
+export interface NutritionPlanSnapshotTarget {
+  weightKg?: number;
+  maintenanceCalories?: number;
+  surplusCalories?: number;
+  targetCalories?: number;
+  targetProteinGrams?: number;
+  targetCarbsGrams?: number;
+  targetFatGrams?: number;
+}
+
+export interface NutritionPlanSnapshotMeal {
+  name: string;
+  mealType: NutritionMealType;
+  consumedTime: string;
+  items: Array<Omit<NutritionMealItem, "id">>;
+  calories?: number;
+  proteinGrams?: number;
+  carbsGrams?: number;
+  fatGrams?: number;
+  notes?: string;
+}
+
+export interface NutritionPlanSnapshot {
+  id: string;
+  name: string;
+  sourceDate: string;
+  targetProfile: NutritionPlanSnapshotTarget | null;
+  meals: NutritionPlanSnapshotMeal[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface NutritionDailySummary {
   date: string;
   totals: NutritionMacros;
@@ -630,15 +673,15 @@ export interface WeeklySummary {
   deadlinesDue: number;
   deadlinesCompleted: number;
   completionRate: number;
-  journalHighlights: JournalEntry[];
+  reflectionHighlights: string[];
 }
 
-export interface DailyJournalSummary {
+export interface DailyGrowthSummary {
   date: string;
   generatedAt: string;
   summary: string;
   highlights: string[];
-  journalEntryCount: number;
+  reflectionEntryCount: number;
   chatMessageCount: number;
   visual?: GrowthNarrativeVisual;
 }
@@ -660,7 +703,7 @@ export interface AnalyticsCoachMetrics {
   averageHabitCompletion7d: number;
   goalsTracked: number;
   goalsCompletedToday: number;
-  journalEntries: number;
+  reflectionEntries: number;
   userReflections: number;
   studySessionsPlanned: number;
   studySessionsDone: number;
@@ -810,7 +853,6 @@ export interface LocationHistory {
 }
 
 export type SyncOperationType =
-  | "journal"
   | "deadline"
   | "context"
   | "habit-checkin"

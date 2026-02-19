@@ -47,8 +47,71 @@ describe("RuntimeStore - Chat", () => {
 
     const history = store.getChatHistory({ page: 1, pageSize: 50 });
 
-    expect(history.total).toBe(500);
+    expect(history.total).toBe(505);
     expect(history.messages[0].content).toBe("message-504");
     expect(history.hasMore).toBe(true);
+  });
+
+  it("upserts structured reflection entries keyed by source message id", () => {
+    const first = store.upsertReflectionEntry({
+      event: "Deadline planning",
+      feelingStress: "negative (stress: high)",
+      intent: "Get guidance or action help",
+      commitment: "Finish assignment 2",
+      outcome: "Provided next steps",
+      timestamp: "2026-02-19T10:00:00.000Z",
+      evidenceSnippet: "I need help finishing assignment 2 today.",
+      sourceMessageId: "chat-1"
+    });
+
+    const updated = store.upsertReflectionEntry({
+      event: "Deadline planning",
+      feelingStress: "positive (stress: low)",
+      intent: "Report progress",
+      commitment: "Finish assignment 2",
+      outcome: "Marked as complete",
+      timestamp: "2026-02-19T10:05:00.000Z",
+      evidenceSnippet: "I finished assignment 2.",
+      sourceMessageId: "chat-1"
+    });
+
+    const reflections = store.getRecentReflectionEntries(10);
+    expect(reflections).toHaveLength(1);
+    expect(reflections[0]?.id).toBe(first.id);
+    expect(updated.id).toBe(first.id);
+    expect(reflections[0]?.outcome).toBe("Marked as complete");
+    expect(reflections[0]?.evidenceSnippet).toContain("finished assignment 2");
+  });
+
+  it("returns structured reflections within a timestamp window", () => {
+    store.upsertReflectionEntry({
+      event: "General reflection",
+      feelingStress: "neutral (stress: medium)",
+      intent: "Share context",
+      commitment: "none",
+      outcome: "Captured context",
+      timestamp: "2026-02-18T08:00:00.000Z",
+      evidenceSnippet: "Morning update.",
+      sourceMessageId: "chat-a"
+    });
+    store.upsertReflectionEntry({
+      event: "Schedule adjustment",
+      feelingStress: "neutral (stress: medium)",
+      intent: "Get guidance or action help",
+      commitment: "Go gym at 07:00",
+      outcome: "Routine applied",
+      timestamp: "2026-02-19T08:00:00.000Z",
+      evidenceSnippet: "I go gym every day at 7.",
+      sourceMessageId: "chat-b"
+    });
+
+    const inRange = store.getReflectionEntriesInRange(
+      "2026-02-19T00:00:00.000Z",
+      "2026-02-19T23:59:59.999Z",
+      20
+    );
+
+    expect(inRange).toHaveLength(1);
+    expect(inRange[0]?.sourceMessageId).toBe("chat-b");
   });
 });

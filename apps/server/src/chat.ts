@@ -840,6 +840,123 @@ function buildRuntimeContextNudge(store: RuntimeStore, now: Date): string {
   return lines.join("\n");
 }
 
+function inferReflectionEvent(input: string): string {
+  const normalized = input.toLowerCase();
+  if (/\b(deadline|due|assignment|exam|lab)\b/.test(normalized)) {
+    return "Deadline planning";
+  }
+  if (/\b(schedule|calendar|lecture|lab|timeline|routine|gym)\b/.test(normalized)) {
+    return "Schedule adjustment";
+  }
+  if (/\b(meal|food|calorie|protein|carb|fat|nutrition)\b/.test(normalized)) {
+    return "Nutrition update";
+  }
+  if (/\b(email|mail|inbox|message)\b/.test(normalized)) {
+    return "Inbox check";
+  }
+  if (/\b(habit|goal|streak|progress|check in|check-in)\b/.test(normalized)) {
+    return "Habit or goal tracking";
+  }
+  if (input.trim().endsWith("?")) {
+    return "Question";
+  }
+  if (COMMITMENT_CUE_REGEX.test(normalized)) {
+    return "Commitment statement";
+  }
+  return "General reflection";
+}
+
+function inferReflectionFeelingStress(input: string, fallbackStress: UserContext["stressLevel"]): string {
+  const normalized = input.toLowerCase();
+  const positive = /\b(relief|relieved|great|good|happy|excited|proud|better|calm)\b/.test(normalized);
+  const negative = /\b(stress|stressed|anxious|overwhelmed|frustrated|tired|sad|bad|panic|burned)\b/.test(normalized);
+
+  let feeling = "neutral";
+  if (positive && !negative) {
+    feeling = "positive";
+  } else if (negative && !positive) {
+    feeling = "negative";
+  } else if (positive && negative) {
+    feeling = "mixed";
+  }
+
+  const stressHint = negative ? "high" : positive ? "low" : fallbackStress;
+  return `${feeling} (stress: ${stressHint})`;
+}
+
+function inferReflectionIntent(input: string): string {
+  const normalized = input.toLowerCase();
+  if (/\b(when|what|how|can you|could you|please)\b/.test(normalized)) {
+    return "Get guidance or action help";
+  }
+  if (/\b(i will|i'll|i want|i need|i plan|i should)\b/.test(normalized)) {
+    return "Set an intention";
+  }
+  if (/\b(done|finished|completed|checked)\b/.test(normalized)) {
+    return "Report progress";
+  }
+  return "Share context";
+}
+
+function inferReflectionCommitment(input: string): string {
+  const phrase = extractCommitmentPhrase(input);
+  const normalized = phrase ? normalizeCommitmentLabel(phrase) : null;
+  return normalized ?? "none";
+}
+
+function inferReflectionOutcome(assistantMessage: ChatMessage): string {
+  const actionMessage = assistantMessage.metadata?.actionExecution?.message;
+  if (actionMessage && actionMessage.trim().length > 0) {
+    return textSnippet(actionMessage.trim(), 180);
+  }
+  const reply = assistantMessage.content.trim();
+  if (!reply) {
+    return "No assistant response captured.";
+  }
+  const firstLine = reply.split("\n").find((line) => line.trim().length > 0) ?? reply;
+  return textSnippet(firstLine.trim(), 180);
+}
+
+function shouldSkipStructuredReflection(input: string): boolean {
+  const trimmed = input.trim();
+  if (trimmed.length === 0) {
+    return true;
+  }
+  if (/^(confirm|cancel)\b/i.test(trimmed)) {
+    return true;
+  }
+  if (/^(hi|hello|hey|yo+|sup|what'?s up)\b/i.test(trimmed) && trimmed.split(/\s+/).length <= 2) {
+    return true;
+  }
+  return false;
+}
+
+function autoWriteStructuredReflectionEntry(
+  store: RuntimeStore,
+  userMessage: ChatMessage,
+  assistantMessage: ChatMessage
+): void {
+  if (userMessage.role !== "user") {
+    return;
+  }
+  const input = userMessage.content.trim();
+  if (shouldSkipStructuredReflection(input)) {
+    return;
+  }
+
+  const userState = store.getUserContext();
+  store.upsertReflectionEntry({
+    event: inferReflectionEvent(input),
+    feelingStress: inferReflectionFeelingStress(input, userState.stressLevel),
+    intent: inferReflectionIntent(input),
+    commitment: inferReflectionCommitment(input),
+    outcome: inferReflectionOutcome(assistantMessage),
+    timestamp: userMessage.timestamp,
+    evidenceSnippet: textSnippet(input.replace(/\s+/g, " "), 260),
+    sourceMessageId: userMessage.id
+  });
+}
+
 function buildFunctionCallingSystemInstruction(
   userName: string,
   habitGoalNudge: string,
@@ -3112,6 +3229,7 @@ export async function sendChatMessage(
       contextWindow: "",
       pendingActions: pendingActionsAtStart
     });
+    autoWriteStructuredReflectionEntry(store, userMessage, assistantMessage);
     const historyPage = store.getChatHistory({ page: 1, pageSize: 20 });
 
     return {
@@ -3168,6 +3286,7 @@ export async function sendChatMessage(
     }
 
     const assistantMessage = store.recordChatMessage("assistant", assistantReply, assistantMetadata);
+    autoWriteStructuredReflectionEntry(store, userMessage, assistantMessage);
     const historyPage = store.getChatHistory({ page: 1, pageSize: 20 });
     const citations = assistantMessage.metadata?.citations ?? [];
 
@@ -3239,6 +3358,7 @@ export async function sendChatMessage(
       },
       ...(autoCitations.length > 0 ? { citations: autoCitations } : {})
     });
+    autoWriteStructuredReflectionEntry(store, userMessage, assistantMessage);
     const historyPage = store.getChatHistory({ page: 1, pageSize: 20 });
     const citations = assistantMessage.metadata?.citations ?? [];
 
@@ -3467,6 +3587,7 @@ export async function sendChatMessage(
           : {})
       };
       const assistantMessage = store.recordChatMessage("assistant", fallbackReply, assistantMetadata);
+      autoWriteStructuredReflectionEntry(store, userMessage, assistantMessage);
       const historyPage = store.getChatHistory({ page: 1, pageSize: 20 });
 
       return {
@@ -3505,6 +3626,7 @@ export async function sendChatMessage(
   };
 
   const assistantMessage = store.recordChatMessage("assistant", finalReply, assistantMetadata);
+  autoWriteStructuredReflectionEntry(store, userMessage, assistantMessage);
 
   const historyPage = store.getChatHistory({ page: 1, pageSize: 20 });
 

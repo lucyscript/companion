@@ -42,6 +42,9 @@ import {
   NutritionCustomFood,
   NutritionMeal,
   NutritionMealItem,
+  NutritionPlanSnapshot,
+  NutritionPlanSnapshotMeal,
+  NutritionPlanSnapshotTarget,
   NutritionTargetProfile,
   NutritionMealType,
   StudyPlanSession,
@@ -63,6 +66,7 @@ import {
   ChatMessageMetadata,
   ChatHistoryPage,
   ChatLongTermMemory,
+  ReflectionEntry,
   ChatActionType,
   ChatPendingAction,
   GmailMessage,
@@ -99,6 +103,7 @@ export class RuntimeStore {
   private readonly maxEvents = 100;
   private readonly maxNotifications = 40;
   private readonly maxChatMessages = 5000;
+  private readonly maxReflectionEntries = 8000;
   private readonly maxJournalEntries = 100;
   private readonly maxScheduleEvents = 200;
   private readonly maxRoutinePresets = 100;
@@ -108,6 +113,7 @@ export class RuntimeStore {
   private readonly maxNutritionMeals = 5000;
   private readonly maxNutritionCustomFoods = 1200;
   private readonly maxNutritionTargetProfiles = 4000;
+  private readonly maxNutritionPlanSnapshots = 300;
   private readonly maxContextHistory = 500;
   private readonly maxCheckInsPerItem = 400;
   private readonly maxStudyPlanSessions = 5000;
@@ -184,6 +190,23 @@ export class RuntimeStore {
         usedModelMode TEXT NOT NULL DEFAULT 'fallback',
         updatedAt TEXT NOT NULL
       );
+
+      CREATE TABLE IF NOT EXISTS reflection_entries (
+        id TEXT PRIMARY KEY,
+        event TEXT NOT NULL,
+        feelingStress TEXT NOT NULL,
+        intent TEXT NOT NULL,
+        commitment TEXT NOT NULL,
+        outcome TEXT NOT NULL,
+        timestamp TEXT NOT NULL,
+        evidenceSnippet TEXT NOT NULL,
+        sourceMessageId TEXT NOT NULL UNIQUE,
+        updatedAt TEXT NOT NULL,
+        insertOrder INTEGER NOT NULL DEFAULT (unixepoch('subsec') * 1000000)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_reflection_entries_timestamp
+        ON reflection_entries(timestamp);
 
       CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY,
@@ -388,6 +411,20 @@ export class RuntimeStore {
 
       CREATE INDEX IF NOT EXISTS idx_nutrition_target_profiles_updatedAt
         ON nutrition_target_profiles(updatedAt DESC);
+
+      CREATE TABLE IF NOT EXISTS nutrition_plan_snapshots (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        sourceDate TEXT NOT NULL,
+        targetProfileJson TEXT NOT NULL DEFAULT '{}',
+        mealsJson TEXT NOT NULL DEFAULT '[]',
+        createdAt TEXT NOT NULL,
+        updatedAt TEXT NOT NULL,
+        insertOrder INTEGER NOT NULL DEFAULT (unixepoch('subsec') * 1000000)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_nutrition_plan_snapshots_updatedAt
+        ON nutrition_plan_snapshots(updatedAt DESC);
 
       CREATE TABLE IF NOT EXISTS study_plan_sessions (
         sessionId TEXT PRIMARY KEY,
@@ -1003,6 +1040,193 @@ export class RuntimeStore {
 
   getChatMessageCount(): number {
     return (this.db.prepare("SELECT COUNT(*) as count FROM chat_messages").get() as { count: number }).count;
+  }
+
+  private mapReflectionRow(row: {
+    id: string;
+    event: string;
+    feelingStress: string;
+    intent: string;
+    commitment: string;
+    outcome: string;
+    timestamp: string;
+    evidenceSnippet: string;
+    sourceMessageId: string;
+    updatedAt: string;
+  }): ReflectionEntry {
+    return {
+      id: row.id,
+      event: row.event,
+      feelingStress: row.feelingStress,
+      intent: row.intent,
+      commitment: row.commitment,
+      outcome: row.outcome,
+      timestamp: row.timestamp,
+      evidenceSnippet: row.evidenceSnippet,
+      sourceMessageId: row.sourceMessageId,
+      updatedAt: row.updatedAt
+    };
+  }
+
+  upsertReflectionEntry(input: {
+    event: string;
+    feelingStress: string;
+    intent: string;
+    commitment: string;
+    outcome: string;
+    timestamp: string;
+    evidenceSnippet: string;
+    sourceMessageId: string;
+  }): ReflectionEntry {
+    const updatedAt = nowIso();
+    const existing = this.db
+      .prepare(
+        "SELECT id, event, feelingStress, intent, commitment, outcome, timestamp, evidenceSnippet, sourceMessageId, updatedAt FROM reflection_entries WHERE sourceMessageId = ?"
+      )
+      .get(input.sourceMessageId) as
+      | {
+          id: string;
+          event: string;
+          feelingStress: string;
+          intent: string;
+          commitment: string;
+          outcome: string;
+          timestamp: string;
+          evidenceSnippet: string;
+          sourceMessageId: string;
+          updatedAt: string;
+        }
+      | undefined;
+
+    const id = existing?.id ?? makeId("reflection");
+
+    this.db
+      .prepare(
+        `INSERT INTO reflection_entries (
+           id, event, feelingStress, intent, commitment, outcome, timestamp, evidenceSnippet, sourceMessageId, updatedAt, insertOrder
+         ) VALUES (
+           ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(insertOrder), 0) + 1 FROM reflection_entries)
+         )
+         ON CONFLICT(sourceMessageId) DO UPDATE SET
+           event = EXCLUDED.event,
+           feelingStress = EXCLUDED.feelingStress,
+           intent = EXCLUDED.intent,
+           commitment = EXCLUDED.commitment,
+           outcome = EXCLUDED.outcome,
+           timestamp = EXCLUDED.timestamp,
+           evidenceSnippet = EXCLUDED.evidenceSnippet,
+           updatedAt = EXCLUDED.updatedAt`
+      )
+      .run(
+        id,
+        input.event,
+        input.feelingStress,
+        input.intent,
+        input.commitment,
+        input.outcome,
+        input.timestamp,
+        input.evidenceSnippet,
+        input.sourceMessageId,
+        updatedAt
+      );
+
+    const count = (this.db.prepare("SELECT COUNT(*) as count FROM reflection_entries").get() as { count: number }).count;
+    if (count > this.maxReflectionEntries) {
+      this.db
+        .prepare(
+          `DELETE FROM reflection_entries WHERE id IN (
+            SELECT id FROM reflection_entries ORDER BY insertOrder ASC LIMIT ?
+          )`
+        )
+        .run(count - this.maxReflectionEntries);
+    }
+
+    const row = this.db
+      .prepare(
+        "SELECT id, event, feelingStress, intent, commitment, outcome, timestamp, evidenceSnippet, sourceMessageId, updatedAt FROM reflection_entries WHERE sourceMessageId = ?"
+      )
+      .get(input.sourceMessageId) as
+      | {
+          id: string;
+          event: string;
+          feelingStress: string;
+          intent: string;
+          commitment: string;
+          outcome: string;
+          timestamp: string;
+          evidenceSnippet: string;
+          sourceMessageId: string;
+          updatedAt: string;
+        }
+      | undefined;
+
+    if (!row) {
+      return {
+        id,
+        event: input.event,
+        feelingStress: input.feelingStress,
+        intent: input.intent,
+        commitment: input.commitment,
+        outcome: input.outcome,
+        timestamp: input.timestamp,
+        evidenceSnippet: input.evidenceSnippet,
+        sourceMessageId: input.sourceMessageId,
+        updatedAt
+      };
+    }
+
+    return this.mapReflectionRow(row);
+  }
+
+  getRecentReflectionEntries(limit: number): ReflectionEntry[] {
+    if (limit <= 0) {
+      return [];
+    }
+
+    const rows = this.db
+      .prepare(
+        "SELECT id, event, feelingStress, intent, commitment, outcome, timestamp, evidenceSnippet, sourceMessageId, updatedAt FROM reflection_entries ORDER BY insertOrder DESC LIMIT ?"
+      )
+      .all(limit) as Array<{
+      id: string;
+      event: string;
+      feelingStress: string;
+      intent: string;
+      commitment: string;
+      outcome: string;
+      timestamp: string;
+      evidenceSnippet: string;
+      sourceMessageId: string;
+      updatedAt: string;
+    }>;
+
+    return rows.map((row) => this.mapReflectionRow(row)).reverse();
+  }
+
+  getReflectionEntriesInRange(windowStart: string, windowEnd: string, limit = 500): ReflectionEntry[] {
+    const normalizedLimit = Math.max(1, Math.min(limit, 2000));
+    const rows = this.db
+      .prepare(
+        `SELECT id, event, feelingStress, intent, commitment, outcome, timestamp, evidenceSnippet, sourceMessageId, updatedAt
+           FROM reflection_entries
+          WHERE timestamp >= ? AND timestamp <= ?
+          ORDER BY timestamp DESC
+          LIMIT ?`
+      )
+      .all(windowStart, windowEnd, normalizedLimit) as Array<{
+      id: string;
+      event: string;
+      feelingStress: string;
+      intent: string;
+      commitment: string;
+      outcome: string;
+      timestamp: string;
+      evidenceSnippet: string;
+      sourceMessageId: string;
+      updatedAt: string;
+    }>;
+
+    return rows.map((row) => this.mapReflectionRow(row));
   }
 
   getChatLongTermMemory(): ChatLongTermMemory | null {
@@ -1960,27 +2184,10 @@ export class RuntimeStore {
     const deadlinesCompleted = deadlinesInWindow.filter((d) => d.completed).length;
     const completionRate = deadlinesInWindow.length === 0 ? 0 : Math.round((deadlinesCompleted / deadlinesInWindow.length) * 100);
 
-    const journalHighlights = (
-      this.db
-        .prepare("SELECT * FROM journal_entries WHERE timestamp >= ? AND timestamp <= ? ORDER BY timestamp DESC LIMIT 3")
-        .all(windowStart.toISOString(), windowEnd.toISOString()) as Array<{
-        id: string;
-        clientEntryId: string | null;
-        content: string;
-        timestamp: string;
-        updatedAt: string;
-        version: number;
-      }>
-    ).map((row) => ({
-      id: row.id,
-      clientEntryId: row.clientEntryId ?? undefined,
-      content: row.content,
-      timestamp: row.timestamp,
-      updatedAt: row.updatedAt,
-      version: row.version,
-      tags: this.getTagsForEntry(row.id),
-      photos: this.parsePhotos((row as { photos?: string | null }).photos)
-    }));
+    const reflectionHighlights = this.getReflectionEntriesInRange(windowStart.toISOString(), windowEnd.toISOString(), 40)
+      .slice(0, 3)
+      .map((entry) => entry.evidenceSnippet.trim())
+      .filter((value) => value.length > 0);
 
     return {
       windowStart: windowStart.toISOString(),
@@ -1988,7 +2195,7 @@ export class RuntimeStore {
       deadlinesDue: deadlinesInWindow.length,
       deadlinesCompleted,
       completionRate,
-      journalHighlights
+      reflectionHighlights
     };
   }
 
@@ -3364,6 +3571,167 @@ export class RuntimeStore {
     }
   }
 
+  private toNutritionConsumedTime(iso: string): string {
+    const parsed = new Date(iso);
+    if (Number.isNaN(parsed.getTime())) {
+      return "00:00";
+    }
+    const hours = String(parsed.getUTCHours()).padStart(2, "0");
+    const minutes = String(parsed.getUTCMinutes()).padStart(2, "0");
+    return `${hours}:${minutes}`;
+  }
+
+  private isValidNutritionConsumedTime(value: string): boolean {
+    if (!/^\d{2}:\d{2}$/.test(value)) {
+      return false;
+    }
+    const [hoursRaw, minutesRaw] = value.split(":");
+    const hours = Number.parseInt(hoursRaw ?? "", 10);
+    const minutes = Number.parseInt(minutesRaw ?? "", 10);
+    if (!Number.isInteger(hours) || !Number.isInteger(minutes)) {
+      return false;
+    }
+    return hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59;
+  }
+
+  private toNutritionConsumedAtForDate(dateKey: string, consumedTime: string, orderIndex: number): string {
+    const fallback = new Date(`${dateKey}T00:00:00.000Z`);
+    if (Number.isNaN(fallback.getTime())) {
+      return nowIso();
+    }
+
+    if (!this.isValidNutritionConsumedTime(consumedTime)) {
+      fallback.setUTCMinutes(orderIndex);
+      return fallback.toISOString();
+    }
+
+    const [hoursRaw, minutesRaw] = consumedTime.split(":");
+    const hours = Number.parseInt(hoursRaw ?? "0", 10);
+    const minutes = Number.parseInt(minutesRaw ?? "0", 10);
+    fallback.setUTCHours(hours, minutes, 0, 0);
+    return fallback.toISOString();
+  }
+
+  private normalizeNutritionPlanSnapshotTarget(value: unknown): NutritionPlanSnapshotTarget | null {
+    if (!value || typeof value !== "object") {
+      return null;
+    }
+
+    const record = value as Record<string, unknown>;
+    const target: NutritionPlanSnapshotTarget = {};
+
+    if (typeof record.weightKg === "number") {
+      target.weightKg = this.clampNutritionMetric(record.weightKg, 0, 500);
+    }
+    if (typeof record.maintenanceCalories === "number") {
+      target.maintenanceCalories = this.clampNutritionMetric(record.maintenanceCalories, 0, 10000);
+    }
+    if (typeof record.surplusCalories === "number") {
+      target.surplusCalories = this.clampSignedNutritionMetric(record.surplusCalories, 0, -5000, 5000);
+    }
+    if (typeof record.targetCalories === "number") {
+      target.targetCalories = this.clampNutritionMetric(record.targetCalories, 0, 15000);
+    }
+    if (typeof record.targetProteinGrams === "number") {
+      target.targetProteinGrams = this.clampNutritionMetric(record.targetProteinGrams, 0, 1000);
+    }
+    if (typeof record.targetCarbsGrams === "number") {
+      target.targetCarbsGrams = this.clampNutritionMetric(record.targetCarbsGrams, 0, 1500);
+    }
+    if (typeof record.targetFatGrams === "number") {
+      target.targetFatGrams = this.clampNutritionMetric(record.targetFatGrams, 0, 600);
+    }
+
+    return Object.keys(target).length > 0 ? target : null;
+  }
+
+  private normalizeNutritionPlanSnapshotMeals(value: unknown): NutritionPlanSnapshotMeal[] {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    const normalized: NutritionPlanSnapshotMeal[] = [];
+    value.forEach((entry, orderIndex) => {
+      if (!entry || typeof entry !== "object") {
+        return;
+      }
+
+      const record = entry as Record<string, unknown>;
+      const name = typeof record.name === "string" ? record.name.trim() : "";
+      if (!name) {
+        return;
+      }
+
+      const items = this.normalizeNutritionMealItems(record.items).map((item) => ({
+        name: item.name,
+        quantity: item.quantity,
+        unitLabel: item.unitLabel,
+        caloriesPerUnit: item.caloriesPerUnit,
+        proteinGramsPerUnit: item.proteinGramsPerUnit,
+        carbsGramsPerUnit: item.carbsGramsPerUnit,
+        fatGramsPerUnit: item.fatGramsPerUnit,
+        ...(item.customFoodId ? { customFoodId: item.customFoodId } : {})
+      }));
+
+      const consumedTimeRaw = typeof record.consumedTime === "string" ? record.consumedTime.trim() : "";
+      const consumedTime = this.isValidNutritionConsumedTime(consumedTimeRaw)
+        ? consumedTimeRaw
+        : this.toNutritionConsumedTime(new Date(Date.UTC(1970, 0, 1, 0, orderIndex, 0, 0)).toISOString());
+
+      const meal: NutritionPlanSnapshotMeal = {
+        name,
+        mealType: this.normalizeNutritionMealType(
+          typeof record.mealType === "string" ? record.mealType : undefined
+        ),
+        consumedTime,
+        items,
+        ...(typeof record.calories === "number"
+          ? { calories: this.clampNutritionMetric(record.calories, 0, 10000) }
+          : {}),
+        ...(typeof record.proteinGrams === "number"
+          ? { proteinGrams: this.clampNutritionMetric(record.proteinGrams, 0, 1000) }
+          : {}),
+        ...(typeof record.carbsGrams === "number"
+          ? { carbsGrams: this.clampNutritionMetric(record.carbsGrams, 0, 1500) }
+          : {}),
+        ...(typeof record.fatGrams === "number"
+          ? { fatGrams: this.clampNutritionMetric(record.fatGrams, 0, 600) }
+          : {}),
+        ...(typeof record.notes === "string" && record.notes.trim().length > 0
+          ? { notes: record.notes.trim() }
+          : {})
+      };
+
+      normalized.push(meal);
+    });
+
+    return normalized;
+  }
+
+  private parseNutritionPlanSnapshotTargetJson(raw: string | null | undefined): NutritionPlanSnapshotTarget | null {
+    if (typeof raw !== "string" || raw.trim().length === 0) {
+      return null;
+    }
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      return this.normalizeNutritionPlanSnapshotTarget(parsed);
+    } catch {
+      return null;
+    }
+  }
+
+  private parseNutritionPlanSnapshotMealsJson(raw: string | null | undefined): NutritionPlanSnapshotMeal[] {
+    if (typeof raw !== "string" || raw.trim().length === 0) {
+      return [];
+    }
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      return this.normalizeNutritionPlanSnapshotMeals(parsed);
+    } catch {
+      return [];
+    }
+  }
+
   private computeNutritionTotalsFromMealItems(items: NutritionMealItem[]): {
     calories: number;
     proteinGrams: number;
@@ -4058,6 +4426,242 @@ export class RuntimeStore {
       mealsLogged: meals.length,
       meals
     };
+  }
+
+  getNutritionPlanSnapshotById(id: string): NutritionPlanSnapshot | null {
+    const row = this.db.prepare("SELECT * FROM nutrition_plan_snapshots WHERE id = ?").get(id) as
+      | {
+          id: string;
+          name: string;
+          sourceDate: string;
+          targetProfileJson: string | null;
+          mealsJson: string | null;
+          createdAt: string;
+          updatedAt: string;
+        }
+      | undefined;
+
+    if (!row) {
+      return null;
+    }
+
+    return {
+      id: row.id,
+      name: row.name,
+      sourceDate: row.sourceDate,
+      targetProfile: this.parseNutritionPlanSnapshotTargetJson(row.targetProfileJson),
+      meals: this.parseNutritionPlanSnapshotMealsJson(row.mealsJson),
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt
+    };
+  }
+
+  getNutritionPlanSnapshots(options: {
+    query?: string;
+    limit?: number;
+  } = {}): NutritionPlanSnapshot[] {
+    const clauses: string[] = [];
+    const params: unknown[] = [];
+    if (typeof options.query === "string" && options.query.trim().length > 0) {
+      clauses.push("name LIKE ? COLLATE NOCASE");
+      params.push(`%${options.query.trim()}%`);
+    }
+
+    let query = "SELECT * FROM nutrition_plan_snapshots";
+    if (clauses.length > 0) {
+      query += ` WHERE ${clauses.join(" AND ")}`;
+    }
+    query += " ORDER BY updatedAt DESC, insertOrder DESC";
+
+    const limit = typeof options.limit === "number" ? Math.min(Math.max(Math.round(options.limit), 1), 1000) : null;
+    if (limit !== null) {
+      query += " LIMIT ?";
+      params.push(limit);
+    }
+
+    const rows = this.db.prepare(query).all(...params) as Array<{
+      id: string;
+      name: string;
+      sourceDate: string;
+      targetProfileJson: string | null;
+      mealsJson: string | null;
+      createdAt: string;
+      updatedAt: string;
+    }>;
+
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      sourceDate: row.sourceDate,
+      targetProfile: this.parseNutritionPlanSnapshotTargetJson(row.targetProfileJson),
+      meals: this.parseNutritionPlanSnapshotMealsJson(row.mealsJson),
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt
+    }));
+  }
+
+  createNutritionPlanSnapshot(entry: {
+    name: string;
+    date?: string | Date;
+    replaceId?: string;
+    targetProfile?: NutritionPlanSnapshotTarget | null;
+    meals?: NutritionPlanSnapshotMeal[];
+  }): NutritionPlanSnapshot | null {
+    const name = entry.name.trim();
+    if (!name) {
+      return null;
+    }
+
+    const sourceDate = this.toDateKey(entry.date ?? new Date());
+    const targetProfile =
+      entry.targetProfile !== undefined
+        ? this.normalizeNutritionPlanSnapshotTarget(entry.targetProfile)
+        : this.normalizeNutritionPlanSnapshotTarget(this.getNutritionTargetProfile(sourceDate));
+    const meals =
+      entry.meals !== undefined
+        ? this.normalizeNutritionPlanSnapshotMeals(entry.meals)
+        : this.getNutritionMeals({ date: sourceDate, limit: 1000 }).map((meal) => ({
+            name: meal.name,
+            mealType: this.normalizeNutritionMealType(meal.mealType),
+            consumedTime: this.toNutritionConsumedTime(meal.consumedAt),
+            items: meal.items.map((item) => ({
+              name: item.name,
+              quantity: item.quantity,
+              unitLabel: item.unitLabel,
+              caloriesPerUnit: item.caloriesPerUnit,
+              proteinGramsPerUnit: item.proteinGramsPerUnit,
+              carbsGramsPerUnit: item.carbsGramsPerUnit,
+              fatGramsPerUnit: item.fatGramsPerUnit,
+              ...(item.customFoodId ? { customFoodId: item.customFoodId } : {})
+            })),
+            ...(meal.items.length === 0
+              ? {
+                  calories: meal.calories,
+                  proteinGrams: meal.proteinGrams,
+                  carbsGrams: meal.carbsGrams,
+                  fatGrams: meal.fatGrams
+                }
+              : {}),
+            ...(meal.notes ? { notes: meal.notes } : {})
+          }));
+
+    const now = nowIso();
+    const replaceId = typeof entry.replaceId === "string" && entry.replaceId.trim().length > 0 ? entry.replaceId.trim() : null;
+    if (replaceId) {
+      const existing = this.getNutritionPlanSnapshotById(replaceId);
+      if (existing) {
+        this.db
+          .prepare(
+            `UPDATE nutrition_plan_snapshots
+             SET name = ?, sourceDate = ?, targetProfileJson = ?, mealsJson = ?, updatedAt = ?
+             WHERE id = ?`
+          )
+          .run(
+            name,
+            sourceDate,
+            JSON.stringify(targetProfile ?? {}),
+            JSON.stringify(meals),
+            now,
+            replaceId
+          );
+        return this.getNutritionPlanSnapshotById(replaceId);
+      }
+    }
+
+    const snapshot: NutritionPlanSnapshot = {
+      id: makeId("nutrition-plan"),
+      name,
+      sourceDate,
+      targetProfile,
+      meals,
+      createdAt: now,
+      updatedAt: now
+    };
+
+    this.db
+      .prepare(
+        `INSERT INTO nutrition_plan_snapshots (
+          id, name, sourceDate, targetProfileJson, mealsJson, createdAt, updatedAt
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        snapshot.id,
+        snapshot.name,
+        snapshot.sourceDate,
+        JSON.stringify(snapshot.targetProfile ?? {}),
+        JSON.stringify(snapshot.meals),
+        snapshot.createdAt,
+        snapshot.updatedAt
+      );
+
+    this.trimNutritionPlanSnapshots();
+    return snapshot;
+  }
+
+  applyNutritionPlanSnapshot(
+    snapshotId: string,
+    options: {
+      date?: string | Date;
+      replaceMeals?: boolean;
+    } = {}
+  ): {
+    snapshot: NutritionPlanSnapshot;
+    appliedDate: string;
+    mealsCreated: NutritionMeal[];
+    targetProfile: NutritionTargetProfile | null;
+  } | null {
+    const snapshot = this.getNutritionPlanSnapshotById(snapshotId);
+    if (!snapshot) {
+      return null;
+    }
+
+    const appliedDate = this.toDateKey(options.date ?? new Date());
+    const replaceMeals = options.replaceMeals !== false;
+    if (replaceMeals) {
+      const existingMeals = this.getNutritionMeals({ date: appliedDate, limit: 1000 });
+      existingMeals.forEach((meal) => {
+        this.deleteNutritionMeal(meal.id);
+      });
+    }
+
+    const mealsCreated: NutritionMeal[] = [];
+    snapshot.meals.forEach((meal, index) => {
+      const created = this.createNutritionMeal({
+        name: meal.name,
+        mealType: meal.mealType,
+        consumedAt: this.toNutritionConsumedAtForDate(appliedDate, meal.consumedTime, index),
+        items: meal.items,
+        ...(meal.items.length === 0
+          ? {
+              calories: typeof meal.calories === "number" ? meal.calories : 0,
+              proteinGrams: typeof meal.proteinGrams === "number" ? meal.proteinGrams : 0,
+              carbsGrams: typeof meal.carbsGrams === "number" ? meal.carbsGrams : 0,
+              fatGrams: typeof meal.fatGrams === "number" ? meal.fatGrams : 0
+            }
+          : {}),
+        ...(meal.notes ? { notes: meal.notes } : {})
+      });
+      mealsCreated.push(created);
+    });
+
+    const targetProfile = snapshot.targetProfile
+      ? this.upsertNutritionTargetProfile({
+          date: appliedDate,
+          ...snapshot.targetProfile
+        })
+      : this.getNutritionTargetProfile(appliedDate);
+
+    return {
+      snapshot,
+      appliedDate,
+      mealsCreated,
+      targetProfile
+    };
+  }
+
+  deleteNutritionPlanSnapshot(id: string): boolean {
+    const result = this.db.prepare("DELETE FROM nutrition_plan_snapshots WHERE id = ?").run(id);
+    return result.changes > 0;
   }
 
   upsertStudyPlanSessions(
@@ -4811,7 +5415,7 @@ export class RuntimeStore {
         todayFocus: this.computeFocus(),
         pendingDeadlines,
         activeAgents,
-        journalStreak: 0
+        growthStreak: 0
       },
       agentStates,
       notifications: notifications.map((row) => ({
@@ -5412,6 +6016,23 @@ export class RuntimeStore {
         )`
       )
       .run(count - this.maxNutritionTargetProfiles);
+  }
+
+  private trimNutritionPlanSnapshots(): void {
+    const count = (
+      this.db.prepare("SELECT COUNT(*) as count FROM nutrition_plan_snapshots").get() as { count: number }
+    ).count;
+    if (count <= this.maxNutritionPlanSnapshots) {
+      return;
+    }
+
+    this.db
+      .prepare(
+        `DELETE FROM nutrition_plan_snapshots WHERE id IN (
+          SELECT id FROM nutrition_plan_snapshots ORDER BY updatedAt ASC, insertOrder ASC LIMIT ?
+        )`
+      )
+      .run(count - this.maxNutritionPlanSnapshots);
   }
 
   private trimAuthSessions(): void {

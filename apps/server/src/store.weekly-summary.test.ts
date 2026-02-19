@@ -11,7 +11,7 @@ describe("RuntimeStore - weekly summary", () => {
     vi.useRealTimers();
   });
 
-  it("builds summary from recent deadlines and journals", () => {
+  it("builds summary from recent deadlines and reflections", () => {
     const store = new RuntimeStore(":memory:");
 
     store.createDeadline({
@@ -30,15 +30,35 @@ describe("RuntimeStore - weekly summary", () => {
       completed: false
     });
 
-    store.recordJournalEntry("Finished review session");
+    const firstReflection = store.recordChatMessage("user", "Finished review session");
+    store.upsertReflectionEntry({
+      event: "General reflection",
+      feelingStress: "neutral (stress: medium)",
+      intent: "Report progress",
+      commitment: "none",
+      outcome: "Captured daily progress",
+      timestamp: firstReflection.timestamp,
+      evidenceSnippet: firstReflection.content,
+      sourceMessageId: firstReflection.id
+    });
     vi.setSystemTime(new Date("2026-02-17T20:00:00.000Z"));
-    store.recordJournalEntry("Had a productive deep work block");
+    const secondReflection = store.recordChatMessage("user", "Had a productive deep work block");
+    store.upsertReflectionEntry({
+      event: "General reflection",
+      feelingStress: "positive (stress: low)",
+      intent: "Report progress",
+      commitment: "none",
+      outcome: "Captured daily progress",
+      timestamp: secondReflection.timestamp,
+      evidenceSnippet: secondReflection.content,
+      sourceMessageId: secondReflection.id
+    });
 
     const summary = store.getWeeklySummary("2026-02-20T22:00:00.000Z");
 
     expect(summary.deadlinesDue).toBe(2);
     expect(summary.deadlinesCompleted).toBe(1);
     expect(summary.completionRate).toBe(50);
-    expect(summary.journalHighlights).toHaveLength(2);
+    expect(summary.reflectionHighlights).toHaveLength(2);
   });
 });
