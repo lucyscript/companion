@@ -2440,10 +2440,10 @@ export function handleCreateNutritionCustomFood(
   }
 
   const unitLabel = asTrimmedString(args.unitLabel) ?? "serving";
-  const caloriesPerUnit = clampFloat(args.caloriesPerUnit, 0, 0, 10000);
-  const proteinGramsPerUnit = clampFloat(args.proteinGramsPerUnit, 0, 0, 1000);
-  const carbsGramsPerUnit = clampFloat(args.carbsGramsPerUnit, 0, 0, 1500);
-  const fatGramsPerUnit = clampFloat(args.fatGramsPerUnit, 0, 0, 600);
+  const caloriesPerUnit = clampFloat(args.caloriesPerUnit, 0, 0, 10000, 3);
+  const proteinGramsPerUnit = clampFloat(args.proteinGramsPerUnit, 0, 0, 1000, 3);
+  const carbsGramsPerUnit = clampFloat(args.carbsGramsPerUnit, 0, 0, 1500, 3);
+  const fatGramsPerUnit = clampFloat(args.fatGramsPerUnit, 0, 0, 600, 3);
 
   const densityError = assertPlausibleGramDensityForCustomFood({
     name,
@@ -2492,16 +2492,16 @@ export function handleUpdateNutritionCustomFood(
     patch.unitLabel = unitLabel;
   }
   if (typeof args.caloriesPerUnit === "number") {
-    patch.caloriesPerUnit = clampFloat(args.caloriesPerUnit, 0, 0, 10000);
+    patch.caloriesPerUnit = clampFloat(args.caloriesPerUnit, 0, 0, 10000, 3);
   }
   if (typeof args.proteinGramsPerUnit === "number") {
-    patch.proteinGramsPerUnit = clampFloat(args.proteinGramsPerUnit, 0, 0, 1000);
+    patch.proteinGramsPerUnit = clampFloat(args.proteinGramsPerUnit, 0, 0, 1000, 3);
   }
   if (typeof args.carbsGramsPerUnit === "number") {
-    patch.carbsGramsPerUnit = clampFloat(args.carbsGramsPerUnit, 0, 0, 1500);
+    patch.carbsGramsPerUnit = clampFloat(args.carbsGramsPerUnit, 0, 0, 1500, 3);
   }
   if (typeof args.fatGramsPerUnit === "number") {
-    patch.fatGramsPerUnit = clampFloat(args.fatGramsPerUnit, 0, 0, 600);
+    patch.fatGramsPerUnit = clampFloat(args.fatGramsPerUnit, 0, 0, 600, 3);
   }
 
   const effectiveUnitLabel = patch.unitLabel ?? resolved.unitLabel;
@@ -2599,8 +2599,14 @@ function buildNutritionMealItemFromCustomFood(
 const MAX_PLAUSIBLE_KCAL_PER_GRAM = 9.5;
 const MAX_PLAUSIBLE_MACRO_GRAMS_PER_GRAM = 1.1;
 
+function roundToDecimal(value: number, precision = 1): number {
+  const decimals = Number.isInteger(precision) ? Math.min(Math.max(precision, 0), 6) : 1;
+  const factor = 10 ** decimals;
+  return Math.round(value * factor) / factor;
+}
+
 function roundToTenth(value: number): number {
-  return Math.round(value * 10) / 10;
+  return roundToDecimal(value, 1);
 }
 
 function isGramUnitLabel(unitLabel: string | null | undefined): boolean {
@@ -2703,10 +2709,10 @@ function parseNutritionMealItemsArg(
       name,
       quantity,
       unitLabel: asTrimmedString(record.unitLabel) ?? "g",
-      caloriesPerUnit: clampFloat(record.caloriesPerUnit, 0, 0, 10000),
-      proteinGramsPerUnit: clampFloat(record.proteinGramsPerUnit, 0, 0, 1000),
-      carbsGramsPerUnit: clampFloat(record.carbsGramsPerUnit, 0, 0, 1500),
-      fatGramsPerUnit: clampFloat(record.fatGramsPerUnit, 0, 0, 600),
+      caloriesPerUnit: clampFloat(record.caloriesPerUnit, 0, 0, 10000, 3),
+      proteinGramsPerUnit: clampFloat(record.proteinGramsPerUnit, 0, 0, 1000, 3),
+      carbsGramsPerUnit: clampFloat(record.carbsGramsPerUnit, 0, 0, 1500, 3),
+      fatGramsPerUnit: clampFloat(record.fatGramsPerUnit, 0, 0, 600, 3),
       ...(customFoodId ? { customFoodId } : {})
     };
     if (isGramUnitLabel(nextItem.unitLabel) && hasImplausiblePerGramDensity(nextItem)) {
@@ -3155,10 +3161,10 @@ export function handleLogMeal(
             name: mealName,
             quantity: explicitWeight,
             unitLabel: "g",
-            caloriesPerUnit: roundToTenth(calories / explicitWeight),
-            proteinGramsPerUnit: roundToTenth(proteinGrams / explicitWeight),
-            carbsGramsPerUnit: roundToTenth(carbsGrams / explicitWeight),
-            fatGramsPerUnit: roundToTenth(fatGrams / explicitWeight)
+            caloriesPerUnit: roundToDecimal(calories / explicitWeight, 3),
+            proteinGramsPerUnit: roundToDecimal(proteinGrams / explicitWeight, 3),
+            carbsGramsPerUnit: roundToDecimal(carbsGrams / explicitWeight, 3),
+            fatGramsPerUnit: roundToDecimal(fatGrams / explicitWeight, 3)
           }
         ]
       : [
@@ -3325,13 +3331,13 @@ function clampNumber(value: unknown, fallback: number, min: number, max: number)
   return Math.min(max, Math.max(min, Math.round(parsed)));
 }
 
-function clampFloat(value: unknown, fallback: number, min: number, max: number): number {
+function clampFloat(value: unknown, fallback: number, min: number, max: number, precision = 1): number {
   const parsed = typeof value === "number" ? value : Number.NaN;
   if (Number.isNaN(parsed)) {
     return fallback;
   }
   const clamped = Math.min(max, Math.max(min, parsed));
-  return Math.round(clamped * 10) / 10;
+  return roundToDecimal(clamped, precision);
 }
 
 function parseNutritionDate(value: unknown): string | null {

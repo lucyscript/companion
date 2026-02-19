@@ -3216,20 +3216,24 @@ export class RuntimeStore {
     return "other";
   }
 
-  private clampNutritionMetric(value: number, fallback = 0, max = 10000): number {
+  private clampNutritionMetric(value: number, fallback = 0, max = 10000, precision = 1): number {
     if (!Number.isFinite(value)) {
       return fallback;
     }
     const clamped = Math.min(max, Math.max(0, value));
-    return Math.round(clamped * 10) / 10;
+    const decimals = Number.isInteger(precision) ? Math.min(Math.max(precision, 0), 6) : 1;
+    const factor = 10 ** decimals;
+    return Math.round(clamped * factor) / factor;
   }
 
-  private clampSignedNutritionMetric(value: number, fallback = 0, min = -5000, max = 5000): number {
+  private clampSignedNutritionMetric(value: number, fallback = 0, min = -5000, max = 5000, precision = 1): number {
     if (!Number.isFinite(value)) {
       return fallback;
     }
     const clamped = Math.min(max, Math.max(min, value));
-    return Math.round(clamped * 10) / 10;
+    const decimals = Number.isInteger(precision) ? Math.min(Math.max(precision, 0), 6) : 1;
+    const factor = 10 ** decimals;
+    return Math.round(clamped * factor) / factor;
   }
 
   private toOptionalMetric(value: unknown, max: number): number | null {
@@ -3318,22 +3322,26 @@ export class RuntimeStore {
         caloriesPerUnit: this.clampNutritionMetric(
           typeof item.caloriesPerUnit === "number" ? item.caloriesPerUnit : 0,
           0,
-          10000
+          10000,
+          3
         ),
         proteinGramsPerUnit: this.clampNutritionMetric(
           typeof item.proteinGramsPerUnit === "number" ? item.proteinGramsPerUnit : 0,
           0,
-          1000
+          1000,
+          3
         ),
         carbsGramsPerUnit: this.clampNutritionMetric(
           typeof item.carbsGramsPerUnit === "number" ? item.carbsGramsPerUnit : 0,
           0,
-          1500
+          1500,
+          3
         ),
         fatGramsPerUnit: this.clampNutritionMetric(
           typeof item.fatGramsPerUnit === "number" ? item.fatGramsPerUnit : 0,
           0,
-          600
+          600,
+          3
         ),
         ...(typeof item.customFoodId === "string" && item.customFoodId.trim().length > 0
           ? { customFoodId: item.customFoodId.trim() }
@@ -3660,10 +3668,10 @@ export class RuntimeStore {
       id: makeId("custom-food"),
       name: entry.name.trim(),
       unitLabel: entry.unitLabel.trim(),
-      caloriesPerUnit: this.clampNutritionMetric(entry.caloriesPerUnit, 0, 10000),
-      proteinGramsPerUnit: this.clampNutritionMetric(entry.proteinGramsPerUnit, 0, 1000),
-      carbsGramsPerUnit: this.clampNutritionMetric(entry.carbsGramsPerUnit, 0, 1500),
-      fatGramsPerUnit: this.clampNutritionMetric(entry.fatGramsPerUnit, 0, 600),
+      caloriesPerUnit: this.clampNutritionMetric(entry.caloriesPerUnit, 0, 10000, 3),
+      proteinGramsPerUnit: this.clampNutritionMetric(entry.proteinGramsPerUnit, 0, 1000, 3),
+      carbsGramsPerUnit: this.clampNutritionMetric(entry.carbsGramsPerUnit, 0, 1500, 3),
+      fatGramsPerUnit: this.clampNutritionMetric(entry.fatGramsPerUnit, 0, 600, 3),
       createdAt: this.normalizeIsoOrNow(entry.createdAt ?? timestamp),
       updatedAt: this.normalizeIsoOrNow(entry.updatedAt ?? timestamp)
     };
@@ -3713,10 +3721,10 @@ export class RuntimeStore {
       id: row.id,
       name: row.name,
       unitLabel: row.unitLabel,
-      caloriesPerUnit: this.clampNutritionMetric(row.caloriesPerUnit, 0, 10000),
-      proteinGramsPerUnit: this.clampNutritionMetric(row.proteinGramsPerUnit, 0, 1000),
-      carbsGramsPerUnit: this.clampNutritionMetric(row.carbsGramsPerUnit, 0, 1500),
-      fatGramsPerUnit: this.clampNutritionMetric(row.fatGramsPerUnit, 0, 600),
+      caloriesPerUnit: this.clampNutritionMetric(row.caloriesPerUnit, 0, 10000, 3),
+      proteinGramsPerUnit: this.clampNutritionMetric(row.proteinGramsPerUnit, 0, 1000, 3),
+      carbsGramsPerUnit: this.clampNutritionMetric(row.carbsGramsPerUnit, 0, 1500, 3),
+      fatGramsPerUnit: this.clampNutritionMetric(row.fatGramsPerUnit, 0, 600, 3),
       createdAt: row.createdAt,
       updatedAt: row.updatedAt
     };
@@ -3759,10 +3767,10 @@ export class RuntimeStore {
       id: row.id,
       name: row.name,
       unitLabel: row.unitLabel,
-      caloriesPerUnit: this.clampNutritionMetric(row.caloriesPerUnit, 0, 10000),
-      proteinGramsPerUnit: this.clampNutritionMetric(row.proteinGramsPerUnit, 0, 1000),
-      carbsGramsPerUnit: this.clampNutritionMetric(row.carbsGramsPerUnit, 0, 1500),
-      fatGramsPerUnit: this.clampNutritionMetric(row.fatGramsPerUnit, 0, 600),
+      caloriesPerUnit: this.clampNutritionMetric(row.caloriesPerUnit, 0, 10000, 3),
+      proteinGramsPerUnit: this.clampNutritionMetric(row.proteinGramsPerUnit, 0, 1000, 3),
+      carbsGramsPerUnit: this.clampNutritionMetric(row.carbsGramsPerUnit, 0, 1500, 3),
+      fatGramsPerUnit: this.clampNutritionMetric(row.fatGramsPerUnit, 0, 600, 3),
       createdAt: row.createdAt,
       updatedAt: row.updatedAt
     }));
@@ -3784,19 +3792,19 @@ export class RuntimeStore {
       unitLabel: typeof patch.unitLabel === "string" ? patch.unitLabel.trim() : existing.unitLabel,
       caloriesPerUnit:
         typeof patch.caloriesPerUnit === "number"
-          ? this.clampNutritionMetric(patch.caloriesPerUnit, 0, 10000)
+          ? this.clampNutritionMetric(patch.caloriesPerUnit, 0, 10000, 3)
           : existing.caloriesPerUnit,
       proteinGramsPerUnit:
         typeof patch.proteinGramsPerUnit === "number"
-          ? this.clampNutritionMetric(patch.proteinGramsPerUnit, 0, 1000)
+          ? this.clampNutritionMetric(patch.proteinGramsPerUnit, 0, 1000, 3)
           : existing.proteinGramsPerUnit,
       carbsGramsPerUnit:
         typeof patch.carbsGramsPerUnit === "number"
-          ? this.clampNutritionMetric(patch.carbsGramsPerUnit, 0, 1500)
+          ? this.clampNutritionMetric(patch.carbsGramsPerUnit, 0, 1500, 3)
           : existing.carbsGramsPerUnit,
       fatGramsPerUnit:
         typeof patch.fatGramsPerUnit === "number"
-          ? this.clampNutritionMetric(patch.fatGramsPerUnit, 0, 600)
+          ? this.clampNutritionMetric(patch.fatGramsPerUnit, 0, 600, 3)
           : existing.fatGramsPerUnit,
       updatedAt: nowIso()
     };

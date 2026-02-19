@@ -156,9 +156,9 @@ describe("RuntimeStore - nutrition", () => {
       name: "Jasmine rice",
       unitLabel: "100g",
       caloriesPerUnit: 130,
-      proteinGramsPerUnit: 2.7,
-      carbsGramsPerUnit: 28,
-      fatGramsPerUnit: 0.3
+      proteinGramsPerUnit: 0.027,
+      carbsGramsPerUnit: 0.286,
+      fatGramsPerUnit: 0.003
     });
 
     expect(created.id).toContain("custom-food");
@@ -167,6 +167,9 @@ describe("RuntimeStore - nutrition", () => {
     const fetched = store.getNutritionCustomFoodById(created.id);
     expect(fetched).not.toBeNull();
     expect(fetched?.unitLabel).toBe("100g");
+    expect(fetched?.proteinGramsPerUnit).toBeCloseTo(0.027, 3);
+    expect(fetched?.carbsGramsPerUnit).toBeCloseTo(0.286, 3);
+    expect(fetched?.fatGramsPerUnit).toBeCloseTo(0.003, 3);
 
     const filtered = store.getNutritionCustomFoods({ query: "rice", limit: 10 });
     expect(filtered).toHaveLength(1);

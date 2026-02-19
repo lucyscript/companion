@@ -818,12 +818,18 @@ describe("gemini-tools", () => {
 
       const updated = handleUpdateNutritionCustomFood(store, {
         customFoodId: created.food.id,
-        caloriesPerUnit: 115
+        caloriesPerUnit: 114.975,
+        proteinGramsPerUnit: 0.027,
+        carbsGramsPerUnit: 0.286,
+        fatGramsPerUnit: 0.003
       });
       if ("error" in updated) {
         throw new Error(updated.error);
       }
-      expect(updated.food.caloriesPerUnit).toBe(115);
+      expect(updated.food.caloriesPerUnit).toBeCloseTo(114.975, 3);
+      expect(updated.food.proteinGramsPerUnit).toBeCloseTo(0.027, 3);
+      expect(updated.food.carbsGramsPerUnit).toBeCloseTo(0.286, 3);
+      expect(updated.food.fatGramsPerUnit).toBeCloseTo(0.003, 3);
 
       const deleted = handleDeleteNutritionCustomFood(store, {
         customFoodId: created.food.id

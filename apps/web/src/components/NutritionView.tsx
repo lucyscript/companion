@@ -136,8 +136,14 @@ function formatDateTime(iso: string): string {
   });
 }
 
+function roundToPrecision(value: number, precision = 1): number {
+  const decimals = Number.isInteger(precision) ? Math.min(Math.max(precision, 0), 6) : 1;
+  const factor = 10 ** decimals;
+  return Math.round(value * factor) / factor;
+}
+
 function roundToTenth(value: number): number {
-  return Math.round(value * 10) / 10;
+  return roundToPrecision(value, 1);
 }
 
 function toMealItemDraft(item?: Partial<MealItemDraft>, fallbackFoodId = ""): MealItemDraft {
@@ -389,6 +395,14 @@ function completeTargetsFromProfile(profile: NutritionTargetProfile | null): {
 
 function formatMetric(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+function formatPerUnitMetric(value: number): string {
+  const rounded = roundToPrecision(value, 3);
+  if (Number.isInteger(rounded)) {
+    return String(rounded);
+  }
+  return rounded.toFixed(3).replace(/\.?0+$/, "");
 }
 
 function formatSignedDelta(value: number, unit: string): string {
@@ -1093,7 +1107,7 @@ export function NutritionView(): JSX.Element {
     const proteinGramsPerUnit = Math.max(0, Number.parseFloat(customFoodDraft.proteinGramsPerUnit) || 0);
     const carbsGramsPerUnit = Math.max(0, Number.parseFloat(customFoodDraft.carbsGramsPerUnit) || 0);
     const fatGramsPerUnit = Math.max(0, Number.parseFloat(customFoodDraft.fatGramsPerUnit) || 0);
-    const caloriesPerUnit = roundToTenth(proteinGramsPerUnit * 4 + carbsGramsPerUnit * 4 + fatGramsPerUnit * 9);
+    const caloriesPerUnit = roundToPrecision(proteinGramsPerUnit * 4 + carbsGramsPerUnit * 4 + fatGramsPerUnit * 9, 3);
 
     const payload = {
       name,
@@ -1495,7 +1509,7 @@ export function NutritionView(): JSX.Element {
                         <input
                           type="number"
                           min={0}
-                          step="0.1"
+                          step="0.001"
                           value={customFoodDraft.proteinGramsPerUnit}
                           onChange={(event) =>
                             setCustomFoodDraft({ ...customFoodDraft, proteinGramsPerUnit: event.target.value })
@@ -1507,7 +1521,7 @@ export function NutritionView(): JSX.Element {
                         <input
                           type="number"
                           min={0}
-                          step="0.1"
+                          step="0.001"
                           value={customFoodDraft.carbsGramsPerUnit}
                           onChange={(event) => setCustomFoodDraft({ ...customFoodDraft, carbsGramsPerUnit: event.target.value })}
                         />
@@ -1517,13 +1531,13 @@ export function NutritionView(): JSX.Element {
                         <input
                           type="number"
                           min={0}
-                          step="0.1"
+                          step="0.001"
                           value={customFoodDraft.fatGramsPerUnit}
                           onChange={(event) => setCustomFoodDraft({ ...customFoodDraft, fatGramsPerUnit: event.target.value })}
                         />
                       </label>
                     </div>
-                    <p className="nutrition-item-meta">Calories / g (auto): {formatMetric(customFoodDraftCalories)} kcal</p>
+                    <p className="nutrition-item-meta">Calories / g (auto): {formatPerUnitMetric(customFoodDraftCalories)} kcal</p>
                     <button type="submit">{editingCustomFoodId ? "Update custom food" : "Save custom food"}</button>
                   </form>
 
@@ -1536,8 +1550,8 @@ export function NutritionView(): JSX.Element {
                           <div>
                             <p className="nutrition-item-title">{food.name}</p>
                             <p className="nutrition-item-meta">
-                              {food.caloriesPerUnit} kcal/g • {food.proteinGramsPerUnit}P/{food.carbsGramsPerUnit}C/
-                              {food.fatGramsPerUnit}F
+                              {formatPerUnitMetric(food.caloriesPerUnit)} kcal/g • {formatPerUnitMetric(food.proteinGramsPerUnit)}P/
+                              {formatPerUnitMetric(food.carbsGramsPerUnit)}C/{formatPerUnitMetric(food.fatGramsPerUnit)}F
                             </p>
                           </div>
                           <div className="nutrition-list-item-actions">
