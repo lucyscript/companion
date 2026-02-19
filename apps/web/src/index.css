@@ -3515,6 +3515,10 @@ body.keyboard-open .pull-to-refresh-container {
   font-weight: 650;
   font-size: 0.78rem;
   padding: 0 6px;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .nutrition-meal-food-actions button:nth-child(1) {

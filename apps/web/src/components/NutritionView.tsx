@@ -53,6 +53,9 @@ interface NutritionTargetDraft {
 const MEAL_AMOUNT_STEP = 1;
 const MEAL_AMOUNT_HOLD_DELAY_MS = 300;
 const MEAL_AMOUNT_HOLD_INTERVAL_MS = 110;
+const MEAL_ITEM_HOLD_DELAY_MS = 170;
+const MEAL_ITEM_HOLD_INTERVAL_MS = 75;
+const MEAL_ITEM_PERSIST_DEBOUNCE_MS = 180;
 const KG_TO_LB = 2.2046226218;
 const MEAL_DONE_TOKEN = "[done]";
 
@@ -422,6 +425,13 @@ export function NutritionView(): JSX.Element {
   const todayKey = useMemo(() => toDateKey(new Date()), []);
   const amountHoldTimers = useRef<Record<string, number>>({});
   const amountHoldIntervals = useRef<Record<string, number>>({});
+  const mealItemHoldTimers = useRef<Record<string, number>>({});
+  const mealItemHoldIntervals = useRef<Record<string, number>>({});
+  const mealItemPersistTimers = useRef<Record<string, number>>({});
+  const mealItemPendingPayloads = useRef<Record<string, Array<Omit<NutritionMealItem, "id">>>>({});
+  const mealItemPersistInFlight = useRef<Record<string, boolean>>({});
+  const mealItemPersistQueued = useRef<Record<string, boolean>>({});
+  const mealsRef = useRef<NutritionMeal[]>([]);
   const [summary, setSummary] = useState<NutritionDailySummary | null>(null);
   const [meals, setMeals] = useState<NutritionMeal[]>([]);
   const [customFoods, setCustomFoods] = useState<NutritionCustomFood[]>([]);
@@ -569,9 +579,16 @@ export function NutritionView(): JSX.Element {
   }, [customFoods, meals]);
 
   useEffect(() => {
+    mealsRef.current = meals;
+  }, [meals]);
+
+  useEffect(() => {
     return () => {
       Object.values(amountHoldTimers.current).forEach((timerId) => window.clearTimeout(timerId));
       Object.values(amountHoldIntervals.current).forEach((intervalId) => window.clearInterval(intervalId));
+      Object.values(mealItemHoldTimers.current).forEach((timerId) => window.clearTimeout(timerId));
+      Object.values(mealItemHoldIntervals.current).forEach((intervalId) => window.clearInterval(intervalId));
+      Object.values(mealItemPersistTimers.current).forEach((timerId) => window.clearTimeout(timerId));
     };
   }, []);
 
@@ -659,7 +676,7 @@ export function NutritionView(): JSX.Element {
     await refresh();
     setDayControlBusy(false);
     hapticSuccess();
-    setMessage(`Loaded meal-plan snapshot "${snapshot.name}".`);
+    setMessage(`Loaded "${snapshot.name}" and set it as your default daily baseline.`);
   };
 
   const handleResetDay = async (): Promise<void> => {
@@ -862,7 +879,10 @@ export function NutritionView(): JSX.Element {
 
     const nextCompleted = !isMealCompleted(currentMeal);
     const nextNotes = mealNotesWithDone(currentMeal.notes, nextCompleted);
-    const updated = await updateNutritionMeal(mealId, { notes: nextNotes ?? "" });
+    const updated = await updateNutritionMeal(mealId, {
+      notes: nextNotes ?? "",
+      ...(nextCompleted ? { consumedAt: new Date().toISOString() } : {})
+    });
     if (!updated) {
       setMessage("Could not update meal completion right now.");
       return;
@@ -872,8 +892,62 @@ export function NutritionView(): JSX.Element {
     replaceMealInState(updated);
   };
 
-  const handleAdjustMealItemQuantity = async (mealId: string, itemIndex: number, delta: number): Promise<void> => {
-    const currentMeal = meals.find((meal) => meal.id === mealId);
+  const persistMealItemChangesNow = async (mealId: string): Promise<void> => {
+    const payload = mealItemPendingPayloads.current[mealId];
+    if (!payload || payload.length === 0) {
+      return;
+    }
+    if (mealItemPersistInFlight.current[mealId]) {
+      mealItemPersistQueued.current[mealId] = true;
+      return;
+    }
+
+    mealItemPersistInFlight.current[mealId] = true;
+    const updated = await updateNutritionMeal(mealId, { items: payload });
+    mealItemPersistInFlight.current[mealId] = false;
+
+    if (!updated) {
+      setMessage("Could not adjust food amount right now.");
+      return;
+    }
+
+    const shouldReplay = mealItemPersistQueued.current[mealId] === true;
+    mealItemPersistQueued.current[mealId] = false;
+    if (shouldReplay) {
+      void persistMealItemChangesNow(mealId);
+      return;
+    }
+
+    delete mealItemPendingPayloads.current[mealId];
+    replaceMealInState(updated);
+  };
+
+  const queueMealItemPersist = (mealId: string, nextItems: NutritionMealItem[], immediate = false): void => {
+    mealItemPendingPayloads.current[mealId] = nextItems.map(stripMealItemId);
+    if (mealItemPersistInFlight.current[mealId]) {
+      mealItemPersistQueued.current[mealId] = true;
+      return;
+    }
+
+    const existingTimer = mealItemPersistTimers.current[mealId];
+    if (existingTimer !== undefined) {
+      window.clearTimeout(existingTimer);
+      delete mealItemPersistTimers.current[mealId];
+    }
+
+    if (immediate) {
+      void persistMealItemChangesNow(mealId);
+      return;
+    }
+
+    mealItemPersistTimers.current[mealId] = window.setTimeout(() => {
+      delete mealItemPersistTimers.current[mealId];
+      void persistMealItemChangesNow(mealId);
+    }, MEAL_ITEM_PERSIST_DEBOUNCE_MS);
+  };
+
+  const handleAdjustMealItemQuantity = (mealId: string, itemIndex: number, delta: number, immediatePersist = false): void => {
+    const currentMeal = mealsRef.current.find((meal) => meal.id === mealId);
     if (!currentMeal) {
       return;
     }
@@ -884,6 +958,10 @@ export function NutritionView(): JSX.Element {
 
     const current = Number.isFinite(target.quantity) ? target.quantity : 0;
     const nextQuantity = Math.max(1, roundToTenth(current + delta));
+    if (nextQuantity === current) {
+      return;
+    }
+
     const nextItems = currentMeal.items.map((item, index) =>
       index === itemIndex
         ? {
@@ -892,17 +970,52 @@ export function NutritionView(): JSX.Element {
           }
         : item
     );
+    const optimisticMeal: NutritionMeal = {
+      ...currentMeal,
+      items: nextItems,
+      ...computeMealTotalsFromItems(nextItems)
+    };
 
-    const updated = await updateNutritionMeal(mealId, {
-      items: nextItems.map(stripMealItemId)
-    });
-    if (!updated) {
-      setMessage("Could not adjust food amount right now.");
-      return;
+    replaceMealInState(optimisticMeal);
+    mealsRef.current = mealsRef.current.map((meal) => (meal.id === mealId ? optimisticMeal : meal));
+    queueMealItemPersist(mealId, nextItems, immediatePersist);
+  };
+
+  const clearMealItemHoldState = (holdId: string): void => {
+    const timeoutId = mealItemHoldTimers.current[holdId];
+    if (timeoutId !== undefined) {
+      window.clearTimeout(timeoutId);
+      delete mealItemHoldTimers.current[holdId];
     }
+    const intervalId = mealItemHoldIntervals.current[holdId];
+    if (intervalId !== undefined) {
+      window.clearInterval(intervalId);
+      delete mealItemHoldIntervals.current[holdId];
+    }
+  };
 
-    hapticSuccess();
-    replaceMealInState(updated);
+  const startMealItemHold = (holdId: string, mealId: string, itemIndex: number, delta: number): void => {
+    clearMealItemHoldState(holdId);
+    handleAdjustMealItemQuantity(mealId, itemIndex, delta, false);
+    mealItemHoldTimers.current[holdId] = window.setTimeout(() => {
+      mealItemHoldIntervals.current[holdId] = window.setInterval(() => {
+        handleAdjustMealItemQuantity(mealId, itemIndex, delta, false);
+      }, MEAL_ITEM_HOLD_INTERVAL_MS);
+    }, MEAL_ITEM_HOLD_DELAY_MS);
+  };
+
+  const flushMealItemPersist = (mealId: string): void => {
+    const existingTimer = mealItemPersistTimers.current[mealId];
+    if (existingTimer !== undefined) {
+      window.clearTimeout(existingTimer);
+      delete mealItemPersistTimers.current[mealId];
+    }
+    void persistMealItemChangesNow(mealId);
+  };
+
+  const stopMealItemHold = (holdId: string, mealId: string): void => {
+    clearMealItemHoldState(holdId);
+    flushMealItemPersist(mealId);
   };
 
   const handleRemoveMealItem = async (mealId: string, itemIndex: number): Promise<void> => {
@@ -1658,14 +1771,36 @@ export function NutritionView(): JSX.Element {
                               <div className="nutrition-meal-food-actions">
                                 <button
                                   type="button"
-                                  onClick={() => void handleAdjustMealItemQuantity(meal.id, index, -1)}
+                                  onPointerDown={(event) => {
+                                    event.preventDefault();
+                                    startMealItemHold(`meal-item-${meal.id}-${index}-dec`, meal.id, index, -1);
+                                  }}
+                                  onPointerUp={() => stopMealItemHold(`meal-item-${meal.id}-${index}-dec`, meal.id)}
+                                  onPointerLeave={() => stopMealItemHold(`meal-item-${meal.id}-${index}-dec`, meal.id)}
+                                  onPointerCancel={() => stopMealItemHold(`meal-item-${meal.id}-${index}-dec`, meal.id)}
+                                  onClick={(event) => {
+                                    if (event.detail === 0) {
+                                      handleAdjustMealItemQuantity(meal.id, index, -1, true);
+                                    }
+                                  }}
                                   aria-label="Decrease food amount"
                                 >
                                   -
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => void handleAdjustMealItemQuantity(meal.id, index, 1)}
+                                  onPointerDown={(event) => {
+                                    event.preventDefault();
+                                    startMealItemHold(`meal-item-${meal.id}-${index}-inc`, meal.id, index, 1);
+                                  }}
+                                  onPointerUp={() => stopMealItemHold(`meal-item-${meal.id}-${index}-inc`, meal.id)}
+                                  onPointerLeave={() => stopMealItemHold(`meal-item-${meal.id}-${index}-inc`, meal.id)}
+                                  onPointerCancel={() => stopMealItemHold(`meal-item-${meal.id}-${index}-inc`, meal.id)}
+                                  onClick={(event) => {
+                                    if (event.detail === 0) {
+                                      handleAdjustMealItemQuantity(meal.id, index, 1, true);
+                                    }
+                                  }}
                                   aria-label="Increase food amount"
                                 >
                                   +
