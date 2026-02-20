@@ -142,9 +142,9 @@ function computeMealTotalsFromItems(items: Array<Pick<NutritionMealItem, "quanti
   );
   return {
     calories: raw.calories,
-    proteinGrams: roundToTenth(raw.proteinGrams),
-    carbsGrams: roundToTenth(raw.carbsGrams),
-    fatGrams: roundToTenth(raw.fatGrams)
+    proteinGrams: raw.proteinGrams,
+    carbsGrams: raw.carbsGrams,
+    fatGrams: raw.fatGrams
   };
 }
 
@@ -201,9 +201,9 @@ function computeMealTotals(meals: NutritionMeal[]): NutritionDailySummary["total
   );
   return {
     calories: raw.calories,
-    proteinGrams: roundToTenth(raw.proteinGrams),
-    carbsGrams: roundToTenth(raw.carbsGrams),
-    fatGrams: roundToTenth(raw.fatGrams)
+    proteinGrams: raw.proteinGrams,
+    carbsGrams: raw.carbsGrams,
+    fatGrams: raw.fatGrams
   };
 }
 
@@ -220,10 +220,10 @@ function withMealsSummary(
   const remainingToTarget =
     target && typeof target.targetCalories === "number"
       ? {
-          calories: roundToTenth(target.targetCalories - totals.calories),
-          proteinGrams: roundToTenth((target.targetProteinGrams ?? 0) - totals.proteinGrams),
-          carbsGrams: roundToTenth((target.targetCarbsGrams ?? 0) - totals.carbsGrams),
-          fatGrams: roundToTenth((target.targetFatGrams ?? 0) - totals.fatGrams)
+          calories: target.targetCalories - totals.calories,
+          proteinGrams: (target.targetProteinGrams ?? 0) - totals.proteinGrams,
+          carbsGrams: (target.targetCarbsGrams ?? 0) - totals.carbsGrams,
+          fatGrams: (target.targetFatGrams ?? 0) - totals.fatGrams
         }
       : null;
 
@@ -299,11 +299,11 @@ function deriveTargetsFromDraft(draft: NutritionTargetDraft): {
   const weightLb = weightKg * KG_TO_LB;
   const proteinPerLb = clamp(parseOptionalNumber(draft.proteinGramsPerLb) ?? 0.8, 0.7, 1.0);
   const fatPerLb = clamp(parseOptionalNumber(draft.fatGramsPerLb) ?? 0.4, 0.3, 0.5);
-  const targetCalories = roundToTenth(maintenanceCalories + surplusCalories);
-  const targetProteinGrams = roundToTenth(weightLb * proteinPerLb);
-  const targetFatGrams = roundToTenth(weightLb * fatPerLb);
+  const targetCalories = maintenanceCalories + surplusCalories;
+  const targetProteinGrams = weightLb * proteinPerLb;
+  const targetFatGrams = weightLb * fatPerLb;
   const remainingCalories = Math.max(0, targetCalories - targetProteinGrams * 4 - targetFatGrams * 9);
-  const targetCarbsGrams = roundToTenth(remainingCalories / 4);
+  const targetCarbsGrams = remainingCalories / 4;
   const carbsPerLb = roundToTenth(targetCarbsGrams / weightLb);
 
   return {
@@ -346,10 +346,10 @@ function completeTargetsFromProfile(profile: NutritionTargetProfile | null): {
     weightLb !== null ? roundToTenth(profile.targetFatGrams / weightLb) : null;
 
   return {
-    targetCalories: roundToTenth(profile.targetCalories),
-    targetProteinGrams: roundToTenth(profile.targetProteinGrams),
-    targetCarbsGrams: roundToTenth(profile.targetCarbsGrams),
-    targetFatGrams: roundToTenth(profile.targetFatGrams),
+    targetCalories: profile.targetCalories,
+    targetProteinGrams: profile.targetProteinGrams,
+    targetCarbsGrams: profile.targetCarbsGrams,
+    targetFatGrams: profile.targetFatGrams,
     proteinGramsPerLb: proteinPerLb,
     carbsGramsPerLb: carbsPerLb,
     fatGramsPerLb: fatPerLb
@@ -497,11 +497,9 @@ export function NutritionView(): JSX.Element {
     }
     const hasMacroSignal = summary.totals.proteinGrams > 0 || summary.totals.carbsGrams > 0 || summary.totals.fatGrams > 0;
     if (hasMacroSignal) {
-      return roundToTenth(
-        calculateCaloriesFromMacros(summary.totals.proteinGrams, summary.totals.carbsGrams, summary.totals.fatGrams)
-      );
+      return calculateCaloriesFromMacros(summary.totals.proteinGrams, summary.totals.carbsGrams, summary.totals.fatGrams);
     }
-    return roundToTenth(summary.totals.calories);
+    return summary.totals.calories;
   }, [summary]);
   const intakeDeltas = useMemo(() => {
     if (!summary || !activeTargets) {
@@ -509,10 +507,10 @@ export function NutritionView(): JSX.Element {
     }
 
     return {
-      calories: roundToTenth(dailyDisplayCalories - activeTargets.targetCalories),
-      proteinGrams: roundToTenth(summary.totals.proteinGrams - activeTargets.targetProteinGrams),
-      carbsGrams: roundToTenth(summary.totals.carbsGrams - activeTargets.targetCarbsGrams),
-      fatGrams: roundToTenth(summary.totals.fatGrams - activeTargets.targetFatGrams)
+      calories: dailyDisplayCalories - activeTargets.targetCalories,
+      proteinGrams: summary.totals.proteinGrams - activeTargets.targetProteinGrams,
+      carbsGrams: summary.totals.carbsGrams - activeTargets.targetCarbsGrams,
+      fatGrams: summary.totals.fatGrams - activeTargets.targetFatGrams
     };
   }, [summary, activeTargets, dailyDisplayCalories]);
   const selectedDaySnapshot = useMemo(
