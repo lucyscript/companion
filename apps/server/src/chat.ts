@@ -1245,6 +1245,11 @@ export async function flushJournalSessionBuffer(
     return;
   }
 
+  const turnCount = entries.length;
+  console.log(
+    `[journal] Flushing session: ${turnCount} turn(s), avg salience=${avgSalience.toFixed(2)}, topic="${textSnippet(extracted.event, 60)}"`
+  );
+
   store.upsertReflectionEntry({
     entryType: extracted.entryType,
     event: extracted.event,
@@ -1253,7 +1258,8 @@ export async function flushJournalSessionBuffer(
     commitment: extracted.commitment,
     outcome: extracted.outcome,
     salience: avgSalience,
-    captureReason: `Batched ${entries.length} turns. Top reason: ${bestGate.gateDecision.reason}`,
+    captureReason: `Batched ${turnCount} turns. Top reason: ${bestGate.gateDecision.reason}`,
+    turnCount,
     timestamp: entryTimestamp,
     evidenceSnippet: extracted.evidenceSnippet,
     sourceMessageId

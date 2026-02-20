@@ -218,6 +218,7 @@ export class RuntimeStore {
         outcome TEXT NOT NULL,
         salience REAL NOT NULL DEFAULT 0.5,
         captureReason TEXT NOT NULL DEFAULT '',
+        turnCount INTEGER NOT NULL DEFAULT 1,
         timestamp TEXT NOT NULL,
         evidenceSnippet TEXT NOT NULL,
         sourceMessageId TEXT NOT NULL UNIQUE,
@@ -814,6 +815,10 @@ export class RuntimeStore {
     if (!hasEntryTypeColumn) {
       this.db.prepare("ALTER TABLE reflection_entries ADD COLUMN entryType TEXT NOT NULL DEFAULT 'reflection'").run();
     }
+    const hasTurnCountColumn = reflectionColumns.some((col) => col.name === "turnCount");
+    if (!hasTurnCountColumn) {
+      this.db.prepare("ALTER TABLE reflection_entries ADD COLUMN turnCount INTEGER NOT NULL DEFAULT 1").run();
+    }
   }
 
   private loadOrInitializeDefaults(): void {
@@ -1120,6 +1125,7 @@ export class RuntimeStore {
       outcome: row.outcome,
       salience: Number.isFinite(row.salience) ? row.salience : 0.5,
       captureReason: row.captureReason,
+      turnCount: typeof (row as Record<string, unknown>).turnCount === "number" ? (row as Record<string, unknown>).turnCount as number : 1,
       timestamp: row.timestamp,
       evidenceSnippet: row.evidenceSnippet,
       sourceMessageId: row.sourceMessageId,
@@ -1136,6 +1142,7 @@ export class RuntimeStore {
     outcome: string;
     salience?: number;
     captureReason?: string;
+    turnCount?: number;
     timestamp: string;
     evidenceSnippet: string;
     sourceMessageId: string;
@@ -1171,13 +1178,14 @@ export class RuntimeStore {
     const normalizedCaptureReason =
       typeof input.captureReason === "string" ? input.captureReason.slice(0, 220) : "";
     const normalizedEntryType = this.normalizeJournalMemoryEntryType(input.entryType);
+    const normalizedTurnCount = typeof input.turnCount === "number" && input.turnCount >= 1 ? input.turnCount : 1;
 
     this.db
       .prepare(
         `INSERT INTO reflection_entries (
-           id, entryType, event, feelingStress, intent, commitment, outcome, salience, captureReason, timestamp, evidenceSnippet, sourceMessageId, updatedAt, insertOrder
+           id, entryType, event, feelingStress, intent, commitment, outcome, salience, captureReason, turnCount, timestamp, evidenceSnippet, sourceMessageId, updatedAt, insertOrder
          ) VALUES (
-           ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(insertOrder), 0) + 1 FROM reflection_entries)
+           ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(insertOrder), 0) + 1 FROM reflection_entries)
          )
          ON CONFLICT(sourceMessageId) DO UPDATE SET
            entryType = EXCLUDED.entryType,
@@ -1188,6 +1196,7 @@ export class RuntimeStore {
            outcome = EXCLUDED.outcome,
            salience = EXCLUDED.salience,
            captureReason = EXCLUDED.captureReason,
+           turnCount = EXCLUDED.turnCount,
            timestamp = EXCLUDED.timestamp,
            evidenceSnippet = EXCLUDED.evidenceSnippet,
            updatedAt = EXCLUDED.updatedAt`
@@ -1202,6 +1211,7 @@ export class RuntimeStore {
         input.outcome,
         normalizedSalience,
         normalizedCaptureReason,
+        normalizedTurnCount,
         input.timestamp,
         input.evidenceSnippet,
         input.sourceMessageId,
@@ -1252,6 +1262,7 @@ export class RuntimeStore {
         outcome: input.outcome,
         salience: normalizedSalience,
         captureReason: normalizedCaptureReason,
+        turnCount: normalizedTurnCount,
         timestamp: input.timestamp,
         evidenceSnippet: input.evidenceSnippet,
         sourceMessageId: input.sourceMessageId,

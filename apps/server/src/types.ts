@@ -157,6 +157,7 @@ export interface ReflectionEntry {
   outcome: string;
   salience: number;
   captureReason: string;
+  turnCount: number;
   timestamp: string;
   evidenceSnippet: string;
   sourceMessageId: string;
