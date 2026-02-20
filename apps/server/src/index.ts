@@ -2083,7 +2083,7 @@ app.get("/api/nutrition/history", (req, res) => {
   const schema = z.object({
     from: nutritionDateSchema.optional(),
     to: nutritionDateSchema.optional(),
-    days: z.coerce.number().int().min(1).max(365).optional()
+    days: z.coerce.number().int().min(1).max(3650).optional()
   });
   const parsed = schema.safeParse(req.query ?? {});
   if (!parsed.success) {

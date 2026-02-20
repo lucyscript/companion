@@ -309,7 +309,7 @@ export const functionDeclarations: FunctionDeclaration[] = [
         },
         days: {
           type: SchemaType.NUMBER,
-          description: "Number of days to look back from 'to' (default: 7, max: 90). Ignored when both from/to are set."
+          description: "Number of days to look back from 'to' (default: 7, max: 365). Ignored when both from/to are set."
         }
       },
       required: []
@@ -2209,7 +2209,7 @@ export function handleGetNutritionHistory(
 ): { entries: NutritionDayHistoryEntry[]; from: string; to: string } {
   const rawFrom = parseNutritionDate(args.from);
   const rawTo = parseNutritionDate(args.to);
-  const days = Math.min(Math.max(Number(args.days) || 7, 1), 90);
+  const days = Math.min(Math.max(Number(args.days) || 7, 1), 365);
 
   let fromDate: string;
   let toDate: string;

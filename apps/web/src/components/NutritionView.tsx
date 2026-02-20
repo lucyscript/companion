@@ -2009,14 +2009,14 @@ export function NutritionView(): JSX.Element {
             <div className="nutrition-tracking-header">
               <h3>Nutrition Trends</h3>
               <div className="nutrition-tracking-range-picker">
-                {[7, 14, 30].map((d) => (
+                {([{days: 7, label: "7d"}, {days: 14, label: "14d"}, {days: 30, label: "30d"}, {days: 365, label: "1y"}, {days: 3650, label: "All"}] as const).map((opt) => (
                   <button
-                    key={d}
+                    key={opt.days}
                     type="button"
-                    className={historyDays === d ? "nutrition-tab-switcher-active" : ""}
-                    onClick={() => setHistoryDays(d)}
+                    className={historyDays === opt.days ? "nutrition-tab-switcher-active" : ""}
+                    onClick={() => setHistoryDays(opt.days)}
                   >
-                    {d}d
+                    {opt.label}
                   </button>
                 ))}
               </div>
