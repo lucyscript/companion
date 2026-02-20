@@ -1,13 +1,11 @@
 import { BaseAgent } from "./agent-base.js";
 import { AssignmentTrackerAgent } from "./agents/assignment-agent.js";
 import { LecturePlanAgent } from "./agents/lecture-plan-agent.js";
-import { config } from "./config.js";
 import { buildContextAwareNudge } from "./nudge-engine.js";
 import { NotesAgent } from "./agents/notes-agent.js";
 import {
   buildDigestNotification,
   isDigestCandidate,
-  resolveNextDigestWindow
 } from "./notification-digest-batching.js";
 import { RuntimeStore } from "./store.js";
 import { AgentEvent, ScheduledNotification } from "./types.js";
@@ -19,8 +17,6 @@ export class OrchestratorRuntime {
   private readonly deadlineReminderCooldownMinutes = 180;
   private readonly scheduledNotificationCheckIntervalMs = 30_000;
   private readonly proactiveTriggerCheckIntervalMs = 5 * 60 * 1000; // Check every 5 minutes
-  private readonly digestMorningHour = config.NOTIFICATION_DIGEST_MORNING_HOUR;
-  private readonly digestEveningHour = config.NOTIFICATION_DIGEST_EVENING_HOUR;
   private readonly agents: BaseAgent[] = [
     new NotesAgent(),
     new LecturePlanAgent(),
@@ -94,22 +90,12 @@ export class OrchestratorRuntime {
     const nudge = buildContextAwareNudge(event, context);
 
     if (nudge) {
-      // Use smart timing to schedule notification
-      const isUrgent = nudge.priority === "critical" || nudge.priority === "high";
-      
-      if (isUrgent) {
-        // Urgent notifications go out immediately
-        this.store.pushNotification(nudge);
-      } else {
-        // Non-urgent notifications are batched into configurable morning/evening digest windows.
-        const digestTime = resolveNextDigestWindow(
-          new Date(),
-          this.digestMorningHour,
-          this.digestEveningHour
-        );
-
-        this.store.scheduleNotification(nudge, digestTime, event.id);
-      }
+      // All system-generated nudges are pushed immediately.
+      // The shouldDispatchNotification gate (category toggles, priority filter,
+      // quiet hours) already controls whether the user actually sees them.
+      // Only user-created reminders (via Gemini scheduleReminder tool) go
+      // through the scheduled_notifications table.
+      this.store.pushNotification(nudge);
       return;
     }
 

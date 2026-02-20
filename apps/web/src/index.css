@@ -439,227 +439,539 @@ button:disabled {
   font-weight: 700;
 }
 
-/* Schedule Styles */
-.schedule-panel {
-  margin-bottom: 12px;
+/* ──────────── Schedule Card ──────────── */
+.schedule-card {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  padding: 16px;
+  display: grid;
+  gap: 14px;
 }
 
-.schedule-count {
-  font-size: 0.85rem;
-  color: var(--muted);
-  font-weight: normal;
+.schedule-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.schedule-card-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.schedule-card-icon {
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.schedule-card-header h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
   text-transform: none;
-  letter-spacing: normal;
+  letter-spacing: 0;
+  color: var(--text);
 }
 
-.schedule-list {
+.schedule-card-meta {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.schedule-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 99px;
+  background: var(--accent-surface);
+  color: var(--accent);
+  border: 1px solid var(--accent-border);
+}
+
+.schedule-badge-empty {
+  background: var(--surface-soft);
+  color: var(--muted);
+  border-color: var(--border-soft);
+}
+
+.schedule-badge-offline {
+  background: var(--warn-surface);
+  color: var(--warn-text, var(--muted));
+  border-color: var(--warn-border-strong);
+}
+
+.schedule-context-line {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.schedule-loading,
+.deadline-loading {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  padding: 24px 0;
+}
+
+.schedule-loading-dot,
+.deadline-loading-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--muted);
+  animation: pulse-dot 1.2s ease-in-out infinite;
+}
+
+.schedule-loading-dot:nth-child(2),
+.deadline-loading-dot:nth-child(2) { animation-delay: 0.15s; }
+.schedule-loading-dot:nth-child(3),
+.deadline-loading-dot:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes pulse-dot {
+  0%, 80%, 100% { opacity: 0.25; transform: scale(0.8); }
+  40% { opacity: 1; transform: scale(1.1); }
+}
+
+/* ── Vertical Timeline ── */
+.timeline-list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 10px;
+  gap: 0;
 }
 
-.schedule-item {
+.timeline-item {
   display: grid;
-  gap: 6px;
-  border: 1px solid var(--border-soft);
-  border-radius: 10px;
-  padding: 12px;
-  background: var(--surface);
+  gap: 0;
 }
 
-.schedule-item-upcoming {
-  border-color: var(--accent-border);
-  background: var(--accent-surface);
-}
-
-.schedule-item-focused {
-  border-color: var(--accent-border);
-  box-shadow: 0 0 0 2px rgba(246, 195, 127, 0.2);
-}
-
-.schedule-item-header {
+.timeline-item-time {
   display: flex;
-  justify-content: flex-start;
   align-items: center;
-  gap: 10px;
-}
-
-.schedule-item-title {
-  margin: 0;
-  font-size: 1rem;
+  gap: 4px;
+  font-size: 0.7rem;
   font-weight: 600;
-  color: var(--text);
-}
-
-.schedule-item-details {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  font-size: 0.8rem;
   color: var(--muted);
-  align-items: center;
+  font-variant-numeric: tabular-nums;
+  padding-left: 22px;
+  margin-bottom: 2px;
 }
 
-.schedule-separator {
+.timeline-time-divider {
   opacity: 0.5;
 }
 
-.schedule-until {
+.timeline-item-body {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 10px;
+  min-height: 44px;
+}
+
+.timeline-item-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+
+.timeline-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 2px solid var(--border-soft);
+  background: var(--surface);
+}
+
+.timeline-dot--lecture {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.timeline-dot--gap {
+  background: var(--surface-soft);
+  border-color: var(--border-soft);
+  border-style: dashed;
+}
+
+.timeline-connector {
+  width: 2px;
+  flex: 1;
+  background: var(--border-soft);
+  min-height: 10px;
+}
+
+.timeline-item-content {
+  padding: 6px 10px 14px;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.timeline-item--lecture .timeline-item-content {
+  background: var(--accent-surface);
+  border: 1px solid var(--accent-border);
+}
+
+.timeline-item--gap .timeline-item-content {
+  background: var(--surface);
+  border: 1px dashed var(--border-soft);
+}
+
+.timeline-item-label {
+  margin: 0;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.timeline-item--gap .timeline-item-label {
+  font-weight: 500;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.timeline-item-duration {
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+.schedule-empty-state,
+.deadline-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 28px 12px;
+  text-align: center;
+}
+
+.schedule-empty-icon,
+.deadline-empty-icon {
+  font-size: 1.6rem;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.schedule-empty-state p,
+.deadline-empty-state p {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.schedule-empty-hint,
+.deadline-empty-hint {
+  color: var(--muted) !important;
+  font-weight: 400 !important;
+  font-size: 0.78rem !important;
+}
+
+.schedule-refresh-btn,
+.deadline-refresh-btn {
+  display: block;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.schedule-refresh-btn:hover,
+.deadline-refresh-btn:hover {
+  background: var(--accent-surface);
+  color: var(--accent);
+  border-color: var(--accent-border);
+}
+
+.schedule-refresh-btn:disabled,
+.deadline-refresh-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ──────────── Deadline Card ──────────── */
+.deadline-card {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+}
+
+.deadline-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.deadline-card-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.deadline-card-icon {
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.deadline-card-header h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text);
+}
+
+.deadline-card-meta {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.deadline-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 99px;
+  background: var(--accent-surface);
+  color: var(--accent);
+  border: 1px solid var(--accent-border);
+}
+
+.deadline-badge-clear {
+  background: rgba(52, 211, 153, 0.12);
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.25);
+}
+
+.deadline-badge-offline {
+  background: var(--warn-surface);
+  color: var(--warn-text, var(--muted));
+  border-color: var(--warn-border-strong);
+}
+
+.deadline-sync-toast {
+  margin: 0;
+  font-size: 0.78rem;
   color: var(--accent);
   font-weight: 500;
 }
 
-.schedule-location {
-  color: var(--text);
-  font-weight: 600;
-}
-
-.schedule-empty {
-  margin: 0;
-  padding: 20px;
-  text-align: center;
-  color: var(--muted);
-  opacity: 0.7;
-  font-size: 0.9rem;
-}
-
-/* Deadline Styles */
-.deadline-panel {
-  margin-bottom: 12px;
-}
-
-.deadline-count {
-  font-size: 0.85rem;
-  color: var(--muted);
-  font-weight: normal;
-  text-transform: none;
-  letter-spacing: normal;
-}
-
-.deadline-sync-status {
-  margin: 0 0 8px;
-  color: var(--muted);
-  font-size: 0.85rem;
-}
-
-.deadline-list {
+.dl-list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
-.deadline-item {
+.dl-item {
   border: 1px solid var(--border-soft);
-  border-radius: 10px;
-  padding: 12px;
+  border-radius: 12px;
+  padding: 10px 12px;
   background: var(--surface);
+  transition: opacity 0.2s, transform 0.15s;
 }
 
-.deadline-item-focused {
+.dl-item--focused {
   border-color: var(--accent-border);
-  box-shadow: 0 0 0 2px var(--accent-surface), 0 8px 18px rgba(0, 0, 0, 0.14);
+  box-shadow: 0 0 0 2px var(--accent-surface), 0 6px 14px rgba(0, 0, 0, 0.12);
 }
 
-.deadline-critical {
+.dl-item.deadline-critical {
   border-color: var(--danger-border-strong);
   background: var(--danger-surface);
 }
 
-.deadline-urgent {
+.dl-item.deadline-urgent {
   border-color: var(--warn-border-strong);
   background: var(--warn-surface);
 }
 
-.deadline-overdue {
-  border-color: var(--danger-border-stronger);
-  background: var(--danger-surface-strong);
+.dl-item.deadline-overdue {
+  border-color: var(--danger-border-stronger, var(--danger-border-strong));
+  background: var(--danger-surface-strong, var(--danger-surface));
 }
 
-.deadline-completed {
-  opacity: 0.5;
-  border-color: var(--border-subtle);
+.dl-item--done {
+  opacity: 0.45;
   background: var(--surface-soft);
+  border-color: var(--border-subtle, var(--border-soft));
 }
 
-.deadline-checkbox-wrapper {
+.dl-item-row {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 12px;
+  gap: 10px;
   align-items: start;
 }
 
-.deadline-checkbox {
-  margin-top: 2px;
-  width: 18px;
-  height: 18px;
+/* Custom checkbox */
+.dl-checkbox-label {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
   cursor: pointer;
 }
 
-.deadline-content {
-  display: grid;
-  gap: 6px;
+.dl-checkbox {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
 }
 
-.deadline-header {
+.dl-checkbox-custom {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  border: 2px solid var(--border-soft);
+  background: var(--surface);
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dl-checkbox:checked + .dl-checkbox-custom {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.dl-checkbox:checked + .dl-checkbox-custom::after {
+  content: "✓";
+  color: #000;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.dl-checkbox:focus-visible + .dl-checkbox-custom {
+  box-shadow: 0 0 0 2px var(--accent-surface);
+}
+
+.dl-item-content {
+  display: grid;
+  gap: 4px;
+}
+
+.dl-item-top {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
-.deadline-task {
+.dl-task {
   margin: 0;
-  font-size: 1rem;
+  font-size: 0.92rem;
   font-weight: 600;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.dl-item--done .dl-task {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+
+.dl-time-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 99px;
+  white-space: nowrap;
+  background: var(--accent-surface);
+  color: var(--accent);
+  border: 1px solid var(--accent-border);
+}
+
+.dl-time-badge.deadline-critical,
+.dl-time-badge.deadline-overdue {
+  background: var(--danger-surface);
+  color: var(--danger);
+  border-color: var(--danger-border-strong);
+}
+
+.dl-time-badge.deadline-urgent {
+  background: var(--warn-surface);
+  color: var(--warn-text, #f59e0b);
+  border-color: var(--warn-border-strong);
+}
+
+.dl-item-bottom {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
+.dl-course {
+  font-weight: 600;
+}
+
+.dl-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  padding-left: 32px;
+}
+
+.dl-action-btn {
+  flex: 1;
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  border: 1px solid var(--border-soft);
+  background: var(--surface);
   color: var(--text);
 }
 
-.deadline-completed .deadline-task {
-  text-decoration: line-through;
+.dl-action-complete {
+  background: rgba(52, 211, 153, 0.1);
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.25);
 }
 
-.deadline-time-remaining {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--accent);
-  white-space: nowrap;
+.dl-action-complete:hover {
+  background: rgba(52, 211, 153, 0.2);
 }
 
-.deadline-critical .deadline-time-remaining,
-.deadline-overdue .deadline-time-remaining {
-  color: var(--danger);
+.dl-action-working:hover {
+  background: var(--accent-surface);
 }
 
-.deadline-details {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  font-size: 0.8rem;
-  color: var(--muted);
-  align-items: center;
-}
-
-.deadline-separator {
+.dl-action-btn:disabled {
   opacity: 0.5;
-}
-
-.deadline-empty {
-  margin: 0;
-  padding: 20px;
-  text-align: center;
-  color: var(--muted);
-  opacity: 0.7;
-  font-size: 0.9rem;
-}
-
-.deadline-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 10px;
+  cursor: default;
 }
 
 .settings-stack { display: grid; gap: 0.75rem; }
@@ -2745,17 +3057,12 @@ button:disabled {
 /* Schedule tab container */
 .schedule-tab-container {
   display: grid;
-  gap: 20px;
-}
-
-.schedule-tab-container h2 {
-  margin: 0 0 16px;
-  font-size: 1.5rem;
+  gap: 16px;
 }
 
 .schedule-grid {
   display: grid;
-  gap: 20px;
+  gap: 16px;
 }
 
 @media (min-width: 768px) {
@@ -4189,12 +4496,6 @@ body.keyboard-open .pull-to-refresh-container {
   }
 }
 
-.schedule-tab-container h2 {
-  margin: 0 0 16px;
-  font-size: 1.5rem;
-  color: var(--text);
-}
-
 .schedule-tab-header {
   display: flex;
   flex-direction: column;
@@ -4227,18 +4528,6 @@ body.keyboard-open .pull-to-refresh-container {
   background: var(--accent-surface) !important;
   color: var(--text) !important;
   border: 1px solid var(--accent-border) !important;
-}
-
-.schedule-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 16px;
-}
-
-@media (min-width: 860px) {
-  .schedule-grid {
-    grid-template-columns: 0.9fr 1.1fr;
-  }
 }
 
 .study-plan-panel {
@@ -4656,81 +4945,6 @@ body.keyboard-open .pull-to-refresh-container {
 .study-plan-workload-context {
   margin: 0 0 10px;
   font-size: 0.82rem;
-  color: var(--muted);
-}
-
-.day-timeline-card {
-  border: 1px solid var(--border-soft);
-  border-radius: 12px;
-  background: var(--surface-soft);
-  padding: 12px;
-  margin: 0 0 12px;
-  display: grid;
-  gap: 10px;
-}
-
-.day-timeline-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 10px;
-}
-
-.day-timeline-header h3 {
-  margin: 0;
-  font-size: 0.95rem;
-}
-
-.day-timeline-header span {
-  font-size: 0.78rem;
-  color: var(--muted);
-}
-
-.day-timeline-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 8px;
-}
-
-.day-timeline-item {
-  border: 1px solid var(--border-soft);
-  border-radius: 10px;
-  padding: 9px 10px;
-  display: grid;
-  gap: 4px;
-}
-
-.day-timeline-item-lecture {
-  border-color: var(--accent-border);
-  background: var(--accent-surface);
-}
-
-.day-timeline-item-gap {
-  border-style: dashed;
-  background: var(--surface);
-}
-
-.day-timeline-item-meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.76rem;
-  color: var(--muted);
-}
-
-.day-timeline-item-label {
-  margin: 0;
-  font-size: 0.86rem;
-  color: var(--text);
-  line-height: 1.3;
-}
-
-.day-timeline-empty {
-  margin: 0;
-  font-size: 0.84rem;
   color: var(--muted);
 }
 
@@ -5314,18 +5528,51 @@ label small.muted {
   }
 }
 
-/* Reminders Widget */
-.reminders-widget {
+/* Reminders Card */
+.reminders-card {
   background: var(--card);
   border: 1px solid var(--card-border);
-  border-radius: 14px;
+  border-radius: 16px;
   padding: 16px;
+  display: grid;
+  gap: 14px;
 }
 
-.reminders-widget h2 {
-  margin: 0 0 12px;
-  font-size: 1.1rem;
+.reminders-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.reminders-card-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reminders-card-icon {
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.reminders-card-header h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text);
+}
+
+.reminders-badge {
+  font-size: 0.72rem;
   font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 99px;
+  background: var(--accent-surface);
+  color: var(--accent);
+  border: 1px solid var(--accent-border);
 }
 
 .reminders-list {
@@ -5338,7 +5585,7 @@ label small.muted {
 
 .reminder-item {
   border: 1px solid var(--border-soft);
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 10px 12px;
   background: var(--surface);
   transition: opacity 0.2s;
@@ -5372,7 +5619,7 @@ label small.muted {
 .reminder-cancel-btn {
   background: none;
   border: none;
-  color: var(--text-muted);
+  color: var(--muted);
   cursor: pointer;
   padding: 2px 6px;
   font-size: 0.85rem;
@@ -5383,7 +5630,7 @@ label small.muted {
 
 .reminder-cancel-btn:hover {
   background: var(--danger-surface);
-  color: var(--danger-text);
+  color: var(--danger);
 }
 
 .reminder-cancel-btn:disabled {
@@ -5394,7 +5641,7 @@ label small.muted {
 .reminder-message {
   margin: 0;
   font-size: 0.82rem;
-  color: var(--text-secondary);
+  color: var(--muted);
   line-height: 1.35;
 }
 
@@ -5403,7 +5650,7 @@ label small.muted {
   gap: 10px;
   align-items: center;
   font-size: 0.78rem;
-  color: var(--text-muted);
+  color: var(--muted);
   margin-top: 2px;
 }
 
@@ -5413,7 +5660,7 @@ label small.muted {
 
 .reminder-recurrence {
   background: var(--accent-surface);
-  color: var(--accent-text);
+  color: var(--accent);
   padding: 1px 7px;
   border-radius: 8px;
   font-size: 0.72rem;

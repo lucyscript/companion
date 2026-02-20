@@ -61,8 +61,14 @@ export function RemindersWidget(): JSX.Element | null {
   if (reminders.length === 0) return null;
 
   return (
-    <div className="reminders-widget">
-      <h2>🔔 Reminders</h2>
+    <div className="reminders-card">
+      <div className="reminders-card-header">
+        <div className="reminders-card-title-row">
+          <span className="reminders-card-icon">🔔</span>
+          <h2>Reminders</h2>
+        </div>
+        <span className="reminders-badge">{reminders.length} upcoming</span>
+      </div>
       <ul className="reminders-list">
         {reminders.map((r) => {
           const repeat = recurrenceLabel(r.recurrence);

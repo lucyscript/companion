@@ -11,11 +11,11 @@ interface ScheduleTabProps {
 export function ScheduleTab({ scheduleKey, focusDeadlineId, focusLectureId }: ScheduleTabProps): JSX.Element {
   return (
     <div className="schedule-tab-container">
-      <RemindersWidget key={`reminders-${scheduleKey}`} />
       <div className="schedule-grid">
         <ScheduleView key={scheduleKey} focusLectureId={focusLectureId} />
         <DeadlineList key={`deadline-${scheduleKey}`} focusDeadlineId={focusDeadlineId} />
       </div>
+      <RemindersWidget key={`reminders-${scheduleKey}`} />
     </div>
   );
 }

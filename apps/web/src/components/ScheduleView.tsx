@@ -344,57 +344,85 @@ export function ScheduleView({ focusLectureId }: ScheduleViewProps): JSX.Element
   const dayTimeline = buildDayTimeline(todayBlocks, today, deadlineSuggestions, suggestionMutes);
 
   return (
-    <section className="panel schedule-panel">
-      <header className="panel-header">
-        <h2>Schedule</h2>
-        <div className="panel-header-actions">
-          <span className="schedule-count">{todayBlocks.length} today</span>
-          <button type="button" onClick={() => void handleRefresh()} disabled={refreshing || !isOnline}>
-            {refreshing ? "Refreshing..." : "Refresh"}
-          </button>
+    <section className="schedule-card">
+      <div className="schedule-card-header">
+        <div className="schedule-card-title-row">
+          <span className="schedule-card-icon">📅</span>
+          <h2>Today&apos;s Schedule</h2>
         </div>
-      </header>
-      <div className="cache-status-row" role="status" aria-live="polite">
-        <span className={`cache-status-chip ${isOnline ? "cache-status-chip-online" : "cache-status-chip-offline"}`}>
-          {isOnline ? "Online" : "Offline"}
-        </span>
-        {loading && <span className="cache-status-chip">Loading...</span>}
+        <div className="schedule-card-meta">
+          {todayBlocks.length > 0 ? (
+            <span className="schedule-badge">{todayBlocks.length} session{todayBlocks.length === 1 ? "" : "s"}</span>
+          ) : (
+            <span className="schedule-badge schedule-badge-empty">Free day</span>
+          )}
+          {!isOnline && <span className="schedule-badge schedule-badge-offline">Offline</span>}
+        </div>
       </div>
-      <p className="schedule-workload-context">
-        {pendingDeadlines.length} pending deadline{pendingDeadlines.length === 1 ? "" : "s"}
-      </p>
 
-      <section className="day-timeline-card" aria-label="Today timeline">
-        <div className="day-timeline-header">
-          <h3>Today timeline</h3>
-          <span>{todayBlocks.length} fixed block{todayBlocks.length === 1 ? "" : "s"}</span>
+      {pendingDeadlines.length > 0 && (
+        <p className="schedule-context-line">
+          {pendingDeadlines.length} deadline{pendingDeadlines.length === 1 ? "" : "s"} ahead — gaps filled with study suggestions
+        </p>
+      )}
+
+      {loading ? (
+        <div className="schedule-loading">
+          <span className="schedule-loading-dot" />
+          <span className="schedule-loading-dot" />
+          <span className="schedule-loading-dot" />
         </div>
-
-        {dayTimeline.length > 0 ? (
-          <ul className="day-timeline-list">
-            {dayTimeline.map((segment, index) => (
-              <li
-                key={`${segment.type}-${segment.start.toISOString()}-${index}`}
-                className={segment.type === "event" ? "day-timeline-item day-timeline-item-lecture" : "day-timeline-item day-timeline-item-gap"}
-              >
-                <div className="day-timeline-item-meta">
-                  <span>
-                    {segment.start.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false })} -{" "}
-                    {segment.end.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false })}
-                  </span>
-                  <span>{formatDuration(minutesBetween(segment.start, segment.end))}</span>
+      ) : dayTimeline.length > 0 ? (
+        <ul className="timeline-list">
+          {dayTimeline.map((segment, index) => (
+            <li
+              key={`${segment.type}-${segment.start.toISOString()}-${index}`}
+              className={`timeline-item ${segment.type === "event" ? "timeline-item--lecture" : "timeline-item--gap"}`}
+            >
+              <div className="timeline-item-time">
+                <span className="timeline-time-start">
+                  {segment.start.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false })}
+                </span>
+                <span className="timeline-time-divider">–</span>
+                <span className="timeline-time-end">
+                  {segment.end.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false })}
+                </span>
+              </div>
+              <div className="timeline-item-body">
+                <div className="timeline-item-indicator">
+                  <span className={`timeline-dot ${segment.type === "event" ? "timeline-dot--lecture" : "timeline-dot--gap"}`} />
+                  {index < dayTimeline.length - 1 && <span className="timeline-connector" />}
                 </div>
-                <p className="day-timeline-item-label">
-                  {formatDayTimelineLabel(segment)}
-                </p>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="day-timeline-empty">No fixed sessions today. Ask Gemini to build your day plan.</p>
-        )}
-      </section>
+                <div className="timeline-item-content">
+                  <p className="timeline-item-label">
+                    {formatDayTimelineLabel(segment)}
+                  </p>
+                  <span className="timeline-item-duration">
+                    {formatDuration(minutesBetween(segment.start, segment.end))}
+                  </span>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="schedule-empty-state">
+          <span className="schedule-empty-icon">🌤️</span>
+          <p>No fixed sessions today</p>
+          <p className="schedule-empty-hint">Ask Gemini to build your day plan</p>
+        </div>
+      )}
 
+      {!loading && (
+        <button
+          type="button"
+          className="schedule-refresh-btn"
+          onClick={() => void handleRefresh()}
+          disabled={refreshing || !isOnline}
+        >
+          {refreshing ? "Refreshing…" : "↻ Refresh"}
+        </button>
+      )}
     </section>
   );
 }

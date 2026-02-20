@@ -124,7 +124,7 @@ describe("OrchestratorRuntime - Event Handling", () => {
       );
       
       if (noteNotifs.length > 0) {
-        expect(noteNotifs[0].title).toBe("Journal prompt");
+        expect(noteNotifs[0].title).toBe("Reflection prompt");
       }
     });
   });

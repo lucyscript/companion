@@ -168,23 +168,23 @@ export function DeadlineList({ focusDeadlineId }: DeadlineListProps): JSX.Elemen
   const activeCount = deadlines.filter((deadline) => !deadline.completed).length;
 
   return (
-    <section className="panel deadline-panel">
-      <header className="panel-header">
-        <h2>Deadlines</h2>
-        <div className="panel-header-actions">
-          <span className="deadline-count">{activeCount} pending</span>
-          <button type="button" onClick={() => void handleRefresh()} disabled={refreshing || !isOnline}>
-            {refreshing ? "Refreshing..." : "Refresh"}
-          </button>
+    <section className="deadline-card">
+      <div className="deadline-card-header">
+        <div className="deadline-card-title-row">
+          <span className="deadline-card-icon">🎯</span>
+          <h2>Deadlines</h2>
         </div>
-      </header>
-      <div className="cache-status-row" role="status" aria-live="polite">
-        <span className={`cache-status-chip ${isOnline ? "cache-status-chip-online" : "cache-status-chip-offline"}`}>
-          {isOnline ? "Online" : "Offline"}
-        </span>
-        {loading && <span className="cache-status-chip">Loading...</span>}
+        <div className="deadline-card-meta">
+          {activeCount > 0 ? (
+            <span className="deadline-badge">{activeCount} pending</span>
+          ) : (
+            <span className="deadline-badge deadline-badge-clear">All clear</span>
+          )}
+          {!isOnline && <span className="deadline-badge deadline-badge-offline">Offline</span>}
+        </div>
       </div>
-      {syncMessage && <p className="deadline-sync-status">{syncMessage}</p>}
+
+      {syncMessage && <p className="deadline-sync-toast">{syncMessage}</p>}
 
       <div 
         ref={containerRef}
@@ -197,60 +197,89 @@ export function DeadlineList({ focusDeadlineId }: DeadlineListProps): JSX.Elemen
             isRefreshing={isRefreshing}
           />
         )}
-        {sortedDeadlines.length > 0 ? (
-          <ul className="deadline-list">
-            {sortedDeadlines.map((deadline) => (
-              <li
-                key={deadline.id}
-                className={`deadline-item ${getUrgencyClass(deadline.dueDate)} ${deadline.completed ? "deadline-completed" : ""} ${focusDeadlineId === deadline.id ? "deadline-item-focused" : ""}`}
-              >
-                <div className="deadline-checkbox-wrapper" id={`deadline-${deadline.id}`}>
-                  <input
-                    type="checkbox"
-                    checked={deadline.completed}
-                    onChange={() => void setCompletion(deadline.id, !deadline.completed)}
-                    className="deadline-checkbox"
-                    disabled={updatingId === deadline.id}
-                  />
-                  <div className="deadline-content">
-                    <div className="deadline-header">
-                      <h3 className="deadline-task">{formatDeadlineTaskLabel(deadline.task)}</h3>
-                      <span className="deadline-time-remaining">
-                        {formatTimeRemaining(deadline.dueDate)}
-                      </span>
-                    </div>
-                    <div className="deadline-details">
-                      <span className="deadline-course">{deadline.course}</span>
-                      <span className="deadline-separator">•</span>
-                      <span className="deadline-due">{formatDueDate(deadline.dueDate)}</span>
+        {loading ? (
+          <div className="deadline-loading">
+            <span className="deadline-loading-dot" />
+            <span className="deadline-loading-dot" />
+            <span className="deadline-loading-dot" />
+          </div>
+        ) : sortedDeadlines.length > 0 ? (
+          <ul className="dl-list">
+            {sortedDeadlines.map((deadline) => {
+              const urgency = getUrgencyClass(deadline.dueDate);
+              return (
+                <li
+                  key={deadline.id}
+                  id={`deadline-${deadline.id}`}
+                  className={`dl-item ${urgency} ${deadline.completed ? "dl-item--done" : ""} ${focusDeadlineId === deadline.id ? "dl-item--focused" : ""}`}
+                >
+                  <div className="dl-item-row">
+                    <label className="dl-checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={deadline.completed}
+                        onChange={() => void setCompletion(deadline.id, !deadline.completed)}
+                        className="dl-checkbox"
+                        disabled={updatingId === deadline.id}
+                      />
+                      <span className="dl-checkbox-custom" />
+                    </label>
+                    <div className="dl-item-content">
+                      <div className="dl-item-top">
+                        <h3 className="dl-task">{formatDeadlineTaskLabel(deadline.task)}</h3>
+                        <span className={`dl-time-badge ${urgency}`}>
+                          {formatTimeRemaining(deadline.dueDate)}
+                        </span>
+                      </div>
+                      <div className="dl-item-bottom">
+                        <span className="dl-course">{deadline.course}</span>
+                        <span className="dl-due">{formatDueDate(deadline.dueDate)}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-                {!deadline.completed && getUrgencyClass(deadline.dueDate) === "deadline-overdue" && (
-                  <div className="deadline-actions">
-                    <button
-                      type="button"
-                      onClick={() => void setCompletion(deadline.id, true)}
-                      disabled={updatingId === deadline.id}
-                    >
-                      Mark complete
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void setCompletion(deadline.id, false)}
-                      disabled={updatingId === deadline.id}
-                    >
-                      Still working
-                    </button>
-                  </div>
-                )}
-              </li>
-            ))}
+                  {!deadline.completed && urgency === "deadline-overdue" && (
+                    <div className="dl-actions">
+                      <button
+                        type="button"
+                        className="dl-action-btn dl-action-complete"
+                        onClick={() => void setCompletion(deadline.id, true)}
+                        disabled={updatingId === deadline.id}
+                      >
+                        ✓ Complete
+                      </button>
+                      <button
+                        type="button"
+                        className="dl-action-btn dl-action-working"
+                        onClick={() => void setCompletion(deadline.id, false)}
+                        disabled={updatingId === deadline.id}
+                      >
+                        Still working
+                      </button>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         ) : (
-          <p className="deadline-empty">No deadlines tracked. Add assignments to stay on top of your work.</p>
+          <div className="deadline-empty-state">
+            <span className="deadline-empty-icon">✅</span>
+            <p>No deadlines tracked</p>
+            <p className="deadline-empty-hint">Add assignments to stay on top of your work</p>
+          </div>
         )}
       </div>
+
+      {!loading && (
+        <button
+          type="button"
+          className="deadline-refresh-btn"
+          onClick={() => void handleRefresh()}
+          disabled={refreshing || !isOnline}
+        >
+          {refreshing ? "Refreshing…" : "↻ Refresh"}
+        </button>
+      )}
     </section>
   );
 }
