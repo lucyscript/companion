@@ -1084,6 +1084,44 @@ button:disabled {
   justify-content: flex-end;
 }
 
+/* Compact card variant */
+.habit-card-compact {
+  padding: 12px 16px;
+}
+.habit-card-compact .habit-visual-progress,
+.habit-card-compact .goal-progress {
+  margin-top: 10px;
+}
+
+/* Manual check-in button */
+.habit-checkin-button {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px solid var(--border-soft);
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.2rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+.habit-checkin-button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.habit-checkin-button.habit-checkin-done {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+.habit-checkin-button:disabled {
+  opacity: 0.5;
+}
+
 .habit-edit-form {
   display: grid;
   gap: 8px;
