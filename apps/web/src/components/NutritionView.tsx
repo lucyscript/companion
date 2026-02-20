@@ -176,12 +176,22 @@ function scaleMealPortion(meal: NutritionMeal, factor: number): NutritionMeal {
 
 function computeMealTotals(meals: NutritionMeal[]): NutritionDailySummary["totals"] {
   const raw = meals.reduce(
-    (totals, meal) => ({
-      calories: totals.calories + meal.calories,
-      proteinGrams: totals.proteinGrams + meal.proteinGrams,
-      carbsGrams: totals.carbsGrams + meal.carbsGrams,
-      fatGrams: totals.fatGrams + meal.fatGrams
-    }),
+    (totals, meal) => {
+      if (meal.items && meal.items.length > 0) {
+        for (const item of meal.items) {
+          totals.calories += item.caloriesPerUnit * item.quantity;
+          totals.proteinGrams += item.proteinGramsPerUnit * item.quantity;
+          totals.carbsGrams += item.carbsGramsPerUnit * item.quantity;
+          totals.fatGrams += item.fatGramsPerUnit * item.quantity;
+        }
+      } else {
+        totals.calories += meal.calories;
+        totals.proteinGrams += meal.proteinGrams;
+        totals.carbsGrams += meal.carbsGrams;
+        totals.fatGrams += meal.fatGrams;
+      }
+      return totals;
+    },
     {
       calories: 0,
       proteinGrams: 0,

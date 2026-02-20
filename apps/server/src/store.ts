@@ -4561,10 +4561,19 @@ export class RuntimeStore {
 
     const totals = meals.reduce(
       (acc, meal) => {
-        acc.calories += meal.calories;
-        acc.proteinGrams += meal.proteinGrams;
-        acc.carbsGrams += meal.carbsGrams;
-        acc.fatGrams += meal.fatGrams;
+        if (meal.items.length > 0) {
+          for (const item of meal.items) {
+            acc.calories += item.caloriesPerUnit * item.quantity;
+            acc.proteinGrams += item.proteinGramsPerUnit * item.quantity;
+            acc.carbsGrams += item.carbsGramsPerUnit * item.quantity;
+            acc.fatGrams += item.fatGramsPerUnit * item.quantity;
+          }
+        } else {
+          acc.calories += meal.calories;
+          acc.proteinGrams += meal.proteinGrams;
+          acc.carbsGrams += meal.carbsGrams;
+          acc.fatGrams += meal.fatGrams;
+        }
         return acc;
       },
       {
