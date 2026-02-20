@@ -122,6 +122,15 @@ export function AnalyticsDashboard(): JSX.Element {
           </section>
 
           <div className="analytics-grid">
+            <section className="analytics-card analytics-card-correlation">
+              <h3>Cross-Domain Correlations</h3>
+              <ul className="analytics-list">
+                {insight.correlations.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </section>
+
             <section className="analytics-card">
               <h3>Strengths</h3>
               <ul className="analytics-list">

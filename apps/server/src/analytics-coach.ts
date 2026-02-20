@@ -7,7 +7,11 @@ import {
   Deadline,
   GoalWithStatus,
   HabitWithStatus,
-  ReflectionEntry
+  LectureEvent,
+  NutritionDayHistoryEntry,
+  ReflectionEntry,
+  WithingsSleepSummaryEntry,
+  WithingsWeightEntry
 } from "./types.js";
 import { nowIso } from "./utils.js";
 
@@ -19,6 +23,7 @@ interface GenerateAnalyticsCoachOptions {
 
 interface ParsedCoachInsight {
   summary: string;
+  correlations: string[];
   strengths: string[];
   risks: string[];
   recommendations: string[];
@@ -34,6 +39,10 @@ interface AnalyticsDataset {
   habits: HabitWithStatus[];
   goals: GoalWithStatus[];
   reflections: ReflectionEntry[];
+  nutritionHistory: NutritionDayHistoryEntry[];
+  bodyComp: WithingsWeightEntry[];
+  sleepHistory: WithingsSleepSummaryEntry[];
+  scheduleEvents: LectureEvent[];
 }
 
 const SUPPORTED_PERIODS: Array<7 | 14 | 30> = [7, 14, 30];
@@ -182,7 +191,11 @@ function buildDataset(store: RuntimeStore, periodDays: 7 | 14 | 30, now: Date): 
     openUrgentDeadlines,
     habits,
     goals,
-    reflections
+    reflections,
+    nutritionHistory: store.getNutritionDailyHistory(windowStartDate, now),
+    bodyComp: store.getWithingsData().weight.filter((w) => inWindow(w.measuredAt, windowStartMs, nowMs)),
+    sleepHistory: store.getWithingsData().sleepSummary.filter((s) => inWindow(s.date, windowStartMs, nowMs)),
+    scheduleEvents: store.getScheduleEvents().filter((e) => inWindow(e.startTime, windowStartMs, nowMs))
   };
 }
 
@@ -253,6 +266,37 @@ function buildFallbackInsight(dataset: AnalyticsDataset): AnalyticsCoachInsight 
       ? `Not enough tracked activity in the last ${dataset.periodDays} days to infer strong patterns yet.`
       : `Over the last ${dataset.periodDays} days, you completed ${metrics.deadlinesCompleted}/${metrics.deadlinesDue} deadlines, maintained ${metrics.averageHabitCompletion7d}% average habit consistency, and finished ${metrics.studySessionsDone}/${metrics.studySessionsPlanned} planned study sessions.`;
 
+  // Build fallback correlations from available cross-domain signals
+  const correlations: string[] = [];
+  const gymDays = dataset.nutritionHistory.filter((d) => d.gymCheckedIn);
+  const nonGymDays = dataset.nutritionHistory.filter((d) => !d.gymCheckedIn);
+  if (gymDays.length >= 2 && nonGymDays.length >= 2) {
+    const avgGymCal = Math.round(gymDays.reduce((s, d) => s + d.totals.calories, 0) / gymDays.length);
+    const avgRestCal = Math.round(nonGymDays.reduce((s, d) => s + d.totals.calories, 0) / nonGymDays.length);
+    if (avgGymCal !== avgRestCal) {
+      correlations.push(
+        `Gym days average ${avgGymCal}kcal vs rest days at ${avgRestCal}kcal — ${avgGymCal > avgRestCal ? "higher intake aligns with training" : "lower intake on gym days may limit recovery"}.`
+      );
+    }
+  }
+  if (dataset.sleepHistory.length >= 2 && metrics.studySessionsPlanned > 0) {
+    const avgSleep = dataset.sleepHistory.reduce((s, d) => s + d.totalSleepSeconds, 0) / dataset.sleepHistory.length / 3600;
+    correlations.push(
+      `Average sleep of ${avgSleep.toFixed(1)}h alongside ${metrics.studyCompletionRate}% study completion — ${avgSleep >= 7 ? "adequate rest supports study follow-through" : "short sleep may be dragging study execution"}.`
+    );
+  }
+  if (dataset.bodyComp.length >= 2) {
+    const first = dataset.bodyComp[0];
+    const last = dataset.bodyComp[dataset.bodyComp.length - 1];
+    const delta = last.weightKg - first.weightKg;
+    correlations.push(
+      `Body weight moved ${delta > 0 ? "+" : ""}${delta.toFixed(1)}kg over the window while habit completion averaged ${metrics.averageHabitCompletion7d}%.`
+    );
+  }
+  if (correlations.length === 0) {
+    correlations.push("Not enough cross-domain data to surface strong correlations yet — track nutrition, sleep, and workouts to unlock deeper insights.");
+  }
+
   return {
     periodDays: dataset.periodDays,
     windowStart: dataset.windowStart,
@@ -260,6 +304,7 @@ function buildFallbackInsight(dataset: AnalyticsDataset): AnalyticsCoachInsight 
     generatedAt: nowIso(),
     source: "fallback",
     summary: normalizeText(summary, 500),
+    correlations: uniqueTrimmed(correlations, 5),
     strengths: uniqueTrimmed(strengths, 5),
     risks: uniqueTrimmed(risks, 5),
     recommendations: mergeListWithFallback(recommendations, [
@@ -308,42 +353,84 @@ function buildPrompt(dataset: AnalyticsDataset): string {
     )
     .join("\n");
 
-  return `Analyze behavior patterns for the last ${dataset.periodDays} days.
-Address Lucy directly in second person (you/your). Never refer to "the user" or "the student".
+  const nutritionLines = dataset.nutritionHistory
+    .slice(-10)
+    .map((day) => {
+      const targetCal = day.targets?.calories ?? 0;
+      const pct = targetCal > 0 ? Math.round((day.totals.calories / targetCal) * 100) : 0;
+      return `- ${day.date}: ${Math.round(day.totals.calories)}kcal/${targetCal}kcal (${pct}%) | protein=${Math.round(day.totals.proteinGrams)}g | meals=${day.mealsLogged} | gym=${day.gymCheckedIn ? "yes" : "no"}`;
+    })
+    .join("\n");
+
+  const bodyCompLines = dataset.bodyComp
+    .slice(-6)
+    .map((w) => {
+      const parts = [`${w.weightKg}kg`];
+      if (w.fatRatioPercent != null) parts.push(`bf=${w.fatRatioPercent}%`);
+      if (w.muscleMassKg != null) parts.push(`muscle=${w.muscleMassKg}kg`);
+      return `- ${w.measuredAt.slice(0, 10)}: ${parts.join(" | ")}`;
+    })
+    .join("\n");
+
+  const sleepLines = dataset.sleepHistory
+    .slice(-7)
+    .map((s) => {
+      const hrs = (s.totalSleepSeconds / 3600).toFixed(1);
+      const parts = [`${hrs}h total`];
+      if (s.deepSleepSeconds != null) parts.push(`deep=${(s.deepSleepSeconds / 3600).toFixed(1)}h`);
+      if (s.sleepEfficiency != null) parts.push(`efficiency=${s.sleepEfficiency}%`);
+      if (s.hrAverage != null) parts.push(`hr=${s.hrAverage}bpm`);
+      return `- ${s.date}: ${parts.join(" | ")}`;
+    })
+    .join("\n");
+
+  const scheduleLines = dataset.scheduleEvents
+    .slice(0, 10)
+    .map((e) => `- ${e.startTime.slice(0, 10)} ${e.title} (${e.durationMinutes}min, ${e.workload})`)
+    .join("\n");
+
+  return `You are a cross-domain behavior analyst. Your strongest skill is finding CORRELATIONS between different data domains.
+
+Analyze Lucy's data from the last ${dataset.periodDays} days. Address her directly (you/your). Never say "the user" or "the student".
+
+YOUR PRIMARY TASK: Find non-obvious correlations across domains. Examples of what to look for:
+- Sleep quality on nights before high study-completion days vs low ones
+- Whether gym/workout days correlate with higher productivity or habit completion
+- Nutrition patterns (calorie surplus/deficit, protein intake) and their timing relative to energy levels or study output
+- Body composition trends and their relationship to consistency in gym/nutrition habits
+- Stress/energy from journal entries and how they correlate with deadline completion rates
+- Schedule density (lecture-heavy days) and its impact on habit completion or nutrition tracking
+- Whether reflection/journaling frequency correlates with better habit adherence
+- Deadline proximity pressure and its effect on sleep, nutrition, or workout consistency
 
 Return strict JSON only:
 {
-  "summary": "2-4 sentence narrative",
-  "strengths": ["2-5 concise strengths"],
-  "risks": ["2-5 concise risks"],
-  "recommendations": ["3-5 concrete behavior recommendations"]
+  "summary": "3-5 sentence narrative that LEADS with the most interesting cross-domain correlation discovered",
+  "correlations": ["3-5 specific cross-domain correlations found in the data, each stating the two domains and the observed relationship"],
+  "strengths": ["2-4 concise strengths"],
+  "risks": ["2-4 concise risks, especially where one domain is undermining another"],
+  "recommendations": ["3-5 recommendations that leverage the discovered correlations to suggest concrete changes"]
 }
 
 Rules:
-- No markdown.
-- No extra keys.
-- Keep recommendations specific and immediately actionable.
-- Prioritize habits, deadlines, and study-plan execution.
+- No markdown. No extra keys.
+- Every correlation MUST reference at least two different data domains (e.g., sleep+study, nutrition+gym, stress+deadlines).
+- Recommendations should be grounded in the correlations you found, not generic advice.
+- If data is sparse in any domain, note it but still reason about available cross-domain signals.
 
-Metrics:
-- deadlinesDue=${dataset.metrics.deadlinesDue}
-- deadlinesCompleted=${dataset.metrics.deadlinesCompleted}
-- openHighPriorityDeadlines=${dataset.metrics.openHighPriorityDeadlines}
-- habitsTracked=${dataset.metrics.habitsTracked}
-- averageHabitCompletion7d=${dataset.metrics.averageHabitCompletion7d}
-- goalsTracked=${dataset.metrics.goalsTracked}
-- reflectionEntries=${dataset.metrics.reflectionEntries}
-- userReflections=${dataset.metrics.userReflections}
-- studySessionsPlanned=${dataset.metrics.studySessionsPlanned}
-- studySessionsDone=${dataset.metrics.studySessionsDone}
-- studyCompletionRate=${dataset.metrics.studyCompletionRate}
-- dominantEnergy=${dataset.metrics.dominantEnergy}
-- dominantStress=${dataset.metrics.dominantStress}
+Aggregate metrics:
+- deadlinesDue=${dataset.metrics.deadlinesDue} completed=${dataset.metrics.deadlinesCompleted}
+- openHighPriority=${dataset.metrics.openHighPriorityDeadlines}
+- habits=${dataset.metrics.habitsTracked} avgCompletion7d=${dataset.metrics.averageHabitCompletion7d}%
+- goals=${dataset.metrics.goalsTracked}
+- studySessions=${dataset.metrics.studySessionsDone}/${dataset.metrics.studySessionsPlanned} (${dataset.metrics.studyCompletionRate}%)
+- energy=${dataset.metrics.dominantEnergy ?? "unknown"} stress=${dataset.metrics.dominantStress ?? "unknown"}
+- reflections=${dataset.metrics.reflectionEntries}
 
-Deadlines in analysis window:
+Deadlines:
 ${deadlineLines || "- none"}
 
-Urgent open deadlines (next 7 days):
+Urgent (next 7d):
 ${urgentLines || "- none"}
 
 Habits:
@@ -352,7 +439,19 @@ ${habitLines || "- none"}
 Goals:
 ${goalLines || "- none"}
 
-Structured journal memory entries:
+Nutrition (daily):
+${nutritionLines || "- no nutrition data"}
+
+Body composition:
+${bodyCompLines || "- no body comp data"}
+
+Sleep:
+${sleepLines || "- no sleep data"}
+
+Schedule/lectures:
+${scheduleLines || "- no schedule data"}
+
+Journal reflections:
 ${reflectionLines || "- none"}`;
 }
 
@@ -384,6 +483,9 @@ function parseInsightJson(raw: string): ParsedCoachInsight | null {
 
   const record = candidate as Record<string, unknown>;
   const summary = typeof record.summary === "string" ? normalizeText(record.summary, 500) : "";
+  const correlations = Array.isArray(record.correlations)
+    ? record.correlations.filter((value): value is string => typeof value === "string")
+    : [];
   const strengths = Array.isArray(record.strengths)
     ? record.strengths.filter((value): value is string => typeof value === "string")
     : [];
@@ -400,6 +502,7 @@ function parseInsightJson(raw: string): ParsedCoachInsight | null {
 
   return {
     summary: enforceSecondPersonVoice(summary),
+    correlations: uniqueTrimmed(correlations.map((item) => enforceSecondPersonVoice(item)), 5),
     strengths: uniqueTrimmed(strengths.map((item) => enforceSecondPersonVoice(item)), 5),
     risks: uniqueTrimmed(risks.map((item) => enforceSecondPersonVoice(item)), 5),
     recommendations: uniqueTrimmed(recommendations.map((item) => enforceSecondPersonVoice(item)), 5)
@@ -424,7 +527,7 @@ export async function generateAnalyticsCoachInsight(
   try {
     const response = await gemini.generateChatResponse({
       systemInstruction:
-        "You are an academic habit coach. Return strict JSON only, grounded exclusively in provided data, and address Lucy directly in second person.",
+        "You are a cross-domain behavior analyst specializing in finding correlations between academic performance, habits, nutrition, sleep, body composition, and emotional state. Return strict JSON only, grounded exclusively in provided data, and address Lucy directly in second person.",
       messages: [
         {
           role: "user",
@@ -442,6 +545,7 @@ export async function generateAnalyticsCoachInsight(
         generatedAt: nowIso(),
         source: "gemini",
         summary: enforceSecondPersonVoice(parsed.summary),
+        correlations: mergeListWithFallback(parsed.correlations, fallback.correlations, 2, 5),
         strengths: mergeListWithFallback(parsed.strengths, fallback.strengths, 2, 5),
         risks: mergeListWithFallback(parsed.risks, fallback.risks, 2, 5),
         recommendations: mergeListWithFallback(parsed.recommendations, fallback.recommendations, 3, 5)

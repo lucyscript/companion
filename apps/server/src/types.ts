@@ -714,6 +714,7 @@ export interface AnalyticsCoachInsight {
   generatedAt: string;
   source: "gemini" | "fallback";
   summary: string;
+  correlations: string[];
   strengths: string[];
   risks: string[];
   recommendations: string[];
