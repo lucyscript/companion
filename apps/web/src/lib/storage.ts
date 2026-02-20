@@ -3,7 +3,6 @@ import {
   CanvasStatus,
   ChatMood,
   NotificationPreferences,
-  OnboardingProfile,
   IntegrationScopeSettings,
   ThemePreference,
   UserContext
@@ -25,7 +24,6 @@ const STORAGE_KEYS = {
   dashboard: "companion:dashboard",
   context: "companion:context",
   syncQueue: "companion:sync-queue",
-  onboarding: "companion:onboarding",
   notificationPreferences: "companion:notification-preferences",
   theme: "companion:theme",
   talkModeEnabled: "companion:talk-mode-enabled",
@@ -270,23 +268,6 @@ export function saveContext(ctx: UserContext): void {
   localStorage.setItem(STORAGE_KEYS.context, JSON.stringify(ctx));
 }
 
-
-export function loadOnboardingProfile(): OnboardingProfile | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEYS.onboarding);
-    if (raw) {
-      return JSON.parse(raw) as OnboardingProfile;
-    }
-  } catch {
-    // ignore corrupted data
-  }
-
-  return null;
-}
-
-export function saveOnboardingProfile(profile: OnboardingProfile): void {
-  localStorage.setItem(STORAGE_KEYS.onboarding, JSON.stringify(profile));
-}
 
 // Sync Queue management
 export function loadSyncQueue(): SyncQueueItem[] {

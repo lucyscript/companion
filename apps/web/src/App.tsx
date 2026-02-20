@@ -3,7 +3,6 @@ import { ChatTab } from "./components/ChatTab";
 import { LoginView } from "./components/LoginView";
 import { ScheduleTab } from "./components/ScheduleTab";
 import { InstallPrompt } from "./components/InstallPrompt";
-import { OnboardingFlow } from "./components/OnboardingFlow";
 import { SettingsView } from "./components/SettingsView";
 import { HabitsGoalsView } from "./components/HabitsGoalsView";
 import { AnalyticsDashboard } from "./components/AnalyticsDashboard";
@@ -19,13 +18,11 @@ import {
   clearCompanionSessionData,
   loadAuthToken,
   loadChatMood,
-  loadOnboardingProfile,
-  saveChatMood,
-  saveOnboardingProfile
+  saveChatMood
 } from "./lib/storage";
 import { hapticCriticalAlert } from "./lib/haptics";
 import { parseDeepLink } from "./lib/deepLink";
-import { ChatMood, OnboardingProfile } from "./types";
+import { ChatMood } from "./types";
 
 type PushState = "checking" | "ready" | "enabled" | "unsupported" | "denied" | "error";
 type AuthState = "checking" | "required-login" | "ready";
@@ -62,7 +59,7 @@ export default function App(): JSX.Element {
   const { data, loading, error } = useDashboard(authState === "ready");
   const [pushState, setPushState] = useState<PushState>("checking");
   const [pushMessage, setPushMessage] = useState("");
-  const [profile, setProfile] = useState<OnboardingProfile | null>(loadOnboardingProfile());
+
   const [scheduleRevision, setScheduleRevision] = useState(0);
   const [activeTab, setActiveTab] = useState<TabId>(initialDeepLink.tab ?? "chat");
   const [focusDeadlineId, setFocusDeadlineId] = useState<string | null>(initialDeepLink.deadlineId);
@@ -277,18 +274,13 @@ export default function App(): JSX.Element {
   }, []);
 
   useEffect(() => {
-    if (!profile) {
-      document.body.classList.remove("chat-tab-active");
-      return;
-    }
-
     const isChatActive = activeTab === "chat";
     document.body.classList.toggle("chat-tab-active", isChatActive);
 
     return () => {
       document.body.classList.remove("chat-tab-active");
     };
-  }, [activeTab, profile]);
+  }, [activeTab]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -337,11 +329,6 @@ export default function App(): JSX.Element {
     const result = await enablePushNotifications();
     setPushState(result.status === "enabled" ? "enabled" : result.status);
     setPushMessage(result.message ?? "");
-  };
-
-  const handleOnboardingComplete = (nextProfile: OnboardingProfile): void => {
-    saveOnboardingProfile(nextProfile);
-    setProfile(nextProfile);
   };
 
   const handleTabChange = (tab: TabId): void => {
@@ -393,7 +380,6 @@ export default function App(): JSX.Element {
       // Local session clear still guarantees sign-out even when network is unavailable.
     } finally {
       clearCompanionSessionData({ keepTheme: true });
-      setProfile(null);
       setAuthUserEmail(null);
       setAuthError(null);
       setAuthState(authRequired ? "required-login" : "ready");
@@ -404,8 +390,17 @@ export default function App(): JSX.Element {
   if (authState === "checking") {
     return (
       <main className="app-shell">
-        <section className="panel auth-panel">
-          <p>Checking authentication...</p>
+        <section className="login-view">
+          <div className="login-card">
+            <div className="login-brand">
+              <div className="login-logo">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+                </svg>
+              </div>
+              <p className="login-subtitle">Connecting...</p>
+            </div>
+          </div>
         </section>
       </main>
     );
@@ -415,14 +410,6 @@ export default function App(): JSX.Element {
     return (
       <main className="app-shell">
         <LoginView loading={authSubmitting} error={authError} onLogin={handleLogin} />
-      </main>
-    );
-  }
-
-  if (!profile) {
-    return (
-      <main className="app-shell">
-        <OnboardingFlow onComplete={handleOnboardingComplete} />
       </main>
     );
   }

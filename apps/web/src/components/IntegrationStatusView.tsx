@@ -26,7 +26,7 @@ function formatRelative(timestamp: string | null): string {
   return `${diffDay}d ago`;
 }
 
-type IntegrationId = "canvas" | "gemini" | "ical" | "github" | "youtube" | "gmail" | "twitter" | "twitch";
+type IntegrationId = "canvas" | "gemini" | "ical" | "github" | "gmail";
 
 interface IntegrationDef {
   id: IntegrationId;
@@ -121,36 +121,12 @@ export function IntegrationStatusView(): JSX.Element {
       detail: "Add COURSE_GITHUB_PAT to connect"
     },
     {
-      id: "youtube",
-      name: "YouTube",
-      description: "Subscriptions, video summaries for digest",
-      icon: "📺",
-      status: "not-configured",
-      detail: "Add YOUTUBE_API_KEY to connect"
-    },
-    {
       id: "gmail",
       name: "Gmail",
       description: "Inbox summary, email digest",
       icon: "📧",
       status: "not-configured",
       detail: "Add Gmail OAuth credentials to connect"
-    },
-    {
-      id: "twitter",
-      name: "X (Twitter)",
-      description: "Timeline digest, trending in tech",
-      icon: "𝕏",
-      status: "not-configured",
-      detail: "Add X_BEARER_TOKEN to connect"
-    },
-    {
-      id: "twitch",
-      name: "Twitch",
-      description: "Live stream alerts for followed channels",
-      icon: "🎮",
-      status: "not-configured",
-      detail: "Add Twitch client credentials to connect"
     }
   ];
 

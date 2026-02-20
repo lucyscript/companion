@@ -368,12 +368,6 @@ export interface CalendarImportResult {
   deadlines: Deadline[];
 }
 
-export interface OnboardingProfile {
-  timezone?: string;
-  nudgeTone?: "gentle" | "balanced" | "direct";
-  completedAt: string;
-}
-
 export interface NotificationPreferences {
   quietHours: {
     enabled: boolean;
