@@ -96,6 +96,7 @@ interface ScheduledNotificationRow {
   eventId: string | null;
   icon: string | null;
   recurrence: string | null;
+  category: string | null;
 }
 
 function mapScheduledNotificationRow(row: ScheduledNotificationRow): ScheduledNotification {
@@ -112,7 +113,8 @@ function mapScheduledNotificationRow(row: ScheduledNotificationRow): ScheduledNo
     scheduledFor: row.scheduledFor,
     createdAt: row.createdAt,
     eventId: row.eventId ?? undefined,
-    ...(recurrence && recurrence !== "none" ? { recurrence } : {})
+    ...(recurrence && recurrence !== "none" ? { recurrence } : {}),
+    ...(row.category ? { category: row.category } : {})
   };
 }
 
@@ -861,6 +863,10 @@ export class RuntimeStore {
     const hasRecurrenceColumn = scheduledNotifColumns.some((col) => col.name === "recurrence");
     if (!hasRecurrenceColumn) {
       this.db.prepare("ALTER TABLE scheduled_notifications ADD COLUMN recurrence TEXT").run();
+    }
+    const hasCategoryColumn = scheduledNotifColumns.some((col) => col.name === "category");
+    if (!hasCategoryColumn) {
+      this.db.prepare("ALTER TABLE scheduled_notifications ADD COLUMN category TEXT").run();
     }
   }
 
@@ -6205,7 +6211,8 @@ export class RuntimeStore {
     notification: Omit<Notification, "id" | "timestamp">,
     scheduledFor: Date,
     eventId?: string,
-    recurrence?: ReminderRecurrence
+    recurrence?: ReminderRecurrence,
+    category?: string
   ): ScheduledNotification {
     const scheduled: ScheduledNotification = {
       id: makeId("sched-notif"),
@@ -6213,13 +6220,14 @@ export class RuntimeStore {
       scheduledFor: scheduledFor.toISOString(),
       createdAt: nowIso(),
       eventId,
-      recurrence: recurrence && recurrence !== "none" ? recurrence : undefined
+      recurrence: recurrence && recurrence !== "none" ? recurrence : undefined,
+      category: category ?? undefined
     };
 
     this.db
       .prepare(
-        `INSERT INTO scheduled_notifications (id, source, title, message, priority, scheduledFor, createdAt, eventId, icon, recurrence)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO scheduled_notifications (id, source, title, message, priority, scheduledFor, createdAt, eventId, icon, recurrence, category)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         scheduled.id,
@@ -6231,7 +6239,8 @@ export class RuntimeStore {
         scheduled.createdAt,
         eventId ?? null,
         notification.icon ?? null,
-        scheduled.recurrence ?? null
+        scheduled.recurrence ?? null,
+        scheduled.category ?? null
       );
 
     return scheduled;
@@ -6251,7 +6260,13 @@ export class RuntimeStore {
   /**
    * Get all upcoming (not yet due) scheduled notifications, ordered by scheduledFor
    */
-  getUpcomingScheduledNotifications(): ScheduledNotification[] {
+  getUpcomingScheduledNotifications(category?: string): ScheduledNotification[] {
+    if (category) {
+      const rows = this.db
+        .prepare("SELECT * FROM scheduled_notifications WHERE category = ? ORDER BY scheduledFor ASC")
+        .all(category) as Array<ScheduledNotificationRow>;
+      return rows.map(mapScheduledNotificationRow);
+    }
     const rows = this.db
       .prepare("SELECT * FROM scheduled_notifications ORDER BY scheduledFor ASC")
       .all() as Array<ScheduledNotificationRow>;

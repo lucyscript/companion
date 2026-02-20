@@ -213,6 +213,7 @@ export interface ScheduledNotification {
   createdAt: string;
   eventId?: string;
   recurrence?: ReminderRecurrence;
+  category?: string;
 }
 
 export interface AgentState {

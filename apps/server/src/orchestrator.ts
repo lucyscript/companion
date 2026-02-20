@@ -228,7 +228,8 @@ export class OrchestratorRuntime {
       scheduled.notification,
       next,
       scheduled.eventId,
-      scheduled.recurrence
+      scheduled.recurrence,
+      scheduled.category
     );
   }
 

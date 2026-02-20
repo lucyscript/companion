@@ -2607,7 +2607,7 @@ app.post("/api/notifications/snooze", (req, res) => {
 });
 
 app.get("/api/scheduled-notifications", (_req, res) => {
-  const upcoming = store.getUpcomingScheduledNotifications();
+  const upcoming = store.getUpcomingScheduledNotifications("user-reminder");
   return res.json({
     reminders: upcoming.map((s) => ({
       id: s.id,

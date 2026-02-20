@@ -4034,7 +4034,8 @@ export function handleScheduleReminder(
     },
     scheduledFor,
     undefined,
-    recurrence
+    recurrence,
+    "user-reminder"
   );
 
   const recurrenceLabel = recurrence !== "none" ? ` (repeats ${recurrence})` : "";
@@ -4048,7 +4049,7 @@ export function handleScheduleReminder(
 export function handleGetReminders(
   store: RuntimeStore
 ): { reminders: Array<{ id: string; title: string; message: string; icon?: string; scheduledFor: string; recurrence?: string; priority: string }> } {
-  const all = store.getUpcomingScheduledNotifications();
+  const all = store.getUpcomingScheduledNotifications("user-reminder");
   return {
     reminders: all.map((s) => ({
       id: s.id,
@@ -4074,7 +4075,7 @@ export function handleCancelReminder(
   }
 
   if (reminderId) {
-    const all = store.getUpcomingScheduledNotifications();
+    const all = store.getUpcomingScheduledNotifications("user-reminder");
     const target = all.find((s) => s.id === reminderId);
     if (!target) {
       return { error: `No scheduled reminder found with ID: ${reminderId}` };
@@ -4089,7 +4090,7 @@ export function handleCancelReminder(
   }
 
   // Search by title hint
-  const all = store.getUpcomingScheduledNotifications();
+  const all = store.getUpcomingScheduledNotifications("user-reminder");
   const match = all.find((s) => s.notification.title.toLowerCase().includes(titleHint!));
   if (!match) {
     return { error: `No upcoming reminder found matching "${titleHint}"` };
