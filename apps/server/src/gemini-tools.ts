@@ -500,7 +500,7 @@ export const functionDeclarations: FunctionDeclaration[] = [
         },
         unitLabel: {
           type: SchemaType.STRING,
-          description: "REQUIRED. Measurement unit: 'g' (grams), 'ml' (millilitres), or 'ea' (each/quantity). Must match the unit from the source meal plan or recipe. For example, use 'ml' for milk/liquids, 'ea' for eggs/whole items, 'g' for foods measured by weight."
+          description: "REQUIRED. Measurement unit: 'g' (grams), 'ml' (millilitres), or 'ea' (each/quantity). Must match the unit used in the source meal plan or recipe exactly — do not guess or change the unit."
         },
         caloriesPerUnit: {
           type: SchemaType.NUMBER,
@@ -2686,10 +2686,10 @@ export function handleCreateNutritionCustomFood(
   }
 
   const unitLabel = asTrimmedString(args.unitLabel) ?? "g";
-  const caloriesPerUnit = clampFloat(args.caloriesPerUnit, 0, 0, 10000, 3);
-  const proteinGramsPerUnit = clampFloat(args.proteinGramsPerUnit, 0, 0, 1000, 3);
-  const carbsGramsPerUnit = clampFloat(args.carbsGramsPerUnit, 0, 0, 1500, 3);
-  const fatGramsPerUnit = clampFloat(args.fatGramsPerUnit, 0, 0, 600, 3);
+  const caloriesPerUnit = clampFloat(args.caloriesPerUnit, 0, 0, 10000, 4);
+  const proteinGramsPerUnit = clampFloat(args.proteinGramsPerUnit, 0, 0, 1000, 4);
+  const carbsGramsPerUnit = clampFloat(args.carbsGramsPerUnit, 0, 0, 1500, 4);
+  const fatGramsPerUnit = clampFloat(args.fatGramsPerUnit, 0, 0, 600, 4);
 
   const densityError = assertPlausibleGramDensityForCustomFood({
     name,
@@ -2738,16 +2738,16 @@ export function handleUpdateNutritionCustomFood(
     patch.unitLabel = unitLabel;
   }
   if (typeof args.caloriesPerUnit === "number") {
-    patch.caloriesPerUnit = clampFloat(args.caloriesPerUnit, 0, 0, 10000, 3);
+    patch.caloriesPerUnit = clampFloat(args.caloriesPerUnit, 0, 0, 10000, 4);
   }
   if (typeof args.proteinGramsPerUnit === "number") {
-    patch.proteinGramsPerUnit = clampFloat(args.proteinGramsPerUnit, 0, 0, 1000, 3);
+    patch.proteinGramsPerUnit = clampFloat(args.proteinGramsPerUnit, 0, 0, 1000, 4);
   }
   if (typeof args.carbsGramsPerUnit === "number") {
-    patch.carbsGramsPerUnit = clampFloat(args.carbsGramsPerUnit, 0, 0, 1500, 3);
+    patch.carbsGramsPerUnit = clampFloat(args.carbsGramsPerUnit, 0, 0, 1500, 4);
   }
   if (typeof args.fatGramsPerUnit === "number") {
-    patch.fatGramsPerUnit = clampFloat(args.fatGramsPerUnit, 0, 0, 600, 3);
+    patch.fatGramsPerUnit = clampFloat(args.fatGramsPerUnit, 0, 0, 600, 4);
   }
 
   const effectiveUnitLabel = patch.unitLabel ?? resolved.unitLabel;
@@ -2955,10 +2955,10 @@ function parseNutritionMealItemsArg(
       name,
       quantity,
       unitLabel: asTrimmedString(record.unitLabel) ?? "g",
-      caloriesPerUnit: clampFloat(record.caloriesPerUnit, 0, 0, 10000, 3),
-      proteinGramsPerUnit: clampFloat(record.proteinGramsPerUnit, 0, 0, 1000, 3),
-      carbsGramsPerUnit: clampFloat(record.carbsGramsPerUnit, 0, 0, 1500, 3),
-      fatGramsPerUnit: clampFloat(record.fatGramsPerUnit, 0, 0, 600, 3),
+      caloriesPerUnit: clampFloat(record.caloriesPerUnit, 0, 0, 10000, 4),
+      proteinGramsPerUnit: clampFloat(record.proteinGramsPerUnit, 0, 0, 1000, 4),
+      carbsGramsPerUnit: clampFloat(record.carbsGramsPerUnit, 0, 0, 1500, 4),
+      fatGramsPerUnit: clampFloat(record.fatGramsPerUnit, 0, 0, 600, 4),
       ...(customFoodId ? { customFoodId } : {})
     };
     if (isGramUnitLabel(nextItem.unitLabel) && hasImplausiblePerGramDensity(nextItem)) {
