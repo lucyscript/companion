@@ -253,10 +253,12 @@ function toTargetDraft(profile: NutritionTargetProfile | null): NutritionTargetD
 
   const weightKg = typeof profile.weightKg === "number" ? profile.weightKg : null;
   const weightLb = weightKg && weightKg > 0 ? weightKg * KG_TO_LB : null;
-  const proteinPerLb =
-    weightLb && typeof profile.targetProteinGrams === "number" ? roundToTenth(profile.targetProteinGrams / weightLb) : 0.8;
-  const fatPerLb =
-    weightLb && typeof profile.targetFatGrams === "number" ? roundToTenth(profile.targetFatGrams / weightLb) : 0.4;
+  const proteinPerLb = typeof profile.proteinGramsPerLb === "number"
+    ? profile.proteinGramsPerLb
+    : (weightLb && typeof profile.targetProteinGrams === "number" ? roundToTenth(profile.targetProteinGrams / weightLb) : 0.8);
+  const fatPerLb = typeof profile.fatGramsPerLb === "number"
+    ? profile.fatGramsPerLb
+    : (weightLb && typeof profile.targetFatGrams === "number" ? roundToTenth(profile.targetFatGrams / weightLb) : 0.4);
 
   return {
     weightKg: toNumberString(profile.weightKg),
@@ -311,9 +313,9 @@ function deriveTargetsFromDraft(draft: NutritionTargetDraft): {
     targetProteinGrams,
     targetCarbsGrams,
     targetFatGrams,
-    proteinGramsPerLb: roundToTenth(proteinPerLb),
+    proteinGramsPerLb: proteinPerLb,
     carbsGramsPerLb: carbsPerLb,
-    fatGramsPerLb: roundToTenth(fatPerLb)
+    fatGramsPerLb: fatPerLb
   };
 }
 
@@ -338,6 +340,34 @@ function completeTargetsFromProfile(profile: NutritionTargetProfile | null): {
 
   const weightKg = typeof profile.weightKg === "number" ? profile.weightKg : null;
   const weightLb = weightKg && weightKg > 0 ? weightKg * KG_TO_LB : null;
+
+  // When per-lb values are stored, recompute raw targets from source of truth
+  // to avoid precision loss from server storage round-trips
+  if (
+    weightLb !== null &&
+    typeof profile.proteinGramsPerLb === "number" &&
+    typeof profile.fatGramsPerLb === "number" &&
+    typeof profile.maintenanceCalories === "number" &&
+    typeof profile.surplusCalories === "number"
+  ) {
+    const targetCalories = profile.maintenanceCalories + profile.surplusCalories;
+    const targetProteinGrams = weightLb * profile.proteinGramsPerLb;
+    const targetFatGrams = weightLb * profile.fatGramsPerLb;
+    const remainingCalories = Math.max(0, targetCalories - targetProteinGrams * 4 - targetFatGrams * 9);
+    const targetCarbsGrams = remainingCalories / 4;
+    const carbsPerLb = roundToTenth(targetCarbsGrams / weightLb);
+
+    return {
+      targetCalories,
+      targetProteinGrams,
+      targetCarbsGrams,
+      targetFatGrams,
+      proteinGramsPerLb: profile.proteinGramsPerLb,
+      carbsGramsPerLb: carbsPerLb,
+      fatGramsPerLb: profile.fatGramsPerLb
+    };
+  }
+
   const proteinPerLb =
     weightLb !== null ? roundToTenth(profile.targetProteinGrams / weightLb) : null;
   const carbsPerLb =
@@ -369,12 +399,15 @@ function formatPerUnitMetric(value: number): string {
 }
 
 function formatSignedDelta(value: number, unit: string): string {
-  const rounded = roundToTenth(value);
-  if (Math.abs(rounded) < 0.1) {
+  const isCalorie = unit.includes("kcal");
+  const rounded = isCalorie ? Math.round(value) : roundToTenth(value);
+  const threshold = isCalorie ? 1 : 0.1;
+  if (Math.abs(rounded) < threshold) {
     return "On target";
   }
 
-  return `${rounded > 0 ? "+" : ""}${formatMetric(rounded)}${unit}`;
+  const display = isCalorie ? String(rounded) : formatMetric(rounded);
+  return `${rounded > 0 ? "+" : ""}${display}${unit}`;
 }
 
 function calculateCaloriesFromMacros(proteinGrams: number, carbsGrams: number, fatGrams: number): number {
@@ -765,7 +798,9 @@ export function NutritionView(): JSX.Element {
       targetCalories: derived.targetCalories,
       targetProteinGrams: derived.targetProteinGrams,
       targetCarbsGrams: derived.targetCarbsGrams,
-      targetFatGrams: derived.targetFatGrams
+      targetFatGrams: derived.targetFatGrams,
+      proteinGramsPerLb: derived.proteinGramsPerLb,
+      fatGramsPerLb: derived.fatGramsPerLb
     });
 
     setSavingTargets(false);

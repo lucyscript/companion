@@ -1198,7 +1198,9 @@ const nutritionTargetProfileUpsertSchema = z
     targetCalories: z.number().min(0).max(15000).nullable().optional(),
     targetProteinGrams: z.number().min(0).max(1000).nullable().optional(),
     targetCarbsGrams: z.number().min(0).max(1500).nullable().optional(),
-    targetFatGrams: z.number().min(0).max(600).nullable().optional()
+    targetFatGrams: z.number().min(0).max(600).nullable().optional(),
+    proteinGramsPerLb: z.number().min(0).max(2).nullable().optional(),
+    fatGramsPerLb: z.number().min(0).max(2).nullable().optional()
   })
   .refine(
     (value) =>
@@ -1209,7 +1211,9 @@ const nutritionTargetProfileUpsertSchema = z
         "targetCalories",
         "targetProteinGrams",
         "targetCarbsGrams",
-        "targetFatGrams"
+        "targetFatGrams",
+        "proteinGramsPerLb",
+        "fatGramsPerLb"
       ].some((field) => Object.prototype.hasOwnProperty.call(value, field)),
     "At least one target profile field is required"
   );

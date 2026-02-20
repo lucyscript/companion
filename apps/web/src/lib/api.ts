@@ -627,6 +627,8 @@ export interface NutritionTargetProfileUpsertPayload {
   targetProteinGrams?: number | null;
   targetCarbsGrams?: number | null;
   targetFatGrams?: number | null;
+  proteinGramsPerLb?: number | null;
+  fatGramsPerLb?: number | null;
 }
 
 export interface NutritionPlanSnapshotCreatePayload {

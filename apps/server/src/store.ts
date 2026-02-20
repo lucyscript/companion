@@ -423,6 +423,8 @@ export class RuntimeStore {
         targetProteinGrams REAL,
         targetCarbsGrams REAL,
         targetFatGrams REAL,
+        proteinGramsPerLb REAL,
+        fatGramsPerLb REAL,
         createdAt TEXT NOT NULL,
         updatedAt TEXT NOT NULL,
         insertOrder INTEGER NOT NULL DEFAULT (unixepoch('subsec') * 1000000)
@@ -732,6 +734,17 @@ export class RuntimeStore {
     const hasItemsJsonColumn = nutritionMealColumns.some((col) => col.name === "itemsJson");
     if (!hasItemsJsonColumn) {
       this.db.prepare("ALTER TABLE nutrition_meals ADD COLUMN itemsJson TEXT NOT NULL DEFAULT '[]'").run();
+    }
+
+    // Add per-lb macro columns to nutrition_target_profiles
+    const nutritionTargetColumns = this.db.prepare("PRAGMA table_info(nutrition_target_profiles)").all() as Array<{ name: string }>;
+    const hasProteinGramsPerLb = nutritionTargetColumns.some((col) => col.name === "proteinGramsPerLb");
+    if (!hasProteinGramsPerLb) {
+      this.db.prepare("ALTER TABLE nutrition_target_profiles ADD COLUMN proteinGramsPerLb REAL").run();
+    }
+    const hasFatGramsPerLb = nutritionTargetColumns.some((col) => col.name === "fatGramsPerLb");
+    if (!hasFatGramsPerLb) {
+      this.db.prepare("ALTER TABLE nutrition_target_profiles ADD COLUMN fatGramsPerLb REAL").run();
     }
 
     // Add Gmail messages and lastSyncedAt columns if they don't exist
@@ -3520,24 +3533,26 @@ export class RuntimeStore {
     return Math.round(clamped * factor) / factor;
   }
 
-  private toOptionalMetric(value: unknown, max: number): number | null {
+  private toOptionalMetric(value: unknown, max: number, precision = 1): number | null {
     if (typeof value !== "number") {
       return null;
     }
-    return this.clampNutritionMetric(value, 0, max);
+    return this.clampNutritionMetric(value, 0, max, precision);
   }
 
-  private toOptionalSignedMetric(value: unknown, min: number, max: number): number | null {
+  private toOptionalSignedMetric(value: unknown, min: number, max: number, precision = 1): number | null {
     if (typeof value !== "number") {
       return null;
     }
-    return this.clampSignedNutritionMetric(value, 0, min, max);
+    return this.clampSignedNutritionMetric(value, 0, min, max, precision);
   }
 
   private deriveNutritionTargetsFromSettings(input: {
     weightKg: number | null;
     maintenanceCalories: number | null;
     surplusCalories: number | null;
+    proteinGramsPerLb?: number | null;
+    fatGramsPerLb?: number | null;
   }): {
     targetCalories: number;
     targetProteinGrams: number;
@@ -3552,12 +3567,15 @@ export class RuntimeStore {
       return null;
     }
 
-    const targetCalories = this.clampNutritionMetric(input.maintenanceCalories + input.surplusCalories, 0, 15000);
+    const proteinPerLb = typeof input.proteinGramsPerLb === "number" ? input.proteinGramsPerLb : 0.8;
+    const fatPerLb = typeof input.fatGramsPerLb === "number" ? input.fatGramsPerLb : 0.4;
+
+    const targetCalories = this.clampNutritionMetric(input.maintenanceCalories + input.surplusCalories, 0, 15000, 6);
     const weightLb = input.weightKg * 2.2046226218;
-    const targetProteinGrams = this.clampNutritionMetric(weightLb * 0.8, 0, 1000);
-    const targetFatGrams = this.clampNutritionMetric(weightLb * 0.4, 0, 600);
+    const targetProteinGrams = this.clampNutritionMetric(weightLb * proteinPerLb, 0, 1000, 6);
+    const targetFatGrams = this.clampNutritionMetric(weightLb * fatPerLb, 0, 600, 6);
     const remainingCalories = Math.max(0, targetCalories - targetProteinGrams * 4 - targetFatGrams * 9);
-    const targetCarbsGrams = this.clampNutritionMetric(remainingCalories / 4, 0, 1500);
+    const targetCarbsGrams = this.clampNutritionMetric(remainingCalories / 4, 0, 1500, 6);
 
     return {
       targetCalories,
@@ -4304,6 +4322,8 @@ export class RuntimeStore {
           targetProteinGrams: number | null;
           targetCarbsGrams: number | null;
           targetFatGrams: number | null;
+          proteinGramsPerLb: number | null;
+          fatGramsPerLb: number | null;
           createdAt: string;
           updatedAt: string;
         }
@@ -4323,16 +4343,22 @@ export class RuntimeStore {
         ? { surplusCalories: this.clampSignedNutritionMetric(row.surplusCalories, 0, -5000, 5000) }
         : {}),
       ...(typeof row.targetCalories === "number"
-        ? { targetCalories: this.clampNutritionMetric(row.targetCalories, 0, 15000) }
+        ? { targetCalories: this.clampNutritionMetric(row.targetCalories, 0, 15000, 6) }
         : {}),
       ...(typeof row.targetProteinGrams === "number"
-        ? { targetProteinGrams: this.clampNutritionMetric(row.targetProteinGrams, 0, 1000) }
+        ? { targetProteinGrams: this.clampNutritionMetric(row.targetProteinGrams, 0, 1000, 6) }
         : {}),
       ...(typeof row.targetCarbsGrams === "number"
-        ? { targetCarbsGrams: this.clampNutritionMetric(row.targetCarbsGrams, 0, 1500) }
+        ? { targetCarbsGrams: this.clampNutritionMetric(row.targetCarbsGrams, 0, 1500, 6) }
         : {}),
       ...(typeof row.targetFatGrams === "number"
-        ? { targetFatGrams: this.clampNutritionMetric(row.targetFatGrams, 0, 600) }
+        ? { targetFatGrams: this.clampNutritionMetric(row.targetFatGrams, 0, 600, 6) }
+        : {}),
+      ...(typeof row.proteinGramsPerLb === "number"
+        ? { proteinGramsPerLb: this.clampNutritionMetric(row.proteinGramsPerLb, 0, 2, 6) }
+        : {}),
+      ...(typeof row.fatGramsPerLb === "number"
+        ? { fatGramsPerLb: this.clampNutritionMetric(row.fatGramsPerLb, 0, 2, 6) }
         : {}),
       createdAt: row.createdAt,
       updatedAt: row.updatedAt
@@ -4348,6 +4374,8 @@ export class RuntimeStore {
     targetProteinGrams?: number | null;
     targetCarbsGrams?: number | null;
     targetFatGrams?: number | null;
+    proteinGramsPerLb?: number | null;
+    fatGramsPerLb?: number | null;
   }): NutritionTargetProfile {
     const dateKey = this.toDateKey(entry.date ?? new Date());
     const existing = this.getNutritionTargetProfile(dateKey);
@@ -4365,17 +4393,23 @@ export class RuntimeStore {
       ? this.toOptionalSignedMetric(entry.surplusCalories, -5000, 5000)
       : existing?.surplusCalories ?? null;
     let targetCalories = has("targetCalories")
-      ? this.toOptionalMetric(entry.targetCalories, 15000)
+      ? this.toOptionalMetric(entry.targetCalories, 15000, 6)
       : existing?.targetCalories ?? null;
     let targetProteinGrams = has("targetProteinGrams")
-      ? this.toOptionalMetric(entry.targetProteinGrams, 1000)
+      ? this.toOptionalMetric(entry.targetProteinGrams, 1000, 6)
       : existing?.targetProteinGrams ?? null;
     let targetCarbsGrams = has("targetCarbsGrams")
-      ? this.toOptionalMetric(entry.targetCarbsGrams, 1500)
+      ? this.toOptionalMetric(entry.targetCarbsGrams, 1500, 6)
       : existing?.targetCarbsGrams ?? null;
     let targetFatGrams = has("targetFatGrams")
-      ? this.toOptionalMetric(entry.targetFatGrams, 600)
+      ? this.toOptionalMetric(entry.targetFatGrams, 600, 6)
       : existing?.targetFatGrams ?? null;
+    const proteinGramsPerLb = has("proteinGramsPerLb")
+      ? this.toOptionalMetric(entry.proteinGramsPerLb, 2, 6)
+      : existing?.proteinGramsPerLb ?? null;
+    const fatGramsPerLb = has("fatGramsPerLb")
+      ? this.toOptionalMetric(entry.fatGramsPerLb, 2, 6)
+      : existing?.fatGramsPerLb ?? null;
 
     const settingsChanged = has("weightKg") || has("maintenanceCalories") || has("surplusCalories");
     const targetsChanged = has("targetCalories") || has("targetProteinGrams") || has("targetCarbsGrams") || has("targetFatGrams");
@@ -4383,7 +4417,9 @@ export class RuntimeStore {
     const derived = this.deriveNutritionTargetsFromSettings({
       weightKg,
       maintenanceCalories,
-      surplusCalories
+      surplusCalories,
+      proteinGramsPerLb,
+      fatGramsPerLb
     });
 
     if (derived) {
@@ -4411,6 +4447,8 @@ export class RuntimeStore {
             targetProteinGrams = ?,
             targetCarbsGrams = ?,
             targetFatGrams = ?,
+            proteinGramsPerLb = ?,
+            fatGramsPerLb = ?,
             updatedAt = ?
            WHERE dateKey = ?`
         )
@@ -4422,6 +4460,8 @@ export class RuntimeStore {
           targetProteinGrams,
           targetCarbsGrams,
           targetFatGrams,
+          proteinGramsPerLb,
+          fatGramsPerLb,
           now,
           dateKey
         );
@@ -4437,9 +4477,11 @@ export class RuntimeStore {
             targetProteinGrams,
             targetCarbsGrams,
             targetFatGrams,
+            proteinGramsPerLb,
+            fatGramsPerLb,
             createdAt,
             updatedAt
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .run(
           dateKey,
@@ -4450,6 +4492,8 @@ export class RuntimeStore {
           targetProteinGrams,
           targetCarbsGrams,
           targetFatGrams,
+          proteinGramsPerLb,
+          fatGramsPerLb,
           now,
           now
         );
@@ -4465,6 +4509,8 @@ export class RuntimeStore {
       ...(typeof targetProteinGrams === "number" ? { targetProteinGrams } : {}),
       ...(typeof targetCarbsGrams === "number" ? { targetCarbsGrams } : {}),
       ...(typeof targetFatGrams === "number" ? { targetFatGrams } : {}),
+      ...(typeof proteinGramsPerLb === "number" ? { proteinGramsPerLb } : {}),
+      ...(typeof fatGramsPerLb === "number" ? { fatGramsPerLb } : {}),
       createdAt: existing?.createdAt ?? now,
       updatedAt: now
     };

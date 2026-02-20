@@ -543,6 +543,8 @@ export interface NutritionTargetProfile {
   targetProteinGrams?: number;
   targetCarbsGrams?: number;
   targetFatGrams?: number;
+  proteinGramsPerLb?: number;
+  fatGramsPerLb?: number;
   createdAt: string;
   updatedAt: string;
 }
