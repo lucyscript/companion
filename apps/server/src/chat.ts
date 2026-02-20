@@ -1043,10 +1043,14 @@ function shouldSkipStructuredReflection(input: string, assistantContent?: string
 }
 
 // --- Session-based journal batching ---
-// Instead of writing one journal entry per message, buffer captured turns in memory
-// and flush them as a single combined entry when a session gap is detected (>15 min).
+// Instead of writing one journal entry per message, buffer captured turns in memory.
+// A periodic timer flushes the buffer when conversation goes quiet (last entry >10 min old).
+// A size cap prevents unbounded memory growth for very long sessions.
+// Explicit flush also runs before analytics/summary generation.
 
-const JOURNAL_SESSION_GAP_MS = 15 * 60 * 1000; // 15 minutes
+const JOURNAL_FLUSH_INTERVAL_MS = 5 * 60 * 1000; // check every 5 min
+const JOURNAL_STALE_THRESHOLD_MS = 10 * 60 * 1000; // flush if last entry >10 min ago
+const JOURNAL_BUFFER_SIZE_CAP = 30; // flush if buffer hits this size
 const MIN_SALIENCE_THRESHOLD = 0.3;
 
 interface JournalBufferEntry {
@@ -1062,9 +1066,38 @@ interface JournalBufferEntry {
 }
 
 const journalSessionBuffer: JournalBufferEntry[] = [];
+let journalFlushStore: RuntimeStore | null = null;
 
 export function getJournalSessionBufferSize(): number {
   return journalSessionBuffer.length;
+}
+
+// Start the periodic flush timer. Called once at module load.
+// The timer checks if the buffer is stale and flushes it.
+let journalFlushTimer: ReturnType<typeof setInterval> | null = null;
+
+export function startJournalFlushTimer(store: RuntimeStore): void {
+  journalFlushStore = store;
+  if (journalFlushTimer) return;
+  journalFlushTimer = setInterval(() => {
+    if (journalSessionBuffer.length === 0 || !journalFlushStore) return;
+    const lastEntry = journalSessionBuffer[journalSessionBuffer.length - 1];
+    const ageMs = Date.now() - lastEntry.timestamp;
+    if (ageMs >= JOURNAL_STALE_THRESHOLD_MS) {
+      void flushJournalSessionBuffer(journalFlushStore);
+    }
+  }, JOURNAL_FLUSH_INTERVAL_MS);
+  // Don't block process exit
+  if (journalFlushTimer && typeof journalFlushTimer === "object" && "unref" in journalFlushTimer) {
+    journalFlushTimer.unref();
+  }
+}
+
+export function stopJournalFlushTimer(): void {
+  if (journalFlushTimer) {
+    clearInterval(journalFlushTimer);
+    journalFlushTimer = null;
+  }
 }
 
 async function bufferForJournalBatch(
@@ -1119,14 +1152,6 @@ async function bufferForJournalBatch(
 
   const nowMs = new Date(userMessage.timestamp).getTime();
 
-  // Check if we need to flush the existing buffer first (session gap detected)
-  if (journalSessionBuffer.length > 0) {
-    const lastBuffered = journalSessionBuffer[journalSessionBuffer.length - 1];
-    if (nowMs - lastBuffered.timestamp > JOURNAL_SESSION_GAP_MS) {
-      await flushJournalSessionBuffer(store, resolvedGeminiClient);
-    }
-  }
-
   // Add to buffer
   journalSessionBuffer.push({
     userMessage,
@@ -1134,6 +1159,11 @@ async function bufferForJournalBatch(
     gateDecision,
     timestamp: nowMs
   });
+
+  // Flush if buffer hits size cap (prevents unbounded memory for very long sessions)
+  if (journalSessionBuffer.length >= JOURNAL_BUFFER_SIZE_CAP) {
+    await flushJournalSessionBuffer(store, resolvedGeminiClient);
+  }
 }
 
 export async function flushJournalSessionBuffer(
