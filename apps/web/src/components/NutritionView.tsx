@@ -564,7 +564,7 @@ export function NutritionView(): JSX.Element {
       getNutritionPlanSnapshots({ limit: 200 })
     ]);
 
-    setSummary(nextSummary);
+    setSummary(nextMeals.length > 0 ? withMealsSummary(nextSummary, nextMeals) : nextSummary);
     setMeals(nextMeals);
     setCustomFoods(nextCustomFoods);
     setDaySnapshots(nextSnapshots);
