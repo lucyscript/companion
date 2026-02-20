@@ -1928,6 +1928,32 @@ button:disabled {
   overscroll-behavior: contain;
 }
 
+.chat-load-more {
+  text-align: center;
+  padding: 8px 0 4px;
+}
+
+.chat-load-more-btn {
+  background: var(--surface);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 6px 16px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.chat-load-more-btn:hover:not(:disabled) {
+  background: var(--border);
+  color: var(--text);
+}
+
+.chat-load-more-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .chat-welcome {
   text-align: center;
   padding: 40px 20px;

@@ -1390,45 +1390,19 @@ export async function sendChatMessageStream(
   return finalPayload.message;
 }
 
-export async function getChatHistory(limit = 500, offset = 0): Promise<GetChatHistoryResponse> {
-  const targetLimit = Math.max(1, Math.round(limit));
-  const targetOffset = Math.max(0, Math.round(offset));
-  const pageSize = 50;
+export async function getChatHistory(page = 1, pageSize = 50): Promise<GetChatHistoryResponse> {
+  const params = new URLSearchParams();
+  params.set("page", String(Math.max(1, Math.round(page))));
+  params.set("pageSize", String(Math.max(1, Math.min(Math.round(pageSize), 50))));
 
-  let page = 1;
-  let total = 0;
-  let hasMore = true;
-  const allMessages: ChatMessage[] = [];
-
-  while (hasMore && allMessages.length < targetOffset + targetLimit) {
-    const params = new URLSearchParams();
-    params.set("page", String(page));
-    params.set("pageSize", String(pageSize));
-
-    const response = await jsonOrThrow<GetChatHistoryResponse>(`/api/chat/history?${params.toString()}`);
-    const pageMessages = response.history.messages ?? [];
-
-    if (page === 1) {
-      total = response.history.total;
-    }
-
-    allMessages.push(...pageMessages);
-    hasMore = response.history.hasMore && pageMessages.length > 0;
-    page += 1;
-  }
-
-  // Server returns pages in reverse-chronological order (newest first).
-  // Normalize to chronological order for stable rendering and scroll behavior.
-  const normalized = [...allMessages].reverse();
-  const messages = normalized.slice(targetOffset, targetOffset + targetLimit);
+  const response = await jsonOrThrow<GetChatHistoryResponse>(`/api/chat/history?${params.toString()}`);
+  // Server returns newest-first; reverse to chronological for rendering
+  const messages = [...(response.history.messages ?? [])].reverse();
 
   return {
     history: {
-      messages,
-      page: 1,
-      pageSize: messages.length,
-      total,
-      hasMore: targetOffset + targetLimit < total
+      ...response.history,
+      messages
     }
   };
 }

@@ -368,6 +368,9 @@ export function ChatView(): JSX.Element {
   const [expandedCitationMessageIds, setExpandedCitationMessageIds] = useState<Set<string>>(new Set());
   const [isListening, setIsListening] = useState(false);
   const [chatMood, setChatMood] = useState<ChatMood>("neutral");
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const nextPageRef = useRef(2);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -407,13 +410,42 @@ export function ChatView(): JSX.Element {
     });
   };
 
+  const loadOlderMessages = async (): Promise<void> => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    try {
+      const container = messagesContainerRef.current;
+      const prevScrollHeight = container?.scrollHeight ?? 0;
+
+      const response = await getChatHistory(nextPageRef.current, 50);
+      const olderMessages = response.history.messages;
+      if (olderMessages.length > 0) {
+        setMessages((prev) => [...olderMessages, ...prev]);
+        nextPageRef.current += 1;
+        // Preserve scroll position after prepending
+        requestAnimationFrame(() => {
+          if (container) {
+            container.scrollTop = container.scrollHeight - prevScrollHeight;
+          }
+        });
+      }
+      setHasMore(response.history.hasMore);
+    } catch (err) {
+      console.error("Failed to load older messages", err);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
   // Load chat history on mount
   useEffect(() => {
     const loadHistory = async (): Promise<void> => {
       try {
-        const response = await getChatHistory();
+        const response = await getChatHistory(1, 50);
         pendingInitialScrollRef.current = true;
         setMessages(response.history.messages);
+        setHasMore(response.history.hasMore);
+        nextPageRef.current = 2;
         // Restore mood from most recent assistant message
         const lastAssistant = [...response.history.messages].reverse().find((m) => m.role === "assistant");
         if (lastAssistant?.metadata?.mood) {
@@ -740,6 +772,18 @@ export function ChatView(): JSX.Element {
     <div className={`chat-view chat-mood-${chatMood}`}>
       <MoodBurst mood={burstMood} />
       <div className="chat-messages" ref={messagesContainerRef}>
+        {hasMore && (
+          <div className="chat-load-more">
+            <button
+              type="button"
+              className="chat-load-more-btn"
+              onClick={() => void loadOlderMessages()}
+              disabled={loadingMore}
+            >
+              {loadingMore ? "Loading…" : "Load older messages"}
+            </button>
+          </div>
+        )}
         {messages.length === 0 && (
           <div className="chat-welcome">
             <h2>👋 Hi there!</h2>
