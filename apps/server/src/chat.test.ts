@@ -559,7 +559,7 @@ describe("chat service", () => {
       "If the user asks to save/update a meal plan, persist it via nutrition tools (targets/meals/items/custom foods)."
     );
     expect(firstRequest.systemInstruction).toContain(
-      "For deadline completion and snooze/extension requests, use queueDeadlineAction and apply immediately (no confirmation step)."
+      "For deadline completion or rescheduling/extension requests, use queueDeadlineAction with action 'complete' or 'reschedule'"
     );
     expect(firstRequest.systemInstruction).toContain(
       "For schedule mutations, execute immediately with createScheduleBlock/updateScheduleBlock/deleteScheduleBlock/clearScheduleWindow."
@@ -893,7 +893,7 @@ describe("chat service", () => {
     expect(result.reply).toContain("Done. Marked it complete.");
   });
 
-  it("applies deadline snooze immediately without creating pending confirmation", async () => {
+  it("applies deadline reschedule immediately without creating pending confirmation", async () => {
     const deadline = store.createDeadline({
       course: "DAT560",
       task: "Assignment 2",
@@ -910,7 +910,7 @@ describe("chat service", () => {
         functionCalls: [
           {
             name: "queueDeadlineAction",
-            args: { deadlineId: deadline.id, action: "snooze", snoozeHours: 96 }
+            args: { deadlineId: deadline.id, action: "reschedule", newDueDate: "2026-02-22T23:59:00.000Z" }
           }
         ],
         usageMetadata: {
@@ -920,7 +920,7 @@ describe("chat service", () => {
         }
       })
       .mockResolvedValueOnce({
-        text: "Done. I moved that deadline to the new date.",
+        text: "Done. I moved that deadline to Feb 22.",
         finishReason: "stop",
         usageMetadata: {
           promptTokenCount: 9,
@@ -933,7 +933,7 @@ describe("chat service", () => {
       generateLiveChatResponse
     } as unknown as GeminiClient;
 
-    const result = await sendChatMessage(store, "Extend DAT560 Assignment 2 by four days", {
+    const result = await sendChatMessage(store, "Extend DAT560 Assignment 2 to Feb 22 23:59", {
       geminiClient: fakeGemini
     });
 
@@ -941,7 +941,7 @@ describe("chat service", () => {
     expect(result.reply).toContain("Done. I moved that deadline");
     expect(result.assistantMessage.metadata?.pendingActions).toBeUndefined();
     expect(store.getPendingChatActions()).toHaveLength(0);
-    expect(store.getDeadlineById(deadline.id, false)?.dueDate).toBe("2026-02-22T12:00:00.000Z");
+    expect(store.getDeadlineById(deadline.id, false)?.dueDate).toBe("2026-02-22T23:59:00.000Z");
     expect(result.citations).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

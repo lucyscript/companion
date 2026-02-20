@@ -953,33 +953,6 @@ describe("gemini-tools", () => {
       expect(store.getPendingChatActions()).toHaveLength(0);
     });
 
-    it("snoozes a deadline immediately without pending confirmation", () => {
-      const deadline = store.createDeadline({
-        course: "DAT560",
-        task: "Assignment 2",
-        dueDate: "2026-02-20T12:00:00.000Z",
-        priority: "high",
-        completed: false
-      });
-
-      const result = handleQueueDeadlineAction(store, {
-        deadlineId: deadline.id,
-        action: "snooze",
-        snoozeHours: 96
-      });
-
-      expect("error" in result).toBe(false);
-      expect("pendingAction" in result).toBe(false);
-      expect(result).toHaveProperty("requiresConfirmation", false);
-      if ("error" in result || "pendingAction" in result) {
-        throw new Error("Expected immediate snooze response.");
-      }
-
-      expect(result.success).toBe(true);
-      expect(result.deadline.dueDate).toBe("2026-02-24T12:00:00.000Z");
-      expect(store.getPendingChatActions()).toHaveLength(0);
-    });
-
     it("reschedules a deadline to an exact date", () => {
       const deadline = store.createDeadline({
         course: "DAT560",

@@ -996,7 +996,7 @@ export const functionDeclarations: FunctionDeclaration[] = [
   {
     name: "queueDeadlineAction",
     description:
-      "Modify a deadline immediately by action. Supports complete, snooze, and reschedule without extra confirmation.",
+      "Modify a deadline immediately by action. Supports complete and reschedule without extra confirmation.",
     parameters: {
       type: SchemaType.OBJECT,
       properties: {
@@ -1006,11 +1006,7 @@ export const functionDeclarations: FunctionDeclaration[] = [
         },
         action: {
           type: SchemaType.STRING,
-          description: "Action: complete, snooze, or reschedule"
-        },
-        snoozeHours: {
-          type: SchemaType.NUMBER,
-          description: "When action is snooze, number of hours to delay (default: 24)"
+          description: "Action: complete or reschedule"
         },
         newDueDate: {
           type: SchemaType.STRING,
@@ -3713,8 +3709,7 @@ export interface PendingActionToolResponse {
 export interface ImmediateDeadlineActionResponse {
   success: true;
   requiresConfirmation: false;
-  action: "complete" | "snooze" | "reschedule";
-  snoozeHours?: number;
+  action: "complete" | "reschedule";
   message: string;
   deadline: Deadline;
 }
@@ -3883,8 +3878,8 @@ export function handleQueueDeadlineAction(
     return { error: `Deadline not found: ${deadlineId}` };
   }
 
-  if (action !== "complete" && action !== "snooze" && action !== "reschedule") {
-    return { error: "Unsupported deadline action. Use complete, snooze, or reschedule." };
+  if (action !== "complete" && action !== "reschedule") {
+    return { error: "Unsupported deadline action. Use complete or reschedule." };
   }
 
   if (action === "complete") {
@@ -3924,26 +3919,7 @@ export function handleQueueDeadlineAction(
     };
   }
 
-  const snoozeHours = clampNumber(args.snoozeHours, 24, 1, 168);
-  const dueDate = new Date(deadline.dueDate);
-  if (Number.isNaN(dueDate.getTime())) {
-    return { error: "Deadline due date is invalid." };
-  }
-
-  dueDate.setHours(dueDate.getHours() + snoozeHours);
-  const updated = store.updateDeadline(deadline.id, { dueDate: dueDate.toISOString() });
-  if (!updated) {
-    return { error: "Unable to snooze deadline." };
-  }
-
-  return {
-    success: true,
-    requiresConfirmation: false,
-    action: "snooze",
-    snoozeHours,
-    message: `Snoozed ${updated.course} ${updated.task} by ${snoozeHours} hours.`,
-    deadline: updated
-  };
+  return { error: "Unsupported deadline action. Use complete or reschedule." };
 }
 
 export function handleCreateScheduleBlock(
@@ -4431,58 +4407,6 @@ export function executePendingChatAction(
         actionType: pendingAction.actionType,
         success: true,
         message: `Marked ${updated.course} ${updated.task} as completed.`,
-        deadline: updated
-      };
-    }
-    case "snooze-deadline": {
-      const deadlineId = asTrimmedString(pendingAction.payload.deadlineId);
-      if (!deadlineId) {
-        return {
-          actionId: pendingAction.id,
-          actionType: pendingAction.actionType,
-          success: false,
-          message: "Invalid snooze action payload."
-        };
-      }
-
-      const existing = store.getDeadlineById(deadlineId, false);
-      if (!existing) {
-        return {
-          actionId: pendingAction.id,
-          actionType: pendingAction.actionType,
-          success: false,
-          message: "Deadline not found for snooze."
-        };
-      }
-
-      const dueDate = new Date(existing.dueDate);
-      if (Number.isNaN(dueDate.getTime())) {
-        return {
-          actionId: pendingAction.id,
-          actionType: pendingAction.actionType,
-          success: false,
-          message: "Deadline due date is invalid."
-        };
-      }
-
-      const snoozeHours = clampNumber(pendingAction.payload.snoozeHours, 24, 1, 168);
-      dueDate.setHours(dueDate.getHours() + snoozeHours);
-      const updated = store.updateDeadline(deadlineId, { dueDate: dueDate.toISOString() });
-
-      if (!updated) {
-        return {
-          actionId: pendingAction.id,
-          actionType: pendingAction.actionType,
-          success: false,
-          message: "Unable to snooze deadline."
-        };
-      }
-
-      return {
-        actionId: pendingAction.id,
-        actionType: pendingAction.actionType,
-        success: true,
-        message: `Snoozed ${updated.course} ${updated.task} by ${snoozeHours} hours.`,
         deadline: updated
       };
     }

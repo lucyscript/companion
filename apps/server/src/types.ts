@@ -34,7 +34,6 @@ export type ChatRole = "user" | "assistant";
 
 export type ChatActionType =
   | "complete-deadline"
-  | "snooze-deadline"
   | "reschedule-deadline"
   | "create-schedule-block"
   | "update-schedule-block"
