@@ -522,12 +522,24 @@ export interface SendChatMessageStreamDoneResponse {
 }
 
 export type AuthRole = "admin" | "user";
+export type AuthProvider = "local" | "google" | "github";
+export type ConnectorService = "canvas" | "gmail" | "github_course" | "withings" | "tp_schedule";
 
 export interface AuthUser {
   id: string;
   email: string;
   role: AuthRole;
+  name?: string;
+  avatarUrl?: string;
+  provider: AuthProvider;
   createdAt: string;
+  updatedAt: string;
+}
+
+export interface UserConnection {
+  service: ConnectorService;
+  displayLabel?: string;
+  connectedAt: string;
   updatedAt: string;
 }
 

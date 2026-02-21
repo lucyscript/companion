@@ -3,6 +3,7 @@ import {
   CalendarImportPreview,
   CalendarImportResult,
   ChatMessage,
+  ConnectorService,
   DashboardSnapshot,
   LectureEvent,
   ScheduleSuggestionMute,
@@ -29,6 +30,7 @@ import {
   SendChatMessageStreamDoneResponse,
   GetChatHistoryResponse,
   AuthUser,
+  UserConnection,
   UserContext,
   SyncQueueStatus,
   CanvasSettings,
@@ -72,6 +74,11 @@ export class UnauthorizedError extends Error {
 
 export interface AuthStatusResponse {
   required: boolean;
+  providers?: {
+    local: boolean;
+    google: boolean;
+    github: boolean;
+  };
 }
 
 export interface AuthSessionResponse {
@@ -1425,4 +1432,31 @@ export async function getScheduledReminders(): Promise<ScheduledReminder[]> {
 
 export async function cancelScheduledReminder(id: string): Promise<void> {
   await jsonOrThrow<{ success: boolean }>(`/api/scheduled-notifications/${id}`, { method: "DELETE" });
+}
+
+// ── Connectors ──────────────────────────────────────────────────────────
+
+export async function getConnectors(): Promise<UserConnection[]> {
+  const response = await jsonOrThrow<{ connections: UserConnection[] }>("/api/connectors");
+  return response.connections;
+}
+
+export interface ConnectServiceResponse {
+  ok: boolean;
+  redirectUrl?: string;
+  connection?: UserConnection;
+}
+
+export async function connectService(
+  service: ConnectorService,
+  body: Record<string, string>
+): Promise<ConnectServiceResponse> {
+  return await jsonOrThrow<ConnectServiceResponse>(`/api/connectors/${service}/connect`, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function disconnectService(service: ConnectorService): Promise<void> {
+  await jsonOrThrow<{ ok: boolean }>(`/api/connectors/${service}`, { method: "DELETE" });
 }

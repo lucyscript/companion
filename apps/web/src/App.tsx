@@ -18,6 +18,7 @@ import {
   clearCompanionSessionData,
   loadAuthToken,
   loadChatMood,
+  saveAuthToken,
   saveChatMood
 } from "./lib/storage";
 import { hapticCriticalAlert } from "./lib/haptics";
@@ -56,6 +57,9 @@ export default function App(): JSX.Element {
   const [authUserEmail, setAuthUserEmail] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authSubmitting, setAuthSubmitting] = useState(false);
+  const [authProviders, setAuthProviders] = useState<{ local: boolean; google: boolean; github: boolean }>({
+    local: true, google: false, github: false
+  });
   const { data, loading, error } = useDashboard(authState === "ready");
   const [pushState, setPushState] = useState<PushState>("checking");
   const [pushMessage, setPushMessage] = useState("");
@@ -75,6 +79,26 @@ export default function App(): JSX.Element {
       setAuthState("checking");
       setAuthError(null);
 
+      // Handle OAuth redirect: extract token from URL fragment (#auth_token=...)
+      const hash = window.location.hash;
+      if (hash.startsWith("#auth_token=")) {
+        const token = hash.slice("#auth_token=".length);
+        if (token) {
+          saveAuthToken(token);
+        }
+        // Clean the URL fragment without triggering navigation
+        history.replaceState(null, "", window.location.pathname + window.location.search);
+      }
+
+      // Handle OAuth error from redirect
+      if (hash.startsWith("#auth_error=")) {
+        const errorMsg = decodeURIComponent(hash.slice("#auth_error=".length));
+        history.replaceState(null, "", window.location.pathname + window.location.search);
+        setAuthError(errorMsg || "OAuth sign-in failed");
+        setAuthState("required-login");
+        return;
+      }
+
       try {
         const status = await getAuthStatus();
         if (disposed) {
@@ -82,6 +106,7 @@ export default function App(): JSX.Element {
         }
 
         setAuthRequired(status.required);
+        setAuthProviders(status.providers ?? { local: true, google: false, github: false });
         if (!status.required) {
           setAuthState("ready");
           return;
@@ -409,7 +434,7 @@ export default function App(): JSX.Element {
   if (authState === "required-login") {
     return (
       <main className="app-shell">
-        <LoginView loading={authSubmitting} error={authError} onLogin={handleLogin} />
+        <LoginView loading={authSubmitting} error={authError} onLogin={handleLogin} providers={authProviders} />
       </main>
     );
   }

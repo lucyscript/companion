@@ -2,6 +2,7 @@ import { NotificationSettings } from "./NotificationSettings";
 import { CalendarImportView } from "./CalendarImportView";
 import { IntegrationStatusView } from "./IntegrationStatusView";
 import { IntegrationScopeSettings } from "./IntegrationScopeSettings";
+import { ConnectorsView } from "./ConnectorsView";
 
 interface SettingsViewProps {
   onCalendarImported: () => void;
@@ -15,6 +16,11 @@ export function SettingsView({
       <div className="settings-header">
         <span className="settings-header-icon">⚙️</span>
         <h2>Settings</h2>
+      </div>
+
+      <div className="settings-section">
+        <h3 className="settings-section-title">🔗 Connected Apps</h3>
+        <ConnectorsView />
       </div>
 
       <div className="settings-section">
