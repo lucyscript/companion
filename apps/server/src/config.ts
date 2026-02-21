@@ -94,7 +94,8 @@ const schema = z.object({
   GOOGLE_OAUTH_CLIENT_SECRET: z.string().optional(),
   GITHUB_OAUTH_CLIENT_ID: z.string().optional(),
   GITHUB_OAUTH_CLIENT_SECRET: z.string().optional(),
-  OAUTH_REDIRECT_BASE_URL: z.string().url().optional()
+  OAUTH_REDIRECT_BASE_URL: z.string().url().optional(),
+  FRONTEND_URL: z.string().url().default("http://localhost:5173")
 });
 
 export const config = schema.parse(env);

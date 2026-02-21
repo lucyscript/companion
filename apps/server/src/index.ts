@@ -613,10 +613,11 @@ function createOAuthSession(user: AuthUser): { token: string; expiresAt: string 
 }
 
 function getOAuthFrontendRedirect(token: string): string {
-  // Redirect to frontend with token in URL fragment (never sent to server in Referer)
-  const base = config.OAUTH_REDIRECT_BASE_URL ?? `http://localhost:${config.PORT}`;
-  const frontendPath = base.includes("github.io") ? "/companion/" : "/";
-  return `${base}${frontendPath}#auth_token=${encodeURIComponent(token)}`;
+  // Redirect to the FRONTEND (not the server) with token in URL fragment
+  const base = config.FRONTEND_URL;
+  // Ensure trailing slash for GitHub Pages paths
+  const normalizedBase = base.endsWith("/") ? base : `${base}/`;
+  return `${normalizedBase}#auth_token=${encodeURIComponent(token)}`;
 }
 
 app.get("/api/auth/google", (_req, res) => {
