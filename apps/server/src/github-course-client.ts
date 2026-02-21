@@ -31,6 +31,14 @@ export interface RepoCommit {
   author: string;
 }
 
+export interface ChangedFile {
+  path: string;
+  status: "added" | "removed" | "modified" | "renamed" | "copied" | "changed" | "unchanged";
+  additions: number;
+  deletions: number;
+  previousPath?: string;
+}
+
 export class GitHubCourseClient {
   private readonly token: string | undefined;
   private readonly baseUrl = "https://api.github.com";
@@ -166,6 +174,39 @@ export class GitHubCourseClient {
       message: c.commit.message.split("\n")[0],
       date: c.commit.author?.date ?? c.commit.committer?.date ?? "",
       author: c.commit.author?.name ?? "unknown"
+    }));
+  }
+
+  /**
+   * Compare two commits and return changed file paths.
+   * Uses the compare API: /repos/{owner}/{repo}/compare/{base}...{head}
+   */
+  async getChangedFiles(owner: string, repo: string, baseSha: string, headSha: string): Promise<ChangedFile[]> {
+    interface CompareFile {
+      filename: string;
+      status: "added" | "removed" | "modified" | "renamed" | "copied" | "changed" | "unchanged";
+      additions: number;
+      deletions: number;
+      changes: number;
+      previous_filename?: string;
+    }
+
+    interface CompareResponse {
+      status: string;
+      total_commits: number;
+      files?: CompareFile[];
+    }
+
+    const data = await this.fetch<CompareResponse>(
+      `/repos/${owner}/${repo}/compare/${baseSha}...${headSha}`
+    );
+
+    return (data.files ?? []).map((f) => ({
+      path: f.filename,
+      status: f.status,
+      additions: f.additions,
+      deletions: f.deletions,
+      previousPath: f.previous_filename,
     }));
   }
 }

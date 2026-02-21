@@ -32,9 +32,24 @@ export function getTrackedRepos(store: RuntimeStore): GitHubTrackedRepo[] {
 
 const agentTools: FunctionDeclaration[] = [
   {
+    name: "github_get_changed_files",
+    description:
+      "Get the list of files changed between two commits. Use this FIRST when a previous SHA is available to see what changed, so you only need to read the changed files instead of everything.",
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        owner: { type: SchemaType.STRING, description: "Repository owner (org name)" },
+        repo: { type: SchemaType.STRING, description: "Repository name" },
+        baseSha: { type: SchemaType.STRING, description: "Previous commit SHA (base)" },
+        headSha: { type: SchemaType.STRING, description: "Current commit SHA (head)" },
+      },
+      required: ["owner", "repo", "baseSha", "headSha"],
+    },
+  },
+  {
     name: "github_list_files",
     description:
-      "List all files in a course repository. Returns file paths and sizes. Use this to discover what content exists.",
+      "List all files in a course repository. Returns file paths and sizes. Use this for initial scans when no previous SHA is available, or when you need to discover the full repo structure.",
     parameters: {
       type: SchemaType.OBJECT,
       properties: {
@@ -121,11 +136,15 @@ const agentTools: FunctionDeclaration[] = [
 
 const SYSTEM_PROMPT = `You are a university course repository scanner. Your job is to find deadlines, assignments, and important course documents in GitHub repositories.
 
-For each repository you're given:
-1. List the files to see what's there
-2. Read any file that looks like it contains deadlines, assignments, lab plans, schedules, or course info (README.md, anything with "lab", "assignment", "deadline", "schedule", "syllabus", "exam", "plan", "project" in the name)
-3. When you find deadlines/assignments with due dates, report them via report_deadlines
-4. When you find important course documents (syllabus, grading info, course overview), report them via report_course_documents
+Strategy:
+- If a repo has a PREVIOUS SHA (incremental update): use github_get_changed_files first to see what changed, then only read the changed files that look relevant (markdown, text, assignment files). This is much more efficient.
+- If a repo has NO previous SHA (first scan): use github_list_files to see the full repo, then read the relevant files.
+
+For each repository:
+1. Check if previous SHA info is provided in the scan request
+2. If yes → call github_get_changed_files, then read only the changed .md/.txt files
+3. If no → call github_list_files, then read files that look like they contain deadlines/assignments/course info
+4. Report findings via report_deadlines and report_course_documents
 
 Rules:
 - Only report deadlines that have a clear due date (skip "TBA" or "TBD")
@@ -134,7 +153,8 @@ Rules:
 - Set priority to "high" for exams, "medium" for assignments/labs, "low" for optional tasks
 - For documents, write a concise summary capturing the key info
 - Don't read binary files, images, or very large code files — focus on .md and text files
-- Be efficient: don't read every single file, focus on the ones likely to have deadline/course info`;
+- Be efficient: only read files likely to have deadline/course info
+- On incremental updates, if no changed files are relevant (e.g. only code changes), you can skip reading and just report no new deadlines`;
 
 // ── Tool handler ──────────────────────────────────────────────────
 
@@ -151,6 +171,9 @@ function handleToolCall(
   syncedAt: string,
 ): unknown {
   switch (name) {
+    case "github_get_changed_files": {
+      return { _async: true, name, args };
+    }
     case "github_list_files": {
       // Handled async — returns a promise marker
       return { _async: true, name, args };
@@ -220,6 +243,24 @@ async function handleAsyncToolCall(
   const repo = args.repo as string;
 
   switch (name) {
+    case "github_get_changed_files": {
+      const baseSha = args.baseSha as string;
+      const headSha = args.headSha as string;
+      try {
+        const changedFiles = await client.getChangedFiles(owner, repo, baseSha, headSha);
+        return {
+          totalChanged: changedFiles.length,
+          files: changedFiles.map((f) => ({
+            path: f.path,
+            status: f.status,
+            additions: f.additions,
+            deletions: f.deletions,
+          })),
+        };
+      } catch (error) {
+        return { error: error instanceof Error ? error.message : "Failed to get diff" };
+      }
+    }
     case "github_list_files": {
       try {
         const { entries } = await client.listRepositoryTree(owner, repo);
@@ -269,6 +310,10 @@ export async function runGitHubAgent(
   store: RuntimeStore,
   gemini: GeminiClient,
   changedRepos?: GitHubTrackedRepo[],
+  /** Previous HEAD SHAs for diff-based scanning. Key: "owner/repo", value: previous SHA */
+  previousShas?: Record<string, string>,
+  /** Current HEAD SHAs (after detecting changes). Key: "owner/repo", value: current SHA */
+  headShas?: Record<string, string>,
 ): Promise<GitHubAgentResult> {
   const client = new GitHubCourseClient();
   if (!client.isConfigured()) {
@@ -288,12 +333,23 @@ export async function runGitHubAgent(
 
   // Build the user message telling the agent which repos to scan
   const repoList = repos.map((r) => {
-    const parts = [`- ${r.owner}/${r.repo}`];
+    const key = `${r.owner}/${r.repo}`;
+    const parts = [`- ${key}`];
     if (r.courseCode) parts.push(`(course: ${r.courseCode})`);
     if (r.label) parts.push(`— ${r.label}`);
+    const prevSha = previousShas?.[key];
+    const curSha = headShas?.[key];
+    if (prevSha && curSha) {
+      parts.push(`[previousSha: ${prevSha}, headSha: ${curSha}]`);
+    }
     return parts.join(" ");
   }).join("\n");
-  const userMessage = `Scan these course repositories for deadlines, assignments, and important course documents:\n\n${repoList}\n\nList files first, then read the relevant ones, and report what you find.`;
+
+  const hasDiffInfo = previousShas && headShas && Object.keys(previousShas).length > 0;
+  const scanInstruction = hasDiffInfo
+    ? "For repos with SHA info, use github_get_changed_files first to see what changed, then only read the changed files. For repos without SHA info, list files first, then read the relevant ones."
+    : "List files first, then read the relevant ones, and report what you find.";
+  const userMessage = `Scan these course repositories for deadlines, assignments, and important course documents:\n\n${repoList}\n\n${scanInstruction}`;
 
   const messages: GeminiMessage[] = [
     { role: "user", parts: [{ text: userMessage }] },

@@ -83,6 +83,10 @@ export class GitHubWatcher {
       }
       const isFirstRun = Object.keys(this.state.headShas).length === 0;
 
+      // Collect previous SHAs BEFORE updating, for diff-based scanning
+      const previousShasMap: Record<string, string> = {};
+      const currentShasMap: Record<string, string> = {};
+
       for (const repo of repos) {
         const key = `${repo.owner}/${repo.repo}`;
         try {
@@ -91,6 +95,10 @@ export class GitHubWatcher {
 
           if (previousSha !== headSha) {
             changedRepos.push(repo);
+            if (previousSha) {
+              previousShasMap[key] = previousSha;
+            }
+            currentShasMap[key] = headSha;
           }
 
           this.state.headShas[key] = headSha;
@@ -105,7 +113,10 @@ export class GitHubWatcher {
       // Trigger agent if repos changed (or first run = scan everything)
       if (changedRepos.length > 0 || isFirstRun) {
         const reposToScan = isFirstRun ? repos : changedRepos;
-        const agentResult = await runGitHubAgent(this.store, this.gemini, reposToScan);
+        // Pass previous/current SHAs for diff-based scanning (skip on first run — no base to diff from)
+        const agentResult = isFirstRun
+          ? await runGitHubAgent(this.store, this.gemini, reposToScan)
+          : await runGitHubAgent(this.store, this.gemini, reposToScan, previousShasMap, currentShasMap);
         this.state.lastAgentRunAt = new Date().toISOString();
         this.state.lastAgentResult = agentResult;
         this.saveState();
