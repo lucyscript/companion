@@ -1266,10 +1266,6 @@ button:disabled {
 }
 
 .daily-summary-panel {
-  border: 1px solid rgba(122, 136, 188, 0.42);
-  background: linear-gradient(145deg, rgba(54, 86, 163, 0.28), rgba(90, 66, 154, 0.22));
-  border-radius: 14px;
-  padding: 14px;
   margin-bottom: 14px;
   display: grid;
   gap: 10px;
@@ -6098,7 +6094,7 @@ label small.muted {
 .swipe-card {
   flex: 0 0 auto;
   min-width: 240px;
-  max-width: min(320px, calc(100vw - 90px));
+  max-width: 320px;
   scroll-snap-align: start;
 }
 
