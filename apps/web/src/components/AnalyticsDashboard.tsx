@@ -91,15 +91,9 @@ export function AnalyticsDashboard(): JSX.Element {
 
       {loading && !insight && (
         <div className="daily-summary-skeleton">
-          <div className="skeleton-block skeleton-visual" />
           <div className="skeleton-block skeleton-text-lg" />
           <div className="skeleton-block skeleton-text-md" />
           <div className="skeleton-block skeleton-text-md" />
-          <div className="skeleton-row">
-            <div className="skeleton-block skeleton-card" />
-            <div className="skeleton-block skeleton-card" />
-            <div className="skeleton-block skeleton-card" />
-          </div>
         </div>
       )}
 
@@ -129,9 +123,12 @@ export function AnalyticsDashboard(): JSX.Element {
                   if (cards.length === 0) return null;
                   return (
                     <div key={type} className="swipeable-card-stack challenge-type-row">
-                      <div className="challenge-row-label">{CHALLENGE_ICONS[type]} {CHALLENGE_LABELS[type]}</div>
                       {cards.map((c, i) => (
                         <div key={i} className="swipe-card challenge-card">
+                          <div className="challenge-header">
+                            <span className="challenge-icon">{CHALLENGE_ICONS[type]}</span>
+                            <span className="challenge-type">{CHALLENGE_LABELS[type]}</span>
+                          </div>
                           <p className="challenge-question">{c.question}</p>
                           {c.hint && <p className="challenge-hint">💡 {c.hint}</p>}
                         </div>

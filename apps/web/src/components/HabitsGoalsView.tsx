@@ -198,14 +198,9 @@ export function HabitsGoalsView(): JSX.Element {
         </header>
         {summaryLoading && (
           <div className="daily-summary-skeleton">
-            <div className="skeleton-block skeleton-visual" />
             <div className="skeleton-block skeleton-text-lg" />
             <div className="skeleton-block skeleton-text-md" />
             <div className="skeleton-block skeleton-text-md" />
-            <div className="skeleton-row">
-              <div className="skeleton-block skeleton-card" />
-              <div className="skeleton-block skeleton-card" />
-            </div>
           </div>
         )}
         {!summaryLoading && dailySummary && (
@@ -233,9 +228,12 @@ export function HabitsGoalsView(): JSX.Element {
                   if (cards.length === 0) return null;
                   return (
                     <div key={type} className="daily-summary-challenges challenge-type-row">
-                      <div className="challenge-row-label">{CHALLENGE_ICONS[type]} {CHALLENGE_LABELS[type]}</div>
                       {cards.map((c: ChallengePrompt, i: number) => (
                         <div key={i} className="challenge-card challenge-card-compact swipe-card">
+                          <div className="challenge-header">
+                            <span className="challenge-icon">{CHALLENGE_ICONS[type]}</span>
+                            <span className="challenge-type">{CHALLENGE_LABELS[type]}</span>
+                          </div>
                           <p className="challenge-question">{c.question}</p>
                           {c.hint && <p className="challenge-hint">💡 {c.hint}</p>}
                         </div>

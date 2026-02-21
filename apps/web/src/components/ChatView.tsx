@@ -383,8 +383,9 @@ export function ChatView({ mood, onMoodChange }: ChatViewProps): JSX.Element {
   const scrollFrameRef = useRef<number | null>(null);
   const pendingInitialScrollRef = useRef(false);
   const streamContentRef = useRef("");
-  const streamIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const streamRafRef = useRef<number | null>(null);
   const streamPlaceholderIdRef = useRef<string | null>(null);
+  const streamBubbleRef = useRef<HTMLSpanElement | null>(null);
 
   const recognitionCtor = getSpeechRecognitionCtor();
   const speechRecognitionSupported = Boolean(recognitionCtor);
@@ -589,20 +590,7 @@ export function ChatView({ mood, onMoodChange }: ChatViewProps): JSX.Element {
     try {
       streamContentRef.current = "";
       streamPlaceholderIdRef.current = assistantPlaceholder.id;
-
-      // Flush accumulated stream content to React state
-      const flushStream = (): void => {
-        const content = streamContentRef.current;
-        const placeholderId = streamPlaceholderIdRef.current;
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === placeholderId
-              ? { ...msg, content, streaming: true }
-              : msg
-          )
-        );
-        scheduleScrollToBottom("auto");
-      };
+      streamBubbleRef.current = null;
 
       const response = await sendChatMessageStream(
         trimmedText,
@@ -612,21 +600,39 @@ export function ChatView({ mood, onMoodChange }: ChatViewProps): JSX.Element {
               return;
             }
             streamContentRef.current += delta;
-            // Start a throttled interval to flush content every 60ms
-            // This reduces React re-renders from ~60fps to ~16fps
-            if (streamIntervalRef.current === null) {
-              flushStream(); // Show the first token immediately
-              streamIntervalRef.current = setInterval(flushStream, 60);
+            // Use rAF for native-framerate updates (120Hz on ProMotion, 60Hz otherwise)
+            if (streamRafRef.current === null) {
+              streamRafRef.current = requestAnimationFrame(() => {
+                streamRafRef.current = null;
+                const bubble = streamBubbleRef.current;
+                if (bubble) {
+                  // Direct DOM update — bypasses React reconciliation entirely
+                  bubble.textContent = streamContentRef.current;
+                } else {
+                  // First tokens: one React render to switch from typing dots to text
+                  const content = streamContentRef.current;
+                  const placeholderId = streamPlaceholderIdRef.current;
+                  setMessages((prev) =>
+                    prev.map((msg) =>
+                      msg.id === placeholderId
+                        ? { ...msg, content, streaming: true }
+                        : msg
+                    )
+                  );
+                }
+                scheduleScrollToBottom("auto");
+              });
             }
           }
         },
         attachmentsToSend
       );
-      // Clear interval and do one final flush
-      if (streamIntervalRef.current !== null) {
-        clearInterval(streamIntervalRef.current);
-        streamIntervalRef.current = null;
+      // Cancel any pending rAF before final commit
+      if (streamRafRef.current !== null) {
+        cancelAnimationFrame(streamRafRef.current);
+        streamRafRef.current = null;
       }
+      streamBubbleRef.current = null;
       if (response.metadata?.mood) {
         onMoodChange(response.metadata.mood);
       }
@@ -829,6 +835,8 @@ export function ChatView({ mood, onMoodChange }: ChatViewProps): JSX.Element {
                     <span></span>
                     <span></span>
                   </div>
+                ) : msg.streaming ? (
+                  <span ref={streamBubbleRef} className="chat-stream-text">{msg.content}</span>
                 ) : msg.role === "assistant" ? (
                   renderAssistantContent(msg.content)
                 ) : msg.content.trim().length > 0 ? (
