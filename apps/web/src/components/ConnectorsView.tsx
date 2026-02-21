@@ -7,7 +7,7 @@ interface ConnectorMeta {
   label: string;
   icon: string;
   description: string;
-  type: "token" | "oauth" | "config";
+  type: "token" | "oauth" | "config" | "url";
   placeholder?: string;
   configFields?: { key: string; label: string; placeholder: string }[];
 }
@@ -47,12 +47,9 @@ const CONNECTORS: ConnectorMeta[] = [
     service: "tp_schedule",
     label: "TP EduCloud Schedule",
     icon: "📅",
-    description: "Import lecture schedule from UiS TimeEdit/TP.",
-    type: "config",
-    configFields: [
-      { key: "courseIds", label: "Course IDs", placeholder: "DAT520,1;DAT560,1;DAT600,1" },
-      { key: "semester", label: "Semester", placeholder: "26v" }
-    ]
+    description: "Import your lecture schedule via iCal subscription link from TP.",
+    type: "url",
+    placeholder: "Paste your TP iCal URL here"
   }
 ];
 
@@ -127,6 +124,14 @@ export function ConnectorsView(): JSX.Element {
           body[field.key] = val;
         }
         await connectService(connector.service, body);
+      } else if (connector.type === "url") {
+        const url = inputValues[connector.service]?.trim();
+        if (!url || !url.startsWith("http")) {
+          setError("Please enter a valid URL");
+          setSubmitting(null);
+          return;
+        }
+        await connectService(connector.service, { icalUrl: url });
       }
 
       // Refresh connections list
@@ -286,18 +291,42 @@ export function ConnectorsView(): JSX.Element {
                   </div>
                 )}
 
+                {connector.type === "url" && (
+                  <div className="connector-url-input">
+                    <input
+                      type="url"
+                      placeholder={connector.placeholder}
+                      value={inputValues[connector.service] ?? ""}
+                      onChange={(e) => handleInputChange(connector.service, e.target.value)}
+                      disabled={busy}
+                    />
+                    <button
+                      className="connector-connect-btn"
+                      onClick={() => void handleConnect(connector)}
+                      disabled={busy || !inputValues[connector.service]?.trim()}
+                    >
+                      {busy ? "Saving..." : "Save"}
+                    </button>
+                  </div>
+                )}
+
                 {error && expandedService === connector.service && (
                   <p className="connector-error">{error}</p>
                 )}
 
                 {connector.service === "canvas" && (
                   <p className="connector-help-text">
-                    Generate a token at Canvas → Account → Settings → New Access Token
+                    Go to <strong>Canvas</strong> → click your profile picture → <strong>Settings</strong> → scroll to <strong>Approved Integrations</strong> → <strong>+ New Access Token</strong>. Give it a name and copy the token.
                   </p>
                 )}
                 {connector.service === "github_course" && (
                   <p className="connector-help-text">
-                    Create a PAT at GitHub → Settings → Developer settings → Personal access tokens
+                    Go to <strong>GitHub</strong> → <strong>Settings</strong> → <strong>Developer settings</strong> → <strong>Personal access tokens</strong> → <strong>Fine-grained tokens</strong>. Select the course organizations and grant read access to repositories.
+                  </p>
+                )}
+                {connector.service === "tp_schedule" && (
+                  <p className="connector-help-text">
+                    Go to <strong>tp.educloud.no</strong> → find your courses → click <strong>Verktøy</strong> → <strong>Kopier abonnementlenken til timeplanen</strong>. Paste the iCal URL here (starts with https://tp.educloud.no/...).
                   </p>
                 )}
               </div>

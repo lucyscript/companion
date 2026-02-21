@@ -684,15 +684,15 @@ app.post("/api/connectors/:service/connect", (req, res) => {
   }
 
   if (service === "tp_schedule") {
-    const { courseIds } = req.body as { courseIds?: string[] };
-    if (!courseIds || !Array.isArray(courseIds) || courseIds.length === 0) {
-      return res.status(400).json({ error: "At least one course ID is required" });
+    const { icalUrl } = req.body as { icalUrl?: string };
+    if (!icalUrl || typeof icalUrl !== "string" || !icalUrl.trim().startsWith("http")) {
+      return res.status(400).json({ error: "A valid iCal URL is required" });
     }
     store.upsertUserConnection({
       userId: authReq.authUser.id,
       service: "tp_schedule",
-      credentials: JSON.stringify({ courseIds }),
-      displayLabel: `TP (${courseIds.length} courses)`
+      credentials: JSON.stringify({ icalUrl: icalUrl.trim() }),
+      displayLabel: "TP Schedule"
     });
     return res.json({ ok: true, service: "tp_schedule" });
   }

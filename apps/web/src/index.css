@@ -4019,6 +4019,28 @@ button:disabled {
   border-color: var(--accent);
 }
 
+.connector-url-input {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.connector-url-input input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--card-border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.82rem;
+  font-family: monospace;
+}
+
+.connector-url-input input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
 .connector-connect-btn {
   padding: 10px 18px;
   border-radius: 10px;
@@ -4103,6 +4125,11 @@ button:disabled {
   color: var(--muted);
   opacity: 0.7;
   line-height: 1.4;
+}
+
+.connector-help-text strong {
+  color: var(--text);
+  opacity: 1;
 }
 
 .push-message {
