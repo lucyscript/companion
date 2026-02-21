@@ -171,6 +171,7 @@ export function HabitsGoalsView(): JSX.Element {
   };
 
   return (
+    <>
     <section className="panel habit-goal-panel">
       <header className="panel-header">
         <h2>Habits & Goals</h2>
@@ -189,8 +190,9 @@ export function HabitsGoalsView(): JSX.Element {
         {goals.map(renderGoal)}
         {goals.length === 0 && <p className="muted">No goals yet — ask Gemini to create one.</p>}
       </div>
+    </section>
 
-      <section className="daily-summary-panel daily-summary-animate">
+    <section className="daily-summary-panel daily-summary-animate">
         <header className="panel-header">
           <h3>Daily Reflection Summary</h3>
         </header>
@@ -243,6 +245,6 @@ export function HabitsGoalsView(): JSX.Element {
           </>
         )}
       </section>
-    </section>
+    </>
   );
 }
