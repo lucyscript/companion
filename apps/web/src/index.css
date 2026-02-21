@@ -1425,6 +1425,18 @@ button:disabled {
   gap: 10px;
 }
 
+/* Daily reflection challenge cards get enhanced glass treatment for swipe clarity */
+.daily-summary-challenge-groups .challenge-card {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-left: 3px solid color-mix(in srgb, #f59e0b 55%, transparent);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  padding: 14px 16px;
+}
+
 .ghost-button {
   border-radius: 10px;
   border: 1px solid var(--border-soft);

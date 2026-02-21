@@ -80,7 +80,7 @@ const schema = z.object({
   GMAIL_CLIENT_SECRET: z.string().optional(),
   GMAIL_ACCESS_TOKEN: z.string().optional(),
   GMAIL_REFRESH_TOKEN: z.string().optional(),
-  INTEGRATION_WINDOW_PAST_DAYS: z.coerce.number().int().min(0).default(30),
+  INTEGRATION_WINDOW_PAST_DAYS: z.coerce.number().int().min(0).default(7),
   INTEGRATION_WINDOW_FUTURE_DAYS: z.coerce.number().int().min(1).default(180),
   NOTIFICATION_DIGEST_MORNING_HOUR: z.coerce.number().int().min(0).max(23).default(8),
   NOTIFICATION_DIGEST_EVENING_HOUR: z.coerce.number().int().min(0).max(23).default(18),

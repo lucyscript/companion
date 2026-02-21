@@ -15,7 +15,7 @@ function parseCourseIds(value: string): string[] {
 
 function clampPastDays(value: number): number {
   if (!Number.isFinite(value)) return 0;
-  return Math.max(0, Math.min(365, Math.round(value)));
+  return Math.max(0, Math.min(30, Math.round(value)));
 }
 
 function clampFutureDays(value: number): number {
@@ -143,10 +143,6 @@ export function IntegrationScopeSettings(): JSX.Element {
 
   return (
     <section className="panel">
-      <header className="panel-header">
-        <h2>Integration scope</h2>
-      </header>
-
       <div className="settings-stack">
         <label>
           iCal semester
@@ -218,12 +214,13 @@ export function IntegrationScopeSettings(): JSX.Element {
             <input
               type="number"
               min={0}
-              max={365}
+              max={30}
               value={settings.pastDays}
               onChange={(event) =>
                 updateSettings({ ...settings, pastDays: clampPastDays(Number(event.target.value)) })
               }
             />
+            <p className="muted">Keep recent past assignments visible (0–30 days).</p>
           </label>
           <label>
             Future days
@@ -236,6 +233,7 @@ export function IntegrationScopeSettings(): JSX.Element {
                 updateSettings({ ...settings, futureDays: clampFutureDays(Number(event.target.value)) })
               }
             />
+            <p className="muted">How far ahead to sync assignments.</p>
           </label>
         </div>
 

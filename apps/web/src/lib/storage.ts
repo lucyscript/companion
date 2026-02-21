@@ -63,7 +63,7 @@ const defaultIntegrationScopeSettings: IntegrationScopeSettings = {
   semester: "26v",
   tpCourseIds: ["DAT520,1", "DAT560,1", "DAT600,1"],
   canvasCourseIds: [],
-  pastDays: 30,
+  pastDays: 7,
   futureDays: 180
 };
 
@@ -231,7 +231,7 @@ export function loadIntegrationScopeSettings(): IntegrationScopeSettings {
       canvasCourseIds,
       pastDays:
         typeof parsed.pastDays === "number" && Number.isFinite(parsed.pastDays)
-          ? Math.max(0, Math.min(365, Math.round(parsed.pastDays)))
+          ? Math.max(0, Math.min(30, Math.round(parsed.pastDays)))
           : defaultIntegrationScopeSettings.pastDays,
       futureDays:
         typeof parsed.futureDays === "number" && Number.isFinite(parsed.futureDays)
