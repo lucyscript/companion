@@ -185,8 +185,76 @@ export class RuntimeStore {
   constructor(dbPath: string = "companion.db") {
     this.db = new Database(dbPath);
     this.db.pragma("foreign_keys = ON");
+    this.migrateToMultiTenant();
     this.initializeSchema();
     this.loadOrInitializeDefaults();
+  }
+
+  /**
+   * Detects pre-multi-tenant schema (tables without userId column) and drops
+   * user-data tables so initializeSchema() recreates them with the new schema.
+   * Auth tables (users, auth_sessions) are preserved.
+   */
+  private migrateToMultiTenant(): void {
+    // Check if migration is needed: does user_context have a userId column?
+    const tableExists = this.db
+      .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='user_context'")
+      .get() as { name: string } | undefined;
+
+    if (!tableExists) {
+      // Table doesn't exist yet — fresh DB, no migration needed
+      return;
+    }
+
+    const columns = this.db.prepare("PRAGMA table_info(user_context)").all() as Array<{ name: string }>;
+    const hasUserId = columns.some((col) => col.name === "userId");
+
+    if (hasUserId) {
+      // Already migrated
+      return;
+    }
+
+    console.info("[migration] Detected pre-multi-tenant schema — dropping user-data tables for fresh start...");
+
+    // Drop all user-data tables (NOT auth tables: users, auth_sessions, user_connections, daily_usage)
+    const tablesToDrop = [
+      "agent_events", "agent_states", "notifications", "scheduled_notifications",
+      "chat_messages", "chat_long_term_memory", "journal_memory",
+      "pending_chat_actions", "schedule_events", "deadlines",
+      "deadline_reminder_states", "deadline_suggestions",
+      "habits", "habit_check_ins", "goals", "goal_check_ins",
+      "journal_entries", "journal_entry_tags", "reflection_entries",
+      "user_context", "context_history",
+      "notification_preferences", "push_subscriptions", "push_delivery_metrics",
+      "push_delivery_failures", "email_digests",
+      "locations", "location_history",
+      "nutrition_meals", "nutrition_custom_foods", "nutrition_target_profiles",
+      "nutrition_plan_snapshots", "nutrition_plan_settings",
+      "study_plan_sessions", "study_plan_check_ins",
+      "canvas_data", "github_course_data", "github_tracked_repos",
+      "gmail_data", "withings_data",
+      "routine_presets",
+      "integration_sync_attempts"
+    ];
+
+    for (const table of tablesToDrop) {
+      this.db.exec(`DROP TABLE IF EXISTS ${table}`);
+    }
+
+    // Also drop indexes that reference dropped tables
+    const indexes = this.db
+      .prepare("SELECT name FROM sqlite_master WHERE type='index' AND sql IS NOT NULL")
+      .all() as Array<{ name: string }>;
+
+    for (const idx of indexes) {
+      try {
+        this.db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
+      } catch {
+        // Index may reference a table that still exists — ignore
+      }
+    }
+
+    console.info(`[migration] Dropped ${tablesToDrop.length} tables. initializeSchema() will recreate them.`);
   }
 
   private initializeSchema(): void {
