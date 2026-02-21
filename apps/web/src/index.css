@@ -98,6 +98,7 @@ body.chat-tab-active {
     max(20px, calc(20px + env(safe-area-inset-left)));
   min-height: var(--app-viewport-height);
   transition: background 1.2s ease;
+  overflow-x: hidden;
 }
 
 .app-shell-chat-active {
