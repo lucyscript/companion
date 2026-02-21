@@ -1356,14 +1356,16 @@ button:disabled {
 /* Skeleton loading for daily summary */
 .daily-summary-skeleton {
   display: grid;
-  gap: 10px;
+  gap: 8px;
+  overflow: hidden;
+  max-width: 100%;
 }
 
 .skeleton-block {
   background: linear-gradient(90deg, var(--surface-soft) 25%, rgba(255,255,255,0.06) 50%, var(--surface-soft) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.6s ease-in-out infinite;
-  border-radius: 10px;
+  border-radius: 8px;
 }
 
 .skeleton-visual {
@@ -1372,29 +1374,31 @@ button:disabled {
 }
 
 .skeleton-text-lg {
-  height: 72px;
+  height: 40px;
   width: 100%;
 }
 
 .skeleton-text-md {
-  height: 18px;
+  height: 14px;
   width: 85%;
 }
 
 .skeleton-text-sm {
-  height: 14px;
+  height: 12px;
   width: 60%;
 }
 
 .skeleton-row {
   display: flex;
-  gap: 10px;
+  gap: 8px;
+  overflow: hidden;
 }
 
 .skeleton-card {
-  height: 100px;
-  flex: 0 0 220px;
-  border-radius: 10px;
+  height: 72px;
+  flex: 1 1 0;
+  min-width: 0;
+  border-radius: 8px;
 }
 
 @keyframes shimmer {
