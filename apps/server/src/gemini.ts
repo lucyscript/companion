@@ -13,6 +13,24 @@ export interface GeminiChatRequest {
   messages: GeminiMessage[];
   systemInstruction?: string;
   tools?: FunctionDeclaration[];
+  /** Enable Google Search grounding — lets Gemini search the web for real-time info */
+  googleSearchGrounding?: boolean;
+}
+
+export interface GroundingSearchSource {
+  uri: string;
+  title: string;
+}
+
+export interface GroundingMetadata {
+  searchEntryPoint?: { renderedContent?: string };
+  groundingChunks?: Array<{ web?: GroundingSearchSource }>;
+  groundingSupports?: Array<{
+    segment?: { startIndex?: number; endIndex?: number; text?: string };
+    groundingChunkIndices?: number[];
+    confidenceScores?: number[];
+  }>;
+  webSearchQueries?: string[];
 }
 
 export interface GeminiChatResponse {
@@ -24,6 +42,7 @@ export interface GeminiChatResponse {
     totalTokenCount: number;
   };
   functionCalls?: FunctionCall[];
+  groundingMetadata?: GroundingMetadata;
 }
 
 export interface GeminiImageGenerationResponse {
@@ -415,8 +434,16 @@ export class GeminiClient {
         parts: [{ text: request.systemInstruction }]
       };
     }
+    // Build tools array: function declarations + optional Google Search grounding
+    const toolsArray: Record<string, unknown>[] = [];
     if (request.tools && request.tools.length > 0) {
-      body.tools = [{ function_declarations: request.tools }];
+      toolsArray.push({ function_declarations: request.tools });
+    }
+    if (request.googleSearchGrounding) {
+      toolsArray.push({ google_search_retrieval: {} });
+    }
+    if (toolsArray.length > 0) {
+      body.tools = toolsArray;
     }
 
     try {
@@ -480,6 +507,8 @@ export class GeminiClient {
           finishReason?: string;
           finish_reason?: string;
           content?: { parts?: unknown[] };
+          groundingMetadata?: GroundingMetadata;
+          grounding_metadata?: GroundingMetadata;
         }>;
         usageMetadata?: unknown;
         usage_metadata?: unknown;
@@ -496,11 +525,14 @@ export class GeminiClient {
         .join("");
       const functionCalls = this.parseFunctionCallsFromParts(parts);
 
+      const grounding = firstCandidate?.groundingMetadata ?? firstCandidate?.grounding_metadata;
+
       return {
         text,
         finishReason: firstCandidate?.finishReason ?? firstCandidate?.finish_reason,
         usageMetadata: this.toUsageMetadata(payload.usageMetadata ?? payload.usage_metadata),
-        functionCalls: functionCalls.length > 0 ? functionCalls : undefined
+        functionCalls: functionCalls.length > 0 ? functionCalls : undefined,
+        groundingMetadata: grounding ?? undefined
       };
     } catch (error) {
       if (error instanceof RateLimitError || error instanceof GeminiError) {
@@ -658,8 +690,16 @@ export class GeminiClient {
       };
     }
 
+    // Build tools array: function declarations + optional Google Search grounding
+    const streamToolsArray: Record<string, unknown>[] = [];
     if (request.tools && request.tools.length > 0) {
-      body.tools = [{ function_declarations: request.tools }];
+      streamToolsArray.push({ function_declarations: request.tools });
+    }
+    if (request.googleSearchGrounding) {
+      streamToolsArray.push({ google_search_retrieval: {} });
+    }
+    if (streamToolsArray.length > 0) {
+      body.tools = streamToolsArray;
     }
 
     const maxAttempts = 3;
@@ -733,6 +773,7 @@ export class GeminiClient {
       let text = "";
       let finishReason: string | undefined;
       let usageMetadata: GeminiChatResponse["usageMetadata"] | undefined;
+      let groundingMetadata: GroundingMetadata | undefined;
       const functionCalls: FunctionCall[] = [];
 
       const consumeSseBlock = (block: string): void => {
@@ -759,6 +800,8 @@ export class GeminiClient {
             finishReason?: string;
             finish_reason?: string;
             content?: { parts?: unknown[] };
+            groundingMetadata?: GroundingMetadata;
+            grounding_metadata?: GroundingMetadata;
           }>;
           usageMetadata?: unknown;
           usage_metadata?: unknown;
@@ -770,6 +813,8 @@ export class GeminiClient {
               finishReason?: string;
               finish_reason?: string;
               content?: { parts?: unknown[] };
+              groundingMetadata?: GroundingMetadata;
+              grounding_metadata?: GroundingMetadata;
             }>;
             usageMetadata?: unknown;
             usage_metadata?: unknown;
@@ -902,6 +947,11 @@ export class GeminiClient {
         if (typeof nextFinishReason === "string" && nextFinishReason.length > 0) {
           finishReason = nextFinishReason;
         }
+
+        const nextGrounding = firstCandidate?.groundingMetadata ?? firstCandidate?.grounding_metadata;
+        if (nextGrounding) {
+          groundingMetadata = nextGrounding;
+        }
       };
 
       const processBuffer = (): void => {
@@ -962,7 +1012,8 @@ export class GeminiClient {
         text,
         finishReason,
         usageMetadata,
-        functionCalls: sanitizedFunctionCalls.length > 0 ? sanitizedFunctionCalls : undefined
+        functionCalls: sanitizedFunctionCalls.length > 0 ? sanitizedFunctionCalls : undefined,
+        groundingMetadata: groundingMetadata ?? undefined
       };
     } catch (error) {
       clearTimeout(timeoutHandle);

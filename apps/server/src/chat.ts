@@ -3626,7 +3626,8 @@ export async function sendChatMessage(
         gemini.generateChatResponse({
           messages: workingMessages,
           systemInstruction,
-          tools: functionDeclarations
+          tools: functionDeclarations,
+          googleSearchGrounding: true
         });
       const roundResponse = useNativeStreaming
         ? await (async (): Promise<Awaited<ReturnType<GeminiClient["generateChatResponse"]>>> => {
@@ -3635,6 +3636,7 @@ export async function sendChatMessage(
                 messages: workingMessages,
                 systemInstruction,
                 tools: functionDeclarations,
+                googleSearchGrounding: true,
                 onTextChunk: (chunk: string) => {
                   if (chunk.length === 0) {
                     return;
@@ -3811,6 +3813,24 @@ export async function sendChatMessage(
 
   if (!useNativeStreaming || streamedTokenChars === 0) {
     emitTextChunks(finalReply, options.onTextChunk);
+  }
+
+  // Convert Google Search grounding metadata into web-search citations
+  if (response?.groundingMetadata?.groundingChunks) {
+    for (const chunk of response.groundingMetadata.groundingChunks) {
+      if (chunk.web?.uri) {
+        const uri = chunk.web.uri;
+        const title = chunk.web.title || new URL(uri).hostname;
+        if (!citations.has(uri)) {
+          citations.set(uri, {
+            id: `web-${Buffer.from(uri).toString("base64url").slice(0, 16)}`,
+            type: "web-search",
+            label: title,
+            metadata: { url: uri }
+          });
+        }
+      }
+    }
   }
 
   const assistantMetadata: ChatMessageMetadata = {
