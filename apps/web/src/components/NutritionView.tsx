@@ -1396,90 +1396,6 @@ export function NutritionView(): JSX.Element {
 
       {activeTab === "meals" && (
         <>
-          <div className="nutrition-day-toggle-row">
-            <button
-              type="button"
-              className="nutrition-day-toggle-button"
-              onClick={() => setShowDayControlPanel((current) => !current)}
-              disabled={dayControlBusy}
-            >
-              {showDayControlPanel ? "Hide Day Controls" : `Day Controls (${daySnapshots.length} saved)`}
-            </button>
-          </div>
-
-          {showDayControlPanel && (
-            <article className="nutrition-card nutrition-day-controls">
-              <div className="nutrition-day-controls-header">
-                <h3>Day controls</h3>
-                <p className="nutrition-item-meta">Save or load complete day snapshots without using extra space.</p>
-              </div>
-              <div className="nutrition-day-controls-grid">
-                <label>
-                  Snapshot name
-                  <input
-                    type="text"
-                    value={daySnapshotName}
-                    onChange={(event) => setDaySnapshotName(event.target.value)}
-                    maxLength={80}
-                    placeholder="e.g. Lean bulk weekday"
-                  />
-                </label>
-                <label>
-                  Saved snapshots
-                  <select
-                    value={selectedDaySnapshotId}
-                    onChange={(event) => setSelectedDaySnapshotId(event.target.value)}
-                    disabled={dayControlBusy || daySnapshots.length === 0}
-                  >
-                    {daySnapshots.length === 0 && <option value="">No snapshots yet</option>}
-                    {daySnapshots.map((snapshot) => (
-                      <option key={snapshot.id} value={snapshot.id}>
-                        {snapshot.name} • {snapshot.meals.length} meals • {snapshot.sourceDate}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {selectedDaySnapshot && (
-                  <div className="nutrition-snapshot-preview">
-                    <p className="nutrition-item-title">{selectedDaySnapshot.name}</p>
-                    <p className="nutrition-item-meta">
-                      {selectedDaySnapshot.meals.length} meals • source {selectedDaySnapshot.sourceDate} • updated{" "}
-                      {formatDateTime(selectedDaySnapshot.updatedAt)}
-                    </p>
-                  </div>
-                )}
-                <div className="nutrition-inline-actions">
-                  <button type="button" onClick={() => void handleSaveDaySnapshot()} disabled={dayControlBusy || loading}>
-                    Save new
-                  </button>
-                  <button
-                    type="button"
-                    className="nutrition-secondary-button"
-                    onClick={() => void handleReplaceDaySnapshot()}
-                    disabled={dayControlBusy || !selectedDaySnapshotId || loading}
-                  >
-                    Replace selected
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleLoadDaySnapshot()}
-                    disabled={dayControlBusy || !selectedDaySnapshotId}
-                  >
-                    Load selected
-                  </button>
-                  <button
-                    type="button"
-                    className="nutrition-secondary-button"
-                    onClick={() => void handleDeleteDaySnapshot()}
-                    disabled={dayControlBusy || !selectedDaySnapshotId}
-                  >
-                    Delete saved
-                  </button>
-                </div>
-              </div>
-            </article>
-          )}
-
           <article className="nutrition-card">
             <div>
               <h3>Target macros</h3>
@@ -1523,8 +1439,84 @@ export function NutritionView(): JSX.Element {
           <article className="nutrition-card nutrition-meal-tools-card">
             <div className="nutrition-meal-tools-header">
               <h3>Meal tools</h3>
-              <p className="nutrition-item-meta">Log meals and manage custom foods in one place.</p>
+              <p className="nutrition-item-meta">Log meals, manage custom foods, and save day snapshots.</p>
             </div>
+
+            <section className="nutrition-tool-panel">
+              <div className="nutrition-custom-food-header">
+                <h4>Day controls</h4>
+                <button type="button" onClick={() => setShowDayControlPanel((current) => !current)} disabled={dayControlBusy}>
+                  {showDayControlPanel ? "Hide" : `Expand (${daySnapshots.length})`}
+                </button>
+              </div>
+              {showDayControlPanel && (
+                <div className="nutrition-day-controls-grid">
+                  <p className="nutrition-item-meta">Save or load complete day snapshots.</p>
+                  <label>
+                    Snapshot name
+                    <input
+                      type="text"
+                      value={daySnapshotName}
+                      onChange={(event) => setDaySnapshotName(event.target.value)}
+                      maxLength={80}
+                      placeholder="e.g. Lean bulk weekday"
+                    />
+                  </label>
+                  <label>
+                    Saved snapshots
+                    <select
+                      value={selectedDaySnapshotId}
+                      onChange={(event) => setSelectedDaySnapshotId(event.target.value)}
+                      disabled={dayControlBusy || daySnapshots.length === 0}
+                    >
+                      {daySnapshots.length === 0 && <option value="">No snapshots yet</option>}
+                      {daySnapshots.map((snapshot) => (
+                        <option key={snapshot.id} value={snapshot.id}>
+                          {snapshot.name} • {snapshot.meals.length} meals • {snapshot.sourceDate}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {selectedDaySnapshot && (
+                    <div className="nutrition-snapshot-preview">
+                      <p className="nutrition-item-title">{selectedDaySnapshot.name}</p>
+                      <p className="nutrition-item-meta">
+                        {selectedDaySnapshot.meals.length} meals • source {selectedDaySnapshot.sourceDate} • updated{" "}
+                        {formatDateTime(selectedDaySnapshot.updatedAt)}
+                      </p>
+                    </div>
+                  )}
+                  <div className="nutrition-inline-actions">
+                    <button type="button" onClick={() => void handleSaveDaySnapshot()} disabled={dayControlBusy || loading}>
+                      Save new
+                    </button>
+                    <button
+                      type="button"
+                      className="nutrition-secondary-button"
+                      onClick={() => void handleReplaceDaySnapshot()}
+                      disabled={dayControlBusy || !selectedDaySnapshotId || loading}
+                    >
+                      Replace selected
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleLoadDaySnapshot()}
+                      disabled={dayControlBusy || !selectedDaySnapshotId}
+                    >
+                      Load selected
+                    </button>
+                    <button
+                      type="button"
+                      className="nutrition-secondary-button"
+                      onClick={() => void handleDeleteDaySnapshot()}
+                      disabled={dayControlBusy || !selectedDaySnapshotId}
+                    >
+                      Delete saved
+                    </button>
+                  </div>
+                </div>
+              )}
+            </section>
 
             <section className="nutrition-tool-panel">
               <div className="nutrition-custom-food-header">

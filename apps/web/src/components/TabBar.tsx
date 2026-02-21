@@ -37,11 +37,11 @@ function TabIcon({ id }: { id: TabId }): ReactNode {
     case "habits":
       return (
         <svg {...props}>
-          <path d="M2 20h.01" />
-          <path d="M7 20v-4" />
-          <path d="M12 20v-8" />
-          <path d="M17 20V8" />
-          <path d="M22 4v16" />
+          <path d="M7 20h10" />
+          <path d="M12 20v-6" />
+          <path d="M12 14c-2-4-6-5.5-6-9a6 6 0 0 1 12 0c0 3.5-4 5-6 9z" />
+          <path d="M12 7v3" />
+          <path d="M10.5 8.5L12 7l1.5 1.5" />
         </svg>
       );
     case "settings":
