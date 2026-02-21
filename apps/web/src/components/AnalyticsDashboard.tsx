@@ -124,14 +124,14 @@ export function AnalyticsDashboard(): JSX.Element {
             <div className="analytics-summary-content">
               <p>{dailySummary.summary}</p>
             </div>
+            {dailySummary.highlights.length > 0 && (
+              <ul className="daily-summary-list">
+                {dailySummary.highlights.map((item, index) => (
+                  <li key={`${item}-${index}`}>{item}</li>
+                ))}
+              </ul>
+            )}
           </section>
-          {dailySummary.highlights.length > 0 && (
-            <ul className="daily-summary-list">
-              {dailySummary.highlights.map((item, index) => (
-                <li key={`${item}-${index}`}>{item}</li>
-              ))}
-            </ul>
-          )}
           {dailySummary.challenges && dailySummary.challenges.length > 0 && (
             <div className="analytics-swipe-stack">
               {CHALLENGE_TYPES.map((type) => {
