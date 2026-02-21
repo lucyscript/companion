@@ -4326,25 +4326,22 @@ body.keyboard-open .pull-to-refresh-container {
 
 .nutrition-daily-metric .summary-value {
   font-size: 1.5rem;
+  color: #fff;
 }
 
-.nutrition-daily-metric:nth-child(1) .summary-label,
-.nutrition-daily-metric:nth-child(1) .summary-value {
+.nutrition-daily-metric:nth-child(1) .summary-label {
   color: #8eb9ff;
 }
 
-.nutrition-daily-metric:nth-child(2) .summary-label,
-.nutrition-daily-metric:nth-child(2) .summary-value {
+.nutrition-daily-metric:nth-child(2) .summary-label {
   color: #8ff0c3;
 }
 
-.nutrition-daily-metric:nth-child(3) .summary-label,
-.nutrition-daily-metric:nth-child(3) .summary-value {
+.nutrition-daily-metric:nth-child(3) .summary-label {
   color: #f4da77;
 }
 
-.nutrition-daily-metric:nth-child(4) .summary-label,
-.nutrition-daily-metric:nth-child(4) .summary-value {
+.nutrition-daily-metric:nth-child(4) .summary-label {
   color: #d4b8ff;
 }
 

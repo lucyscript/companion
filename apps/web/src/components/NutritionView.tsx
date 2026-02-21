@@ -1446,7 +1446,7 @@ export function NutritionView(): JSX.Element {
               <div className="nutrition-custom-food-header">
                 <h4>Day controls</h4>
                 <button type="button" onClick={() => setShowDayControlPanel((current) => !current)} disabled={dayControlBusy}>
-                  {showDayControlPanel ? "Hide" : `Expand (${daySnapshots.length})`}
+                  {showDayControlPanel ? "Hide" : "Expand"}
                 </button>
               </div>
               {showDayControlPanel && (

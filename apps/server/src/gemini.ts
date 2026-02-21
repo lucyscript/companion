@@ -1455,7 +1455,7 @@ export function buildContextWindow(context: ContextWindow): string {
         day: "numeric"
       });
       const status = deadline.completed ? "✅" : "⬜";
-      parts.push(`- ${status} ${deadline.course}: ${deadline.task} (Due ${dueDate}, Priority: ${deadline.priority})`);
+      parts.push(`- ${status} [${deadline.id}] ${deadline.course}: ${deadline.task} (Due ${dueDate}, Priority: ${deadline.priority})`);
     });
   }
 
@@ -1477,7 +1477,12 @@ export function buildSystemPrompt(userName: string, contextWindow: string): stri
 
 ${contextWindow}
 
-Your role is to be encouraging, conversational, and proactive. Help ${userName} plan their day, reflect on progress, work through problems, and stay on top of deadlines. Keep responses concise and friendly.`;
+Your role is to be encouraging, conversational, and proactive. Help ${userName} plan their day, reflect on progress, work through problems, and stay on top of deadlines. Keep responses concise and friendly.
+
+**Tool usage rules:**
+- When the user asks to complete, reschedule, or edit a deadline, ALWAYS use the queueDeadlineAction tool. First call getDeadlines to find the deadline ID if you don't have it, then call queueDeadlineAction with the deadlineId and action ("complete" or "reschedule"). For reschedule, include newDueDate in ISO 8601 format.
+- Do NOT just describe what you would do — actually call the tool to perform the action.
+- Deadline IDs from the context window (in brackets like [deadline-xxx]) can be used directly without calling getDeadlines first.`;
 }
 
 let defaultClient: GeminiClient | null = null;
