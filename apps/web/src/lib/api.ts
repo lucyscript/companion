@@ -31,6 +31,8 @@ import {
   GetChatHistoryResponse,
   AuthUser,
   UserConnection,
+  UserPlanInfo,
+  PlanTierSummary,
   UserContext,
   SyncQueueStatus,
   CanvasSettings,
@@ -1459,4 +1461,19 @@ export async function connectService(
 
 export async function disconnectService(service: ConnectorService): Promise<void> {
   await jsonOrThrow<{ ok: boolean }>(`/api/connectors/${service}`, { method: "DELETE" });
+}
+
+// ── Plan / Tiers ─────────────────────────────────────────────────────────
+
+export async function getUserPlan(): Promise<UserPlanInfo> {
+  return await jsonOrThrow<UserPlanInfo>("/api/plan");
+}
+
+export async function getPlanTiers(): Promise<PlanTierSummary[]> {
+  const response = await jsonOrThrow<{ tiers: PlanTierSummary[] }>("/api/plan/tiers");
+  return response.tiers;
+}
+
+export async function startTrial(): Promise<UserPlanInfo> {
+  return await jsonOrThrow<UserPlanInfo>("/api/plan/start-trial", { method: "POST" });
 }

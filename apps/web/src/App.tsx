@@ -8,7 +8,9 @@ import { HabitsGoalsView } from "./components/HabitsGoalsView";
 import { AnalyticsDashboard } from "./components/AnalyticsDashboard";
 import { NutritionView } from "./components/NutritionView";
 import { TabBar, TabId } from "./components/TabBar";
+import { LockedFeatureOverlay, UpgradePrompt } from "./components/UpgradePrompt";
 import { useDashboard } from "./hooks/useDashboard";
+import { usePlan } from "./hooks/usePlan";
 import { getAuthMe, getAuthStatus, login, logout } from "./lib/api";
 import { enablePushNotifications, isPushEnabled, supportsPushNotifications } from "./lib/push";
 import { setupSyncListeners } from "./lib/sync";
@@ -23,10 +25,27 @@ import {
 } from "./lib/storage";
 import { hapticCriticalAlert } from "./lib/haptics";
 import { parseDeepLink } from "./lib/deepLink";
-import { ChatMood } from "./types";
+import { ChatMood, FeatureId } from "./types";
 
 type PushState = "checking" | "ready" | "enabled" | "unsupported" | "denied" | "error";
 type AuthState = "checking" | "required-login" | "ready";
+
+/** Map tab IDs to the feature gate that controls access. */
+const TAB_FEATURE_MAP: Record<TabId, FeatureId> = {
+  chat: "chat",
+  schedule: "schedule",
+  nutrition: "nutrition",
+  habits: "habits",
+  settings: "chat" // settings is always accessible (same gate as chat)
+};
+
+const TAB_DISPLAY_NAMES: Record<TabId, string> = {
+  chat: "Chat",
+  schedule: "Schedule",
+  nutrition: "Nutrition",
+  habits: "Growth",
+  settings: "Settings"
+};
 
 function parseApiErrorMessage(error: unknown, fallback: string): string {
   if (!(error instanceof Error)) {
@@ -70,7 +89,10 @@ export default function App(): JSX.Element {
   const [focusLectureId, setFocusLectureId] = useState<string | null>(initialDeepLink.lectureId);
   const [settingsSection, setSettingsSection] = useState<string | null>(initialDeepLink.section);
   const [chatMood, setChatMood] = useState<ChatMood>(loadChatMood);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [upgradeFeatureLabel, setUpgradeFeatureLabel] = useState<string | undefined>(undefined);
   const seenCriticalNotifications = useRef<Set<string>>(new Set());
+  const { planInfo, hasFeature } = usePlan(authState === "ready");
 
   useEffect(() => {
     let disposed = false;
@@ -368,6 +390,17 @@ export default function App(): JSX.Element {
     }
   };
 
+  const openUpgradeModal = useCallback((featureLabel?: string) => {
+    setUpgradeFeatureLabel(featureLabel);
+    setShowUpgradeModal(true);
+  }, []);
+
+  const isTabLocked = useCallback((tab: TabId): boolean => {
+    if (!planInfo) return false; // still loading, don't lock
+    const feature = TAB_FEATURE_MAP[tab];
+    return !hasFeature(feature);
+  }, [planInfo, hasFeature]);
+
   const handleMoodChange = useCallback((mood: ChatMood): void => {
     setChatMood(mood);
     saveChatMood(mood);
@@ -474,24 +507,32 @@ export default function App(): JSX.Element {
               <ChatTab mood={chatMood} onMoodChange={handleMoodChange} />
             </div>
             {activeTab === "schedule" && (
-              <ScheduleTab
-                scheduleKey={`schedule-${scheduleRevision}`}
-                focusDeadlineId={focusDeadlineId ?? undefined}
-                focusLectureId={focusLectureId ?? undefined}
-              />
+              isTabLocked("schedule")
+                ? <LockedFeatureOverlay featureName={TAB_DISPLAY_NAMES.schedule} onUpgradeClick={() => openUpgradeModal(TAB_DISPLAY_NAMES.schedule)} />
+                : <ScheduleTab
+                    scheduleKey={`schedule-${scheduleRevision}`}
+                    focusDeadlineId={focusDeadlineId ?? undefined}
+                    focusLectureId={focusLectureId ?? undefined}
+                  />
             )}
             {activeTab === "nutrition" && (
-              <NutritionView />
+              isTabLocked("nutrition")
+                ? <LockedFeatureOverlay featureName={TAB_DISPLAY_NAMES.nutrition} onUpgradeClick={() => openUpgradeModal(TAB_DISPLAY_NAMES.nutrition)} />
+                : <NutritionView />
             )}
             {activeTab === "habits" && (
-              <div className="habits-tab-container habits-analytics-stack">
-                <HabitsGoalsView />
-                <AnalyticsDashboard />
-              </div>
+              isTabLocked("habits")
+                ? <LockedFeatureOverlay featureName={TAB_DISPLAY_NAMES.habits} onUpgradeClick={() => openUpgradeModal(TAB_DISPLAY_NAMES.habits)} />
+                : <div className="habits-tab-container habits-analytics-stack">
+                    <HabitsGoalsView />
+                    <AnalyticsDashboard />
+                  </div>
             )}
             {activeTab === "settings" && (
               <SettingsView
                 onCalendarImported={() => setScheduleRevision((revision) => revision + 1)}
+                planInfo={planInfo}
+                onUpgrade={() => openUpgradeModal()}
               />
             )}
           </div>
@@ -499,6 +540,11 @@ export default function App(): JSX.Element {
           {/* Bottom tab bar */}
           <TabBar activeTab={activeTab} onTabChange={handleTabChange} />
         </>
+      )}
+
+      {/* Upgrade modal */}
+      {showUpgradeModal && (
+        <UpgradePrompt feature={upgradeFeatureLabel} onDismiss={() => setShowUpgradeModal(false)} />
       )}
     </main>
   );

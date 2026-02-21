@@ -143,6 +143,8 @@ export class AuthService {
         avatarUrl: user.avatarUrl,
         provider: user.provider,
         role: user.role,
+        plan: user.plan,
+        trialEndsAt: user.trialEndsAt,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt
       }

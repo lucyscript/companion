@@ -78,6 +78,7 @@ import {
   AuthSession,
   AuthUser,
   AuthUserWithPassword,
+  PlanId,
   ConnectorService,
   UserConnection,
   WithingsData,
@@ -906,6 +907,28 @@ export class RuntimeStore {
       this.db.prepare("ALTER TABLE users ADD COLUMN provider TEXT NOT NULL DEFAULT 'local'").run();
     }
 
+    // Migration: add plan + trial columns to users table
+    const hasPlanColumn = userColumns.some((col) => col.name === "plan");
+    if (!hasPlanColumn) {
+      this.db.prepare("ALTER TABLE users ADD COLUMN plan TEXT NOT NULL DEFAULT 'free'").run();
+    }
+    const hasTrialEndsAtColumn = userColumns.some((col) => col.name === "trialEndsAt");
+    if (!hasTrialEndsAtColumn) {
+      this.db.prepare("ALTER TABLE users ADD COLUMN trialEndsAt TEXT").run();
+    }
+
+    // Migration: create daily_usage table for rate limiting
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS daily_usage (
+        userId TEXT NOT NULL,
+        dateKey TEXT NOT NULL,
+        chatMessages INTEGER NOT NULL DEFAULT 0,
+        insertOrder INTEGER NOT NULL DEFAULT (unixepoch('subsec') * 1000000),
+        PRIMARY KEY (userId, dateKey),
+        FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+      );
+    `);
+
     // Migration: create user_connections table if missing (for DBs created before this version)
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS user_connections (
@@ -1634,18 +1657,24 @@ export class RuntimeStore {
     return "local";
   }
 
-  createUser(input: { email: string; passwordHash: string; role: AuthRole; name?: string; avatarUrl?: string; provider?: AuthProvider }): AuthUser {
+  private parsePlanId(raw: string | null | undefined): PlanId {
+    if (raw === "plus" || raw === "pro") return raw;
+    return "free";
+  }
+
+  createUser(input: { email: string; passwordHash: string; role: AuthRole; name?: string; avatarUrl?: string; provider?: AuthProvider; plan?: PlanId }): AuthUser {
     const email = this.normalizeEmail(input.email);
     const createdAt = nowIso();
     const id = makeId("user");
     const provider = input.provider ?? "local";
+    const plan = input.plan ?? "free";
 
     this.db
       .prepare(
-        `INSERT INTO users (id, email, passwordHash, name, avatarUrl, provider, role, createdAt, updatedAt)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO users (id, email, passwordHash, name, avatarUrl, provider, role, plan, trialEndsAt, createdAt, updatedAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
-      .run(id, email, input.passwordHash, input.name ?? null, input.avatarUrl ?? null, provider, input.role, createdAt, createdAt);
+      .run(id, email, input.passwordHash, input.name ?? null, input.avatarUrl ?? null, provider, input.role, plan, null, createdAt, createdAt);
 
     return {
       id,
@@ -1654,6 +1683,8 @@ export class RuntimeStore {
       avatarUrl: input.avatarUrl,
       provider,
       role: input.role,
+      plan,
+      trialEndsAt: null,
       createdAt,
       updatedAt: createdAt
     };
@@ -1676,6 +1707,8 @@ export class RuntimeStore {
       email,
       provider: existing.provider,
       role: input.role,
+      plan: existing.plan,
+      trialEndsAt: existing.trialEndsAt,
       createdAt: existing.createdAt,
       updatedAt
     };
@@ -1695,6 +1728,8 @@ export class RuntimeStore {
         avatarUrl: input.avatarUrl ?? existing.avatarUrl,
         provider: input.provider,
         role: existing.role,
+        plan: existing.plan,
+        trialEndsAt: existing.trialEndsAt,
         createdAt: existing.createdAt,
         updatedAt
       };
@@ -1721,6 +1756,8 @@ export class RuntimeStore {
           avatarUrl: string | null;
           provider: string | null;
           role: string;
+          plan: string | null;
+          trialEndsAt: string | null;
           createdAt: string;
           updatedAt: string;
         }
@@ -1738,13 +1775,15 @@ export class RuntimeStore {
       avatarUrl: row.avatarUrl ?? undefined,
       provider: this.parseAuthProvider(row.provider),
       role: this.parseAuthRole(row.role),
+      plan: this.parsePlanId(row.plan),
+      trialEndsAt: row.trialEndsAt ?? null,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt
     };
   }
 
   getUserById(id: string): AuthUser | null {
-    const row = this.db.prepare("SELECT id, email, name, avatarUrl, provider, role, createdAt, updatedAt FROM users WHERE id = ?").get(id) as
+    const row = this.db.prepare("SELECT id, email, name, avatarUrl, provider, role, plan, trialEndsAt, createdAt, updatedAt FROM users WHERE id = ?").get(id) as
       | {
           id: string;
           email: string;
@@ -1752,6 +1791,8 @@ export class RuntimeStore {
           avatarUrl: string | null;
           provider: string | null;
           role: string;
+          plan: string | null;
+          trialEndsAt: string | null;
           createdAt: string;
           updatedAt: string;
         }
@@ -1768,9 +1809,56 @@ export class RuntimeStore {
       avatarUrl: row.avatarUrl ?? undefined,
       provider: this.parseAuthProvider(row.provider),
       role: this.parseAuthRole(row.role),
+      plan: this.parsePlanId(row.plan),
+      trialEndsAt: row.trialEndsAt ?? null,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt
     };
+  }
+
+  // ── Plan + Daily Usage ──
+
+  updateUserPlan(userId: string, plan: PlanId, trialEndsAt?: string | null): void {
+    const updatedAt = nowIso();
+    this.db
+      .prepare("UPDATE users SET plan = ?, trialEndsAt = COALESCE(?, trialEndsAt), updatedAt = ? WHERE id = ?")
+      .run(plan, trialEndsAt ?? null, updatedAt, userId);
+  }
+
+  startTrial(userId: string, durationDays: number): void {
+    const trialEndsAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
+    this.db
+      .prepare("UPDATE users SET trialEndsAt = ?, updatedAt = ? WHERE id = ?")
+      .run(trialEndsAt, nowIso(), userId);
+  }
+
+  getDailyChatUsage(userId: string): number {
+    const dateKey = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const row = this.db
+      .prepare("SELECT chatMessages FROM daily_usage WHERE userId = ? AND dateKey = ?")
+      .get(userId, dateKey) as { chatMessages: number } | undefined;
+    return row?.chatMessages ?? 0;
+  }
+
+  incrementDailyChatUsage(userId: string): number {
+    const dateKey = new Date().toISOString().slice(0, 10);
+    this.db
+      .prepare(`
+        INSERT INTO daily_usage (userId, dateKey, chatMessages)
+        VALUES (?, ?, 1)
+        ON CONFLICT (userId, dateKey) DO UPDATE SET chatMessages = chatMessages + 1
+      `)
+      .run(userId, dateKey);
+
+    const row = this.db
+      .prepare("SELECT chatMessages FROM daily_usage WHERE userId = ? AND dateKey = ?")
+      .get(userId, dateKey) as { chatMessages: number } | undefined;
+    return row?.chatMessages ?? 1;
+  }
+
+  cleanOldDailyUsage(keepDays: number = 7): void {
+    const cutoff = new Date(Date.now() - keepDays * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    this.db.prepare("DELETE FROM daily_usage WHERE dateKey < ?").run(cutoff);
   }
 
   // ── User Connections ──

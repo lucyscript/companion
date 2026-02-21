@@ -61,6 +61,15 @@ import type {
   IntegrationSyncName,
   IntegrationSyncRootCause
 } from "./types.js";
+import {
+  PLAN_TIERS,
+  getEffectivePlan,
+  planHasFeature,
+  planAllowsConnector,
+  type PlanId,
+  type FeatureId,
+  type UserPlanInfo
+} from "./plan-config.js";
 import { SyncFailureRecoveryTracker, SyncRecoveryPrompt } from "./sync-failure-recovery.js";
 import { nowIso } from "./utils.js";
 
@@ -451,7 +460,8 @@ function isPublicApiRoute(method: string, path: string): boolean {
     (method === "GET" && path === "/api/auth/gmail") ||
     (method === "GET" && path === "/api/auth/gmail/callback") ||
     (method === "GET" && path === "/api/auth/withings") ||
-    (method === "GET" && path === "/api/auth/withings/callback")
+    (method === "GET" && path === "/api/auth/withings/callback") ||
+    (method === "GET" && path === "/api/plan/tiers")
   );
 }
 
@@ -653,8 +663,17 @@ app.post("/api/connectors/:service/connect", (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: "Unknown service" });
   const service = parsed.data;
 
+  // Plan gate: check if user's plan allows this connector
+  const effectivePlan = getEffectivePlan(authReq.authUser.plan, authReq.authUser.role, authReq.authUser.trialEndsAt);
+  if (!planAllowsConnector(effectivePlan, service)) {
+    return res.status(403).json({
+      error: "Your plan does not include this integration",
+      upgradeRequired: true,
+      service
+    });
+  }
+
   // For token-paste connectors (canvas, github_course), expect { token: string }
-  // For URL-config connectors (tp_schedule), expect { courseIds: string[] }
   if (service === "canvas") {
     const { token } = req.body as { token?: string };
     if (!token || typeof token !== "string" || token.trim().length === 0) {
@@ -717,6 +736,74 @@ app.delete("/api/connectors/:service", (req, res) => {
 
   store.deleteUserConnection(authReq.authUser.id, parsed.data);
   return res.json({ ok: true });
+});
+
+// ── Plan / Tier Endpoints ──
+
+/** Build the plan info object for a user */
+function buildUserPlanInfo(user: AuthUser): UserPlanInfo {
+  const effectivePlan = getEffectivePlan(user.plan, user.role, user.trialEndsAt);
+  const tier = PLAN_TIERS[effectivePlan];
+  const chatUsedToday = store.getDailyChatUsage(user.id);
+
+  return {
+    plan: effectivePlan,
+    isTrial: user.plan === "free" && effectivePlan !== "free",
+    trialEndsAt: user.trialEndsAt,
+    chatUsedToday,
+    chatLimitToday: tier.dailyChatLimit,
+    features: [...tier.features] as FeatureId[],
+    connectors: tier.connectors,
+    planName: tier.name,
+    badge: tier.badge
+  };
+}
+
+/** Public: list available tiers (no auth needed) */
+app.get("/api/plan/tiers", (_req, res) => {
+  const tiers = Object.values(PLAN_TIERS).map((t) => ({
+    id: t.id,
+    name: t.name,
+    description: t.description,
+    priceMonthlyNok: t.priceMonthlyNok,
+    dailyChatLimit: t.dailyChatLimit,
+    features: [...t.features],
+    connectors: t.connectors,
+    trialDays: t.trialDays,
+    badge: t.badge
+  }));
+  return res.json({ tiers });
+});
+
+/** Authenticated: get current user's plan, usage, and features */
+app.get("/api/plan", (req, res) => {
+  const authReq = req as AuthenticatedRequest;
+  if (!authReq.authUser) return res.status(401).json({ error: "Unauthorized" });
+
+  return res.json(buildUserPlanInfo(authReq.authUser));
+});
+
+/** Authenticated: start a free trial (requires card — stubbed for now) */
+app.post("/api/plan/start-trial", (req, res) => {
+  const authReq = req as AuthenticatedRequest;
+  if (!authReq.authUser) return res.status(401).json({ error: "Unauthorized" });
+
+  const user = authReq.authUser;
+  if (user.plan !== "free") {
+    return res.status(400).json({ error: "Already on a paid plan" });
+  }
+  if (user.trialEndsAt) {
+    return res.status(400).json({ error: "Trial already used" });
+  }
+
+  // TODO: Verify payment card via Vipps/Stripe before starting trial
+  // For now, start the 7-day trial immediately
+  store.startTrial(user.id, PLAN_TIERS.plus.trialDays);
+
+  // Re-fetch user to get updated plan info
+  const updated = store.getUserById(user.id);
+  if (!updated) return res.status(500).json({ error: "Failed to update" });
+  return res.json(buildUserPlanInfo(updated));
 });
 
 
@@ -1068,6 +1155,22 @@ app.post("/api/chat", async (req, res) => {
     return res.status(400).json({ error: "Invalid chat payload", issues: parsed.error.issues });
   }
 
+  // Rate limit based on user plan
+  const authReq = req as AuthenticatedRequest;
+  if (authReq.authUser) {
+    const planInfo = buildUserPlanInfo(authReq.authUser);
+    if (planInfo.chatLimitToday > 0 && planInfo.chatUsedToday >= planInfo.chatLimitToday) {
+      return res.status(429).json({
+        error: "Daily chat limit reached",
+        limit: planInfo.chatLimitToday,
+        used: planInfo.chatUsedToday,
+        plan: planInfo.plan,
+        upgradeRequired: true
+      });
+    }
+    store.incrementDailyChatUsage(authReq.authUser.id);
+  }
+
   try {
     await Promise.all([maybeAutoSyncCanvasData(), maybeAutoSyncGitHubDeadlines()]);
     const result = await sendChatMessage(store, parsed.data.message.trim(), {
@@ -1099,6 +1202,22 @@ app.post("/api/chat/stream", async (req, res) => {
 
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid chat payload", issues: parsed.error.issues });
+  }
+
+  // Rate limit based on user plan
+  const authReq = req as AuthenticatedRequest;
+  if (authReq.authUser) {
+    const planInfo = buildUserPlanInfo(authReq.authUser);
+    if (planInfo.chatLimitToday > 0 && planInfo.chatUsedToday >= planInfo.chatLimitToday) {
+      return res.status(429).json({
+        error: "Daily chat limit reached",
+        limit: planInfo.chatLimitToday,
+        used: planInfo.chatUsedToday,
+        plan: planInfo.plan,
+        upgradeRequired: true
+      });
+    }
+    store.incrementDailyChatUsage(authReq.authUser.id);
   }
 
   res.setHeader("Content-Type", "text/event-stream");

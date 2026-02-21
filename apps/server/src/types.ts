@@ -169,6 +169,8 @@ export type AuthRole = "admin" | "user";
 
 export type AuthProvider = "local" | "google" | "github";
 
+export type PlanId = "free" | "plus" | "pro";
+
 export interface AuthUser {
   id: string;
   email: string;
@@ -176,6 +178,8 @@ export interface AuthUser {
   avatarUrl?: string;
   provider: AuthProvider;
   role: AuthRole;
+  plan: PlanId;
+  trialEndsAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -6620,3 +6620,416 @@ label small.muted {
 .analytics-fade-in {
   animation: analyticsFadeIn 0.3s ease-out both;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   LOCKED FEATURE OVERLAY — blurred background with lock icon + upgrade CTA
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.locked-feature-overlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  padding: 2rem 1.5rem;
+  text-align: center;
+  position: relative;
+}
+
+.locked-feature-overlay::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 40%, rgba(139, 92, 246, 0.06) 0%, transparent 70%);
+  border-radius: 1rem;
+  pointer-events: none;
+}
+
+.locked-feature-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: 280px;
+}
+
+.locked-feature-icon {
+  color: var(--color-muted, #6b7280);
+  opacity: 0.7;
+  margin-bottom: 0.25rem;
+}
+
+.locked-feature-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--color-text, #e5e7eb);
+  margin: 0;
+}
+
+.locked-feature-desc {
+  font-size: 0.875rem;
+  color: var(--color-muted, #9ca3af);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.locked-feature-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding: 0.625rem 1.5rem;
+  background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+  color: #fff;
+  border: none;
+  border-radius: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.locked-feature-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.35);
+}
+
+.locked-feature-btn:active {
+  transform: translateY(0);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   UPGRADE MODAL — plan comparison overlay
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.upgrade-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  padding: 1rem;
+  animation: upgradeOverlayIn 0.2s ease-out;
+}
+
+@keyframes upgradeOverlayIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.upgrade-modal {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  max-height: 90vh;
+  overflow-y: auto;
+  background: var(--color-surface, #1f2937);
+  border: 1px solid var(--color-border, #374151);
+  border-radius: 1.25rem;
+  padding: 1.75rem 1.5rem;
+  animation: upgradeModalIn 0.25s ease-out;
+}
+
+@keyframes upgradeModalIn {
+  from { opacity: 0; transform: translateY(16px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.upgrade-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: none;
+  border: none;
+  color: var(--color-muted, #9ca3af);
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 0.5rem;
+  transition: color 0.15s;
+}
+
+.upgrade-close:hover {
+  color: var(--color-text, #e5e7eb);
+}
+
+.upgrade-header {
+  text-align: center;
+  margin-bottom: 1.25rem;
+}
+
+.upgrade-icon {
+  font-size: 2rem;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.upgrade-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-text, #e5e7eb);
+  margin: 0 0 0.25rem;
+}
+
+.upgrade-feature-label {
+  font-size: 0.8125rem;
+  color: var(--color-muted, #9ca3af);
+  margin: 0;
+}
+
+.upgrade-current-plan {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 0.75rem;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 0.75rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.upgrade-current-label {
+  font-size: 0.8125rem;
+  color: var(--color-muted, #9ca3af);
+}
+
+.upgrade-trial-label {
+  font-size: 0.75rem;
+  color: #f59e0b;
+  margin-left: auto;
+}
+
+.upgrade-tiers {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.upgrade-tier-card {
+  border: 1px solid var(--color-border, #374151);
+  border-radius: 1rem;
+  padding: 1rem;
+  transition: border-color 0.15s;
+}
+
+.upgrade-tier-card:hover {
+  border-color: rgba(139, 92, 246, 0.4);
+}
+
+.upgrade-tier-current {
+  border-color: rgba(139, 92, 246, 0.5);
+  background: rgba(139, 92, 246, 0.05);
+}
+
+.upgrade-tier-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.upgrade-tier-price {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--color-text, #e5e7eb);
+}
+
+.upgrade-tier-period {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--color-muted, #9ca3af);
+}
+
+.upgrade-tier-desc {
+  font-size: 0.8125rem;
+  color: var(--color-muted, #9ca3af);
+  margin: 0 0 0.5rem;
+  line-height: 1.4;
+}
+
+.upgrade-tier-features {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--color-text-secondary, #d1d5db);
+}
+
+.upgrade-tier-features li {
+  padding: 0.2rem 0;
+}
+
+.upgrade-tier-features li::before {
+  content: "✓ ";
+  color: #8b5cf6;
+  font-weight: 600;
+}
+
+.upgrade-tier-btn {
+  width: 100%;
+  padding: 0.625rem;
+  background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+  color: #fff;
+  border: none;
+  border-radius: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s;
+}
+
+.upgrade-tier-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.35);
+}
+
+.upgrade-tier-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.upgrade-tier-active {
+  text-align: center;
+  font-size: 0.8125rem;
+  color: #8b5cf6;
+  font-weight: 600;
+  padding: 0.5rem 0;
+}
+
+.upgrade-error {
+  color: #ef4444;
+  font-size: 0.8125rem;
+  text-align: center;
+  margin: 0.5rem 0;
+}
+
+.upgrade-footer {
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--color-muted, #6b7280);
+  margin: 0;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   PLAN BADGES
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.plan-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.plan-badge-free {
+  background: rgba(107, 114, 128, 0.2);
+  color: #9ca3af;
+}
+
+.plan-badge-plus {
+  background: rgba(139, 92, 246, 0.15);
+  color: #a78bfa;
+}
+
+.plan-badge-pro {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(234, 88, 12, 0.15) 100%);
+  color: #fbbf24;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   PLAN INFO CARD (Settings)
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.plan-info-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--color-border, #374151);
+  border-radius: 1rem;
+  padding: 1rem;
+}
+
+.plan-info-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.plan-info-name {
+  font-weight: 600;
+  font-size: 0.9375rem;
+  color: var(--color-text, #e5e7eb);
+}
+
+.plan-trial-badge {
+  font-size: 0.75rem;
+  color: #f59e0b;
+  margin-left: auto;
+}
+
+.plan-usage-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.plan-usage-label {
+  font-size: 0.8125rem;
+  color: var(--color-muted, #9ca3af);
+}
+
+.plan-usage-value {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text, #e5e7eb);
+}
+
+.plan-usage-bar-track {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 0.75rem;
+}
+
+.plan-usage-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #8b5cf6, #6d28d9);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.plan-upgrade-btn {
+  width: 100%;
+  padding: 0.625rem;
+  background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+  color: #fff;
+  border: none;
+  border-radius: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.plan-upgrade-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.35);
+}
+
+.plan-upgrade-btn:active {
+  transform: translateY(0);
+}

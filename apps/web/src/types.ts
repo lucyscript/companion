@@ -523,7 +523,19 @@ export interface SendChatMessageStreamDoneResponse {
 
 export type AuthRole = "admin" | "user";
 export type AuthProvider = "local" | "google" | "github";
+export type PlanId = "free" | "plus" | "pro";
 export type ConnectorService = "canvas" | "gmail" | "github_course" | "withings" | "tp_schedule";
+
+export type FeatureId =
+  | "chat"
+  | "schedule"
+  | "nutrition"
+  | "habits"
+  | "connectors"
+  | "gemini_tools"
+  | "chat_history"
+  | "analytics"
+  | "custom_moods";
 
 export interface AuthUser {
   id: string;
@@ -532,8 +544,34 @@ export interface AuthUser {
   name?: string;
   avatarUrl?: string;
   provider: AuthProvider;
+  plan: PlanId;
+  trialEndsAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface UserPlanInfo {
+  plan: PlanId;
+  isTrial: boolean;
+  trialEndsAt: string | null;
+  chatUsedToday: number;
+  chatLimitToday: number;
+  features: FeatureId[];
+  connectors: ConnectorService[];
+  planName: string;
+  badge: string;
+}
+
+export interface PlanTierSummary {
+  id: PlanId;
+  name: string;
+  description: string;
+  priceMonthlyNok: number;
+  dailyChatLimit: number;
+  features: FeatureId[];
+  connectors: ConnectorService[];
+  trialDays: number;
+  badge: string;
 }
 
 export interface UserConnection {
