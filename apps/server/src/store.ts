@@ -74,7 +74,6 @@ import {
   ReflectionEntry,
   ChatActionType,
   ChatPendingAction,
-  GmailMessage,
   AuthRole,
   AuthProvider,
   AuthSession,
@@ -131,7 +130,7 @@ const agentNames: AgentName[] = [
   "orchestrator"
 ];
 const TAG_ID_LIKE_REGEX = /^tag-[a-zA-Z0-9_-]+$/;
-const integrationNames: IntegrationSyncName[] = ["tp", "canvas", "gmail", "withings"];
+const integrationNames: IntegrationSyncName[] = ["tp", "canvas", "withings"];
 const integrationRootCauses: IntegrationSyncRootCause[] = [
   "none",
   "auth",
@@ -217,8 +216,7 @@ export class RuntimeStore {
       "nutrition_meals", "nutrition_custom_foods", "nutrition_target_profiles",
       "nutrition_plan_snapshots", "nutrition_plan_settings",
       "study_plan_sessions",
-      "canvas_data", "github_course_data", "github_tracked_repos",
-      "gmail_data", "withings_data",
+      "canvas_data", "withings_data",
       "routine_presets", "integration_sync_attempts",
       "sync_queue", "tags"
     ];
@@ -837,35 +835,6 @@ export class RuntimeStore {
         lastSyncedAt TEXT
       );
 
-      CREATE TABLE IF NOT EXISTS github_course_data (
-        userId TEXT PRIMARY KEY,
-        repositories TEXT NOT NULL DEFAULT '[]',
-        documents TEXT NOT NULL DEFAULT '[]',
-        deadlinesSynced INTEGER NOT NULL DEFAULT 0,
-        lastSyncedAt TEXT
-      );
-
-      CREATE TABLE IF NOT EXISTS github_tracked_repos (
-        userId TEXT NOT NULL DEFAULT '',
-        owner TEXT NOT NULL,
-        repo TEXT NOT NULL,
-        courseCode TEXT,
-        label TEXT,
-        addedAt TEXT NOT NULL,
-        PRIMARY KEY (userId, owner, repo)
-      );
-
-      CREATE TABLE IF NOT EXISTS gmail_data (
-        userId TEXT PRIMARY KEY,
-        refreshToken TEXT,
-        accessToken TEXT,
-        email TEXT,
-        connectedAt TEXT,
-        tokenSource TEXT,
-        messages TEXT DEFAULT '[]',
-        lastSyncedAt TEXT
-      );
-
       CREATE TABLE IF NOT EXISTS withings_data (
         userId TEXT PRIMARY KEY,
         withingsUserId TEXT,
@@ -942,25 +911,6 @@ export class RuntimeStore {
       this.db.prepare("ALTER TABLE nutrition_target_profiles ADD COLUMN fatGramsPerLb REAL").run();
     }
 
-    // Add Gmail messages and lastSyncedAt columns if they don't exist
-    const gmailColumns = this.db.prepare("PRAGMA table_info(gmail_data)").all() as Array<{ name: string }>;
-    const hasMessagesColumn = gmailColumns.some((col) => col.name === "messages");
-    if (!hasMessagesColumn) {
-      this.db.prepare("ALTER TABLE gmail_data ADD COLUMN messages TEXT DEFAULT '[]'").run();
-    }
-    const hasLastSyncedAtColumn = gmailColumns.some((col) => col.name === "lastSyncedAt");
-    if (!hasLastSyncedAtColumn) {
-      this.db.prepare("ALTER TABLE gmail_data ADD COLUMN lastSyncedAt TEXT").run();
-    }
-    const hasAccessTokenColumn = gmailColumns.some((col) => col.name === "accessToken");
-    if (!hasAccessTokenColumn) {
-      this.db.prepare("ALTER TABLE gmail_data ADD COLUMN accessToken TEXT").run();
-    }
-    const hasTokenSourceColumn = gmailColumns.some((col) => col.name === "tokenSource");
-    if (!hasTokenSourceColumn) {
-      this.db.prepare("ALTER TABLE gmail_data ADD COLUMN tokenSource TEXT").run();
-    }
-
     const withingsColumns = this.db.prepare("PRAGMA table_info(withings_data)").all() as Array<{ name: string }>;
     const hasWeightJsonColumn = withingsColumns.some((col) => col.name === "weightJson");
     if (!hasWeightJsonColumn) {
@@ -973,20 +923,6 @@ export class RuntimeStore {
     const hasWithingsLastSyncedAtColumn = withingsColumns.some((col) => col.name === "lastSyncedAt");
     if (!hasWithingsLastSyncedAtColumn) {
       this.db.prepare("ALTER TABLE withings_data ADD COLUMN lastSyncedAt TEXT").run();
-    }
-
-    const githubCourseColumns = this.db.prepare("PRAGMA table_info(github_course_data)").all() as Array<{ name: string }>;
-    const hasDeadlinesSyncedColumn = githubCourseColumns.some((col) => col.name === "deadlinesSynced");
-    if (!hasDeadlinesSyncedColumn) {
-      this.db.prepare("ALTER TABLE github_course_data ADD COLUMN deadlinesSynced INTEGER NOT NULL DEFAULT 0").run();
-    }
-    const hasBlobIndexColumn = githubCourseColumns.some((col) => col.name === "blobIndex");
-    if (!hasBlobIndexColumn) {
-      this.db.prepare("ALTER TABLE github_course_data ADD COLUMN blobIndex TEXT NOT NULL DEFAULT '{}'").run();
-    }
-    const hasStudentProgressColumn = githubCourseColumns.some((col) => col.name === "studentProgress");
-    if (!hasStudentProgressColumn) {
-      this.db.prepare("ALTER TABLE github_course_data ADD COLUMN studentProgress TEXT NOT NULL DEFAULT '[]'").run();
     }
 
     const studyPlanColumns = this.db.prepare("PRAGMA table_info(study_plan_sessions)").all() as Array<{ name: string }>;
@@ -2129,9 +2065,6 @@ export class RuntimeStore {
       "sync_queue",
       "integration_sync_attempts",
       "canvas_data",
-      "github_course_data",
-      "github_tracked_repos",
-      "gmail_data",
       "withings_data",
     ];
 
@@ -8051,253 +7984,6 @@ export class RuntimeStore {
    */
   clearCanvasData(userId: string): void {
     this.db.prepare("DELETE FROM canvas_data WHERE userId = ?").run(userId);
-  }
-
-  /**
-   * Set GitHub course data
-   */
-  setGitHubCourseData(userId: string, data: import("./types.js").GitHubCourseData): void {
-    const stmt = this.db.prepare(`
-      INSERT OR REPLACE INTO github_course_data (
-        userId, repositories, documents, deadlinesSynced, lastSyncedAt, blobIndex
-      ) VALUES (?, ?, ?, ?, ?, ?)
-    `);
-
-    stmt.run(
-      userId,
-      JSON.stringify(data.repositories),
-      JSON.stringify(data.documents),
-      data.deadlinesSynced,
-      data.lastSyncedAt,
-      JSON.stringify(data.blobIndex ?? {})
-    );
-  }
-
-  /**
-   * Get GitHub course data
-   */
-  getGitHubCourseData(userId: string): import("./types.js").GitHubCourseData | null {
-    const stmt = this.db.prepare(`
-      SELECT repositories, documents, deadlinesSynced, lastSyncedAt, blobIndex
-      FROM github_course_data WHERE userId = ?
-    `);
-
-    const row = stmt.get(userId) as {
-      repositories: string;
-      documents: string;
-      deadlinesSynced: number;
-      lastSyncedAt: string | null;
-      blobIndex: string | null;
-    } | undefined;
-
-    if (!row) {
-      return null;
-    }
-
-    return {
-      repositories: JSON.parse(row.repositories),
-      documents: JSON.parse(row.documents),
-      deadlinesSynced: row.deadlinesSynced ?? 0,
-      lastSyncedAt: row.lastSyncedAt,
-      blobIndex: row.blobIndex ? JSON.parse(row.blobIndex) : {},
-    };
-  }
-
-  // ── GitHub Tracked Repos (user-configured) ─────────────────────
-
-  /** Get all user-configured tracked repos */
-  getGitHubTrackedRepos(userId: string): import("./types.js").GitHubTrackedRepo[] {
-    const rows = this.db.prepare(
-      "SELECT owner, repo, courseCode, label, addedAt FROM github_tracked_repos WHERE userId = ? ORDER BY addedAt ASC"
-    ).all(userId) as Array<{ owner: string; repo: string; courseCode: string | null; label: string | null; addedAt: string }>;
-    return rows.map((r) => ({
-      owner: r.owner,
-      repo: r.repo,
-      courseCode: r.courseCode ?? undefined,
-      label: r.label ?? undefined,
-      addedAt: r.addedAt,
-    }));
-  }
-
-  /** Add a tracked repo. Returns true if inserted, false if already exists. */
-  addGitHubTrackedRepo(userId: string, repo: { owner: string; repo: string; courseCode?: string; label?: string }): boolean {
-    const result = this.db.prepare(
-      "INSERT OR IGNORE INTO github_tracked_repos (userId, owner, repo, courseCode, label, addedAt) VALUES (?, ?, ?, ?, ?, ?)"
-    ).run(userId, repo.owner, repo.repo, repo.courseCode ?? null, repo.label ?? null, new Date().toISOString());
-    return result.changes > 0;
-  }
-
-  /** Remove a tracked repo. Returns true if deleted. */
-  removeGitHubTrackedRepo(userId: string, owner: string, repo: string): boolean {
-    const result = this.db.prepare(
-      "DELETE FROM github_tracked_repos WHERE owner = ? AND repo = ? AND userId = ?"
-    ).run(owner, repo, userId);
-    return result.changes > 0;
-  }
-
-  /** Update a tracked repo's course code or label */
-  updateGitHubTrackedRepo(userId: string, owner: string, repo: string, patch: { courseCode?: string; label?: string }): boolean {
-    const fields: string[] = [];
-    const values: unknown[] = [];
-    if (patch.courseCode !== undefined) { fields.push("courseCode = ?"); values.push(patch.courseCode); }
-    if (patch.label !== undefined) { fields.push("label = ?"); values.push(patch.label); }
-    if (fields.length === 0) return false;
-    values.push(owner, repo, userId);
-    const result = this.db.prepare(
-      `UPDATE github_tracked_repos SET ${fields.join(", ")} WHERE owner = ? AND repo = ? AND userId = ?`
-    ).run(...values);
-    return result.changes > 0;
-  }
-
-  /**
-   * Set Gmail OAuth tokens
-   */
-  setGmailTokens(userId: string, data: {
-    refreshToken?: string;
-    accessToken?: string;
-    email: string;
-    connectedAt: string;
-    source?: "oauth" | "env" | "unknown";
-  }): void {
-    const stmt = this.db.prepare(`
-      INSERT INTO gmail_data (
-        userId, refreshToken, accessToken, email, connectedAt, tokenSource
-      ) VALUES (?, ?, ?, ?, ?, ?)
-      ON CONFLICT(userId) DO UPDATE SET
-        refreshToken = excluded.refreshToken,
-        accessToken = excluded.accessToken,
-        email = excluded.email,
-        connectedAt = excluded.connectedAt,
-        tokenSource = excluded.tokenSource
-    `);
-
-    stmt.run(
-      userId,
-      data.refreshToken ?? null,
-      data.accessToken ?? null,
-      data.email,
-      data.connectedAt,
-      data.source ?? "oauth"
-    );
-  }
-
-  /**
-   * Get Gmail OAuth tokens
-   */
-  getGmailTokens(userId: string): {
-    refreshToken?: string;
-    accessToken?: string;
-    email: string;
-    connectedAt: string;
-    source: "oauth" | "env" | "unknown";
-  } | null {
-    const stmt = this.db.prepare(`
-      SELECT refreshToken, accessToken, email, connectedAt, tokenSource
-      FROM gmail_data WHERE userId = ?
-    `);
-
-    const row = stmt.get(userId) as {
-      refreshToken: string | null;
-      accessToken: string | null;
-      email: string | null;
-      connectedAt: string | null;
-      tokenSource: string | null;
-    } | undefined;
-
-    if (!row || (!row.refreshToken && !row.accessToken)) {
-      return null;
-    }
-
-    // Log warning if required fields are missing
-    if (!row.email || !row.connectedAt) {
-      console.warn("[store] Gmail tokens missing email or connectedAt fields");
-    }
-
-    return {
-      ...(row.refreshToken ? { refreshToken: row.refreshToken } : {}),
-      ...(row.accessToken ? { accessToken: row.accessToken } : {}),
-      email: row.email || "unknown",
-      connectedAt: row.connectedAt || new Date().toISOString(),
-      source:
-        row.tokenSource === "oauth" || row.tokenSource === "env"
-          ? row.tokenSource
-          : "unknown"
-    };
-  }
-
-  /**
-   * Clear stored Gmail OAuth tokens while preserving synced message history.
-   */
-  clearGmailTokens(userId: string): void {
-    this.db.prepare(`
-      UPDATE gmail_data
-      SET refreshToken = NULL,
-          accessToken = NULL,
-          tokenSource = 'unknown'
-      WHERE userId = ?
-    `).run(userId);
-  }
-
-  /**
-   * Set Gmail messages
-   */
-  setGmailMessages(userId: string, messages: GmailMessage[], lastSyncedAt: string): void {
-    const stmt = this.db.prepare(`
-      INSERT INTO gmail_data (userId, messages, lastSyncedAt)
-      VALUES (?, ?, ?)
-      ON CONFLICT(userId) DO UPDATE SET
-        messages = excluded.messages,
-        lastSyncedAt = excluded.lastSyncedAt
-    `);
-
-    stmt.run(userId, JSON.stringify(messages), lastSyncedAt);
-  }
-
-  /**
-   * Get Gmail messages
-   */
-  getGmailMessages(userId: string): GmailMessage[] {
-    const stmt = this.db.prepare(`
-      SELECT messages FROM gmail_data WHERE userId = ?
-    `);
-
-    const row = stmt.get(userId) as { messages: string | null } | undefined;
-
-    if (!row || !row.messages) {
-      return [];
-    }
-
-    try {
-      return JSON.parse(row.messages) as GmailMessage[];
-    } catch {
-      return [];
-    }
-  }
-
-  /**
-   * Get Gmail data (messages + sync info)
-   */
-  getGmailData(userId: string): { messages: GmailMessage[]; lastSyncedAt: string | null } {
-    const stmt = this.db.prepare(`
-      SELECT messages, lastSyncedAt FROM gmail_data WHERE userId = ?
-    `);
-
-    const row = stmt.get(userId) as { messages: string | null; lastSyncedAt: string | null } | undefined;
-
-    if (!row) {
-      return { messages: [], lastSyncedAt: null };
-    }
-
-    let messages: GmailMessage[] = [];
-    if (row.messages) {
-      try {
-        messages = JSON.parse(row.messages) as GmailMessage[];
-      } catch {
-        messages = [];
-      }
-    }
-
-    return { messages, lastSyncedAt: row.lastSyncedAt };
   }
 
   setWithingsTokens(userId: string, data: {

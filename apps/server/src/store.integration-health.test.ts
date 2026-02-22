@@ -36,7 +36,7 @@ describe("RuntimeStore integration sync health log", () => {
     const store = new RuntimeStore(":memory:");
 
     store.recordIntegrationSyncAttempt({
-      integration: "gmail",
+      integration: "withings",
       status: "failure",
       latencyMs: 1100,
       rootCause: "network",
@@ -45,7 +45,7 @@ describe("RuntimeStore integration sync health log", () => {
     });
 
     store.recordIntegrationSyncAttempt({
-      integration: "gmail",
+      integration: "withings",
       status: "success",
       latencyMs: 700,
       rootCause: "none",
@@ -54,13 +54,13 @@ describe("RuntimeStore integration sync health log", () => {
     });
 
     const summary = store.getIntegrationSyncSummary(24 * 365);
-    const gmail = summary.integrations.find((item) => item.integration === "gmail");
+    const withings = summary.integrations.find((item) => item.integration === "withings");
 
     expect(summary.totals.attempts).toBeGreaterThanOrEqual(2);
-    expect(gmail).toBeDefined();
-    expect(gmail?.attempts).toBe(2);
-    expect(gmail?.successes).toBe(1);
-    expect(gmail?.failures).toBe(1);
-    expect(gmail?.failuresByRootCause.network).toBe(1);
+    expect(withings).toBeDefined();
+    expect(withings?.attempts).toBe(2);
+    expect(withings?.successes).toBe(1);
+    expect(withings?.failures).toBe(1);
+    expect(withings?.failuresByRootCause.network).toBe(1);
   });
 });

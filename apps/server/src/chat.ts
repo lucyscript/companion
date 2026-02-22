@@ -105,85 +105,6 @@ function buildCanvasContextSummary(store: RuntimeStore, userId: string, now: Dat
   return parts.join("\n");
 }
 
-function buildGmailContextSummary(store: RuntimeStore, userId: string, now: Date = new Date()): string {
-  const gmailData = store.getGmailData(userId);
-
-  if (!gmailData.messages || gmailData.messages.length === 0) {
-    return "Gmail: No emails synced yet. Connect Gmail to see inbox summary.";
-  }
-
-  const messages = gmailData.messages;
-  const unreadMessages = messages.filter((msg) => !msg.isRead);
-  const unreadCount = unreadMessages.length;
-
-  // Identify important senders (Canvas, UiS, course-related)
-  const importantKeywords = [
-    "instructure.com",
-    "canvas",
-    "uis.no",
-    "stavanger",
-    "github",
-    "noreply",
-    "notification"
-  ];
-
-  const importantMessages = unreadMessages.filter((msg) => {
-    const fromLower = msg.from.toLowerCase();
-    const subjectLower = msg.subject.toLowerCase();
-    return importantKeywords.some((keyword) => fromLower.includes(keyword) || subjectLower.includes(keyword));
-  });
-
-  // Identify actionable items (Canvas notifications, deadline reminders)
-  const actionableKeywords = [
-    "graded",
-    "due",
-    "deadline",
-    "reminder",
-    "assignment",
-    "submission",
-    "posted",
-    "announced",
-    "updated"
-  ];
-
-  const actionableMessages = unreadMessages.filter((msg) => {
-    const subjectLower = msg.subject.toLowerCase();
-    const snippetLower = msg.snippet.toLowerCase();
-    return actionableKeywords.some((keyword) => subjectLower.includes(keyword) || snippetLower.includes(keyword));
-  });
-
-  const parts = [`**Gmail Inbox:** ${unreadCount} unread message${unreadCount !== 1 ? "s" : ""}`];
-
-  if (importantMessages.length > 0) {
-    parts.push("");
-    parts.push("**Important senders:**");
-    importantMessages.slice(0, 3).forEach((msg) => {
-      const receivedDate = new Date(msg.receivedAt).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric"
-      });
-      const fromName = msg.from.includes("<") ? msg.from.split("<")[0].trim() : msg.from;
-      const subjectPreview = msg.subject.length > 60 ? msg.subject.slice(0, 60) + "..." : msg.subject;
-      parts.push(`- ${fromName}: "${subjectPreview}" (${receivedDate})`);
-    });
-  }
-
-  if (actionableMessages.length > 0) {
-    parts.push("");
-    parts.push("**Actionable items:**");
-    actionableMessages.slice(0, 3).forEach((msg) => {
-      const receivedDate = new Date(msg.receivedAt).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric"
-      });
-      const snippetPreview = msg.snippet.length > 80 ? msg.snippet.slice(0, 80) + "..." : msg.snippet;
-      parts.push(`- ${msg.subject} (${receivedDate}): ${snippetPreview}`);
-    });
-  }
-
-  return parts.join("\n");
-}
-
 function buildWithingsContextSummary(store: RuntimeStore, userId: string, now: Date = new Date()): string {
   const data = store.getWithingsData(userId);
   if (data.weight.length === 0 && data.sleepSummary.length === 0) {
@@ -762,7 +683,7 @@ function formatInTimeZone(
   }
 }
 
-function buildRuntimeContextNudge(store: RuntimeStore, userId: string, now: Date): string {
+function buildRuntimeContextNudge(now: Date): string {
   const timezone = config.TIMEZONE || "UTC";
   const isoNow = now.toISOString();
   const localDate = formatInTimeZone(now, timezone, {
@@ -778,18 +699,6 @@ function buildRuntimeContextNudge(store: RuntimeStore, userId: string, now: Date
     hour12: false
   });
 
-  const gmailData = store.getGmailData(userId);
-  const unreadMessages = gmailData.messages
-    .filter((message) => !message.isRead)
-    .slice()
-    .sort((left, right) => Date.parse(right.receivedAt) - Date.parse(left.receivedAt));
-  const unreadCount = unreadMessages.length;
-  const dayAgoMs = now.getTime() - 24 * 60 * 60 * 1000;
-  const unreadLast24h = unreadMessages.filter((message) => {
-    const receivedAtMs = Date.parse(message.receivedAt);
-    return Number.isFinite(receivedAtMs) && receivedAtMs >= dayAgoMs;
-  }).length;
-
   const lines = [
     `Current time reference:`,
     `- Timezone: ${timezone}`,
@@ -797,16 +706,6 @@ function buildRuntimeContextNudge(store: RuntimeStore, userId: string, now: Date
     `- Local time: ${localTime}`,
     `- UTC now: ${isoNow}`
   ];
-
-  if (gmailData.messages.length === 0) {
-    lines.push("- Email status: Gmail not synced yet.");
-  } else {
-    lines.push(`- Email status: ${unreadCount} unread (${unreadLast24h} new in the last 24h).`);
-    const newestUnread = unreadMessages[0];
-    if (newestUnread) {
-      lines.push(`- Newest unread: ${newestUnread.subject} from ${newestUnread.from}.`);
-    }
-  }
 
   return lines.join("\n");
 }
@@ -1307,7 +1206,7 @@ Core behavior:
 - For each item in image-based meal logs, include realistic grams (quantity) and per-item macro values so totals are traceable item-by-item.
 - Do not log image-based meals as a single generic meal item unless the image clearly contains only one food item.
 - For body metrics, weight trends, or sleep questions, call getWithingsHealthSummary.
-- For external systems such as GitHub, Gmail, Notion, or docs, call available MCP tools when relevant.
+- For external systems such as docs, project tools, productivity apps, and provider APIs, call available MCP tools when relevant.
 - Do not hallucinate user-specific data. If data is unavailable, say so explicitly and suggest the next sync step.
 - For deadline completion or rescheduling/extension requests, use queueDeadlineAction with action 'complete' or 'reschedule' (with newDueDate in ISO 8601 UTC). Apply immediately (no confirmation step).
 - For manual deadline entry/removal requests, use createDeadline/deleteDeadline.
@@ -1444,40 +1343,6 @@ function buildDeadlinesFallbackSection(response: unknown): string | null {
   });
   if (response.length > 8) {
     lines.push(`- +${response.length - 8} more`);
-  }
-  return lines.join("\n");
-}
-
-function buildEmailsFallbackSection(response: unknown): string | null {
-  if (!Array.isArray(response)) {
-    return null;
-  }
-  if (response.length === 0) {
-    return "Emails: no recent messages found.";
-  }
-
-  const lines: string[] = [`Recent emails (${response.length}):`];
-  response.slice(0, 4).forEach((value) => {
-    const record = asRecord(value);
-    if (!record) {
-      return;
-    }
-    const subject = asNonEmptyString(record.subject) ?? "No subject";
-    const from = asNonEmptyString(record.from);
-    const snippet = asNonEmptyString(record.snippet);
-    const receivedAt = asNonEmptyString(record.receivedAt) ?? asNonEmptyString(record.generatedAt);
-    const readSuffix = record.isRead === false ? " [unread]" : "";
-
-    lines.push(`- ${textSnippet(subject, 100)}${from ? ` — ${textSnippet(from, 70)}` : ""}${readSuffix}`);
-    if (snippet) {
-      lines.push(`  ${textSnippet(snippet, 160)}`);
-    }
-    if (receivedAt) {
-      lines.push(`  Received: ${receivedAt}`);
-    }
-  });
-  if (response.length > 4) {
-    lines.push(`- +${response.length - 4} more`);
   }
   return lines.join("\n");
 }
@@ -1712,37 +1577,6 @@ function buildNutritionMutationFallbackSection(response: unknown): string | null
   return null;
 }
 
-function buildGitHubCourseFallbackSection(response: unknown): string | null {
-  if (!Array.isArray(response)) {
-    return null;
-  }
-  if (response.length === 0) {
-    return "GitHub course materials: no matching syllabus/course-info documents found.";
-  }
-
-  const lines: string[] = [`GitHub course docs (${response.length}):`];
-  response.slice(0, 3).forEach((value) => {
-    const record = asRecord(value);
-    if (!record) {
-      return;
-    }
-    const courseCode = asNonEmptyString(record.courseCode) ?? "COURSE";
-    const title = asNonEmptyString(record.title) ?? "Course document";
-    const owner = asNonEmptyString(record.owner) ?? "owner";
-    const repo = asNonEmptyString(record.repo) ?? "repo";
-    const path = asNonEmptyString(record.path) ?? "path";
-    const snippet = asNonEmptyString(record.snippet);
-    lines.push(`- ${courseCode} ${title} (${owner}/${repo}/${path})`);
-    if (snippet) {
-      lines.push(`  ${textSnippet(snippet, 120)}`);
-    }
-  });
-  if (response.length > 3) {
-    lines.push(`- +${response.length - 3} more`);
-  }
-  return lines.join("\n");
-}
-
 function buildRoutinePresetsFallbackSection(response: unknown): string | null {
   if (!Array.isArray(response)) {
     return null;
@@ -1826,9 +1660,6 @@ function buildToolDataFallbackReply(
       case "getDeadlines":
         section = buildDeadlinesFallbackSection(result.rawResponse);
         break;
-      case "getEmails":
-        section = buildEmailsFallbackSection(result.rawResponse);
-        break;
       case "getWithingsHealthSummary":
         section = buildWithingsFallbackSection(result.rawResponse);
         break;
@@ -1874,9 +1705,6 @@ function buildToolDataFallbackReply(
       case "updateNutritionCustomFood":
       case "deleteNutritionCustomFood":
         section = buildNutritionMutationFallbackSection(result.rawResponse);
-        break;
-      case "getGitHubCourseContent":
-        section = buildGitHubCourseFallbackSection(result.rawResponse);
         break;
       case "getRoutinePresets":
         section = buildRoutinePresetsFallbackSection(result.rawResponse);
@@ -2066,31 +1894,6 @@ function compactDeadlinesForModel(response: unknown): unknown {
       };
     }),
     truncated: response.length > DEADLINE_TOOL_RESULT_LIMIT
-  };
-}
-
-function compactEmailsForModel(response: unknown): unknown {
-  if (!Array.isArray(response)) {
-    return compactGenericValue(response);
-  }
-
-  return {
-    total: response.length,
-    emails: response.slice(0, TOOL_RESULT_ITEM_LIMIT).map((value) => {
-      const record = asRecord(value);
-      if (!record) {
-        return {};
-      }
-      return {
-        id: asNonEmptyString(record.id) ?? "",
-        from: compactTextValue(asNonEmptyString(record.from) ?? "", 70),
-        subject: compactTextValue(asNonEmptyString(record.subject) ?? "", 120),
-        receivedAt: asNonEmptyString(record.receivedAt) ?? asNonEmptyString(record.generatedAt) ?? null,
-        snippet: compactTextValue(asNonEmptyString(record.snippet) ?? "", 180),
-        isRead: typeof record.isRead === "boolean" ? record.isRead : null
-      };
-    }),
-    truncated: response.length > TOOL_RESULT_ITEM_LIMIT
   };
 }
 
@@ -2451,43 +2254,12 @@ function compactNutritionMutationForModel(response: unknown): unknown {
   };
 }
 
-function compactGitHubCourseContentForModel(response: unknown): unknown {
-  if (!Array.isArray(response)) {
-    return compactGenericValue(response);
-  }
-
-  return {
-    total: response.length,
-    documents: response.slice(0, TOOL_RESULT_ITEM_LIMIT).map((value) => {
-      const record = asRecord(value);
-      if (!record) {
-        return {};
-      }
-      const owner = asNonEmptyString(record.owner) ?? "";
-      const repo = asNonEmptyString(record.repo) ?? "";
-      const path = asNonEmptyString(record.path) ?? "";
-      return {
-        id: asNonEmptyString(record.id) ?? "",
-        courseCode: asNonEmptyString(record.courseCode) ?? "",
-        title: compactTextValue(asNonEmptyString(record.title) ?? "", 100),
-        source: `${owner}/${repo}/${path}`,
-        summary: compactTextValue(asNonEmptyString(record.summary) ?? "", 200),
-        snippet: compactTextValue(asNonEmptyString(record.snippet) ?? "", 220),
-        url: asNonEmptyString(record.url) ?? null
-      };
-    }),
-    truncated: response.length > TOOL_RESULT_ITEM_LIMIT
-  };
-}
-
 function compactFunctionResponseForModel(functionName: string, response: unknown): unknown {
   switch (functionName) {
     case "getSchedule":
       return compactScheduleForModel(response);
     case "getDeadlines":
       return compactDeadlinesForModel(response);
-    case "getEmails":
-      return compactEmailsForModel(response);
     case "getWithingsHealthSummary":
       return compactWithingsForModel(response);
     case "getHabitsGoalsStatus":
@@ -2523,8 +2295,6 @@ function compactFunctionResponseForModel(functionName: string, response: unknown
     case "updateNutritionCustomFood":
     case "deleteNutritionCustomFood":
       return compactNutritionMutationForModel(response);
-    case "getGitHubCourseContent":
-      return compactGitHubCourseContentForModel(response);
     default:
       return compactGenericValue(response);
   }
@@ -2622,11 +2392,6 @@ function collectToolCitations(
     }
 
     return next;
-  }
-
-  if (functionName === "getEmails") {
-    // Do not emit email citations in chat UI; they appear as non-actionable repeated subjects.
-    return [];
   }
 
   if (functionName === "getHabitsGoalsStatus") {
@@ -2906,48 +2671,6 @@ function collectToolCitations(
         label: name
       }
     ];
-  }
-
-  if (functionName === "getGitHubCourseContent" && Array.isArray(response)) {
-    const next: ChatCitation[] = [];
-    response.forEach((value) => {
-      const record = asRecord(value);
-      if (!record) {
-        return;
-      }
-
-      const id = asNonEmptyString(record.id);
-      const courseCode = asNonEmptyString(record.courseCode);
-      const title = asNonEmptyString(record.title);
-      const owner = asNonEmptyString(record.owner);
-      const repo = asNonEmptyString(record.repo);
-      const path = asNonEmptyString(record.path);
-      const url = asNonEmptyString(record.url);
-      const snippet = asNonEmptyString(record.snippet);
-      const syncedAt = asNonEmptyString(record.syncedAt);
-
-      if (!id || !title || !owner || !repo || !path) {
-        return;
-      }
-
-      const sourceRef = `${owner}/${repo}/${path}`;
-      next.push({
-        id,
-        type: "github-course-doc",
-        label: `${courseCode ?? "COURSE"} ${title} (${sourceRef})`,
-        timestamp: syncedAt ?? undefined,
-        metadata: {
-          courseCode: courseCode ?? null,
-          owner,
-          repo,
-          path,
-          source: sourceRef,
-          url: url ?? null,
-          snippet: snippet ? textSnippet(snippet, 220) : null
-        }
-      });
-    });
-    return next;
   }
 
   if (functionName === "queueDeadlineAction" || functionName === "createDeadline") {
@@ -3617,18 +3340,15 @@ export async function sendChatMessage(
     }
   }
   const longTermMemoryNudge = buildLongTermMemoryNudge(longTermMemory);
-  const baseToolDeclarations = functionDeclarations.filter(
-    (tool) => tool.name !== "getEmails" && tool.name !== "getGitHubCourseContent"
-  );
   const mcpToolContext = await buildMcpToolContext(store, userId);
   const activeToolDeclarations: FunctionDeclaration[] = [
-    ...baseToolDeclarations,
+    ...functionDeclarations,
     ...mcpToolContext.declarations
   ];
   const systemInstruction = buildFunctionCallingSystemInstruction(
     config.USER_NAME,
     buildHabitGoalNudgeContext(store, userId),
-    buildRuntimeContextNudge(store, userId, now),
+    buildRuntimeContextNudge(now),
     longTermMemoryNudge,
     mcpToolContext.summary
   );

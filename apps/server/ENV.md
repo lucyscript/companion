@@ -55,7 +55,7 @@ This file documents all environment variables required to run the Companion serv
 - `AUTH_ADMIN_PASSWORD` (required when auth is enabled, min 8 chars) — Admin login password
 - `AUTH_SESSION_TTL_HOURS` (default: 720) — Session expiration window in hours
 
-### Canvas LMS Integration
+### Connector Integration Defaults
 - `CONNECTOR_CREDENTIALS_SECRET` (recommended) — Secret used to encrypt connector credentials at rest in `user_connections` (set a long random value in production)
 - `CANVAS_API_TOKEN` (optional) — Canvas personal access token
 - `CANVAS_BASE_URL` (default: "https://canvas.instructure.com") — Canvas instance URL fallback when a user has not configured a per-connector base URL
@@ -65,9 +65,10 @@ This file documents all environment variables required to run the Companion serv
 - `NOTIFICATION_DIGEST_MORNING_HOUR` (default: 8) — Hour (0-23) for morning non-urgent notification digest
 - `NOTIFICATION_DIGEST_EVENING_HOUR` (default: 18) — Hour (0-23) for evening non-urgent notification digest
 
-### Course GitHub Integration
-- `GITHUB_PAT` (optional) — GitHub personal access token for private course repos
-  - Required scopes: `repo` (for private repos)
+### MCP Integrations
+- No global provider secrets are required by default.
+- Users connect per-account MCP servers in-app (for example GitHub/Stripe) with their own tokens.
+- Optional: keep provider fallback env vars only when you want a global instance-wide default (for example `CANVAS_API_TOKEN`).
 
 ### Social Media Integrations
 
@@ -88,12 +89,6 @@ This file documents all environment variables required to run the Companion serv
 - `X_BEARER_TOKEN` (optional) — X app-only bearer token (alternative to OAuth)
 - `X_FALLBACK_QUERY` (optional) — Search query used in bearer-token-only mode when home timeline endpoint is unavailable
 
-#### Gmail API (future)
-- `GMAIL_CLIENT_ID` (optional) — Gmail OAuth client ID
-- `GMAIL_CLIENT_SECRET` (optional) — Gmail OAuth client secret
-- `GMAIL_ACCESS_TOKEN` (optional) — Bootstrap Gmail access token for non-interactive production startup
-- `GMAIL_REFRESH_TOKEN` (optional) — Bootstrap Gmail refresh token for non-interactive production startup
-
 ### Withings Health Integration
 - `WITHINGS_API_ENDPOINT` (default: `https://wbsapi.withings.net`) — Withings API base URL
 - `WITHINGS_CLIENT_ID` (optional) — Withings OAuth client ID
@@ -109,7 +104,7 @@ This file documents all environment variables required to run the Companion serv
 2. **Generate VAPID keys**: `npx web-push generate-vapid-keys`
 3. **Set VAPID keys**: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`
 4. **Configure auth**: Set `AUTH_ADMIN_EMAIL` and `AUTH_ADMIN_PASSWORD` (and optionally `AUTH_REQUIRED=true`)
-5. **Optional integrations**: Set Canvas, GitHub, YouTube, X, Gmail, and Withings keys if needed
+5. **Optional integrations**: Set Canvas/TP defaults, YouTube, X, and Withings keys if needed
 6. **Set production port**: `PORT=8787` (or Railway's auto-assigned port)
 7. **Verify health check**: `curl http://<server-url>/api/health` should return `{"status":"ok"}`
 
@@ -165,9 +160,6 @@ INTEGRATION_WINDOW_FUTURE_DAYS=180
 NOTIFICATION_DIGEST_MORNING_HOUR=8
 NOTIFICATION_DIGEST_EVENING_HOUR=18
 
-# Course GitHub
-GITHUB_PAT=your-github-pat
-
 # YouTube
 YOUTUBE_API_KEY=your-youtube-key
 YOUTUBE_CHANNEL_IDS=UCxxxxxxxx,UCyyyyyyyy
@@ -180,12 +172,6 @@ X_ACCESS_TOKEN=your-x-access-token
 X_ACCESS_TOKEN_SECRET=your-x-access-token-secret
 X_BEARER_TOKEN=your-x-bearer-token
 X_FALLBACK_QUERY=(machine learning OR distributed systems OR software engineering) -is:retweet lang:en
-
-# Gmail bootstrap (optional)
-GMAIL_CLIENT_ID=your-gmail-client-id
-GMAIL_CLIENT_SECRET=your-gmail-client-secret
-GMAIL_ACCESS_TOKEN=your-gmail-access-token
-GMAIL_REFRESH_TOKEN=your-gmail-refresh-token
 
 # Withings bootstrap (optional)
 WITHINGS_API_ENDPOINT=https://wbsapi.withings.net

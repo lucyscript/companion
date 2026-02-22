@@ -180,7 +180,7 @@ function TermsOfService(): JSX.Element {
       <h3>2. Description of Service</h3>
       <p>
         Companion is a mobile-first progressive web application that integrates with
-        third-party services (Canvas LMS, Google Calendar, GitHub, Gmail, Withings, and others)
+        third-party services (Canvas LMS, TP EduCloud, MCP-connected services, Withings, and others)
         to provide an AI-powered academic assistant. The AI component is powered by Google Gemini.
       </p>
 
@@ -217,7 +217,7 @@ function TermsOfService(): JSX.Element {
 
       <h3>7. Third-Party Integrations</h3>
       <p>
-        The Service connects to third-party platforms (Canvas LMS, Google, GitHub, etc.) on your behalf.
+        The Service connects to third-party platforms (Canvas LMS, TP EduCloud, MCP-connected providers, etc.) on your behalf.
         Your use of those platforms is governed by their respective terms of service.
         We are not responsible for the availability or accuracy of third-party data.
       </p>
@@ -305,7 +305,7 @@ function PrivacyPolicy(): JSX.Element {
           </tr>
           <tr>
             <td>Integration data</td>
-            <td>GitHub course repos, Gmail message metadata, Withings health metrics</td>
+            <td>Canvas/TP data, MCP-connected provider data, Withings health metrics</td>
             <td>Consent (Art. 6(1)(a))</td>
           </tr>
           <tr>

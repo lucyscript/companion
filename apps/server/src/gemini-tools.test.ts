@@ -4,7 +4,6 @@ import {
   handleGetSchedule,
   handleGetRoutinePresets,
   handleGetDeadlines,
-  handleGetEmails,
   handleGetWithingsHealthSummary,
   handleGetHabitsGoalsStatus,
   handleUpdateHabitCheckIn,
@@ -29,7 +28,6 @@ import {
   handleMoveNutritionMeal,
   handleLogMeal,
   handleDeleteMeal,
-  handleGetGitHubCourseContent,
   handleCreateDeadline,
   handleDeleteDeadline,
   handleQueueDeadlineAction,
@@ -57,8 +55,8 @@ describe("gemini-tools", () => {
   });
 
   describe("functionDeclarations", () => {
-    it("should define 49 function declarations", () => {
-      expect(functionDeclarations).toHaveLength(49);
+    it("should define 47 function declarations", () => {
+      expect(functionDeclarations).toHaveLength(47);
     });
 
     it("should include getSchedule function", () => {
@@ -77,12 +75,6 @@ describe("gemini-tools", () => {
       const getDeadlines = functionDeclarations.find((f) => f.name === "getDeadlines");
       expect(getDeadlines).toBeDefined();
       expect(getDeadlines?.description).toContain("deadline");
-    });
-
-    it("should include getEmails function", () => {
-      const getEmails = functionDeclarations.find((f) => f.name === "getEmails");
-      expect(getEmails).toBeDefined();
-      expect(getEmails?.description).toContain("email");
     });
 
     it("should include getWithingsHealthSummary function", () => {
@@ -118,12 +110,6 @@ describe("gemini-tools", () => {
       expect(functionDeclarations.find((f) => f.name === "moveNutritionMeal")).toBeDefined();
       expect(functionDeclarations.find((f) => f.name === "logMeal")).toBeDefined();
       expect(functionDeclarations.find((f) => f.name === "deleteMeal")).toBeDefined();
-    });
-
-    it("should include getGitHubCourseContent function", () => {
-      const getGitHubCourseContent = functionDeclarations.find((f) => f.name === "getGitHubCourseContent");
-      expect(getGitHubCourseContent).toBeDefined();
-      expect(getGitHubCourseContent?.description).toContain("GitHub");
     });
 
     it("should include deadline and queue action functions", () => {
@@ -377,70 +363,6 @@ describe("gemini-tools", () => {
       expect(result).toHaveProperty("success", true);
       expect(result).toHaveProperty("deleted", true);
       expect(store.getDeadlineById(userId, deadline.id, false)).toBeNull();
-    });
-  });
-
-  describe("handleGetEmails", () => {
-    it("returns synced Gmail messages (not local digest records)", () => {
-      store.recordEmailDigest(userId, {
-        type: "daily",
-        reason: "inactivity",
-        recipient: "lucy@example.com",
-        subject: "Companion daily digest",
-        body: "Digest body",
-        timeframeStart: "2026-02-17T00:00:00.000Z",
-        timeframeEnd: "2026-02-17T23:59:59.000Z"
-      });
-      store.setGmailMessages(userId, 
-        [
-          {
-            id: "gmail-1",
-            from: "course@uis.no",
-            subject: "DAT560 Assignment 2 feedback",
-            snippet: "Great progress. Please improve section 3.",
-            receivedAt: "2026-02-17T11:00:00.000Z",
-            labels: ["INBOX", "UNREAD"],
-            isRead: false
-          }
-        ],
-        "2026-02-17T11:05:00.000Z"
-      );
-
-      const result = handleGetEmails(store, userId);
-      expect(Array.isArray(result)).toBe(true);
-      expect(result).toHaveLength(1);
-      expect(result[0]?.subject).toBe("DAT560 Assignment 2 feedback");
-    });
-
-    it("respects limit and unreadOnly parameters", () => {
-      store.setGmailMessages(userId, 
-        [
-          {
-            id: "gmail-older",
-            from: "a@uis.no",
-            subject: "Older read email",
-            snippet: "Already read",
-            receivedAt: "2026-02-17T08:00:00.000Z",
-            labels: ["INBOX"],
-            isRead: true
-          },
-          {
-            id: "gmail-newer",
-            from: "b@uis.no",
-            subject: "Newest unread email",
-            snippet: "Unread details",
-            receivedAt: "2026-02-17T12:00:00.000Z",
-            labels: ["INBOX", "UNREAD"],
-            isRead: false
-          }
-        ],
-        "2026-02-17T12:05:00.000Z"
-      );
-
-      const result = handleGetEmails(store, userId, { limit: 1, unreadOnly: true });
-      expect(Array.isArray(result)).toBe(true);
-      expect(result).toHaveLength(1);
-      expect(result[0]?.id).toBe("gmail-newer");
     });
   });
 
@@ -920,62 +842,6 @@ describe("gemini-tools", () => {
 
   });
 
-  describe("handleGetGitHubCourseContent", () => {
-    it("returns empty array when no GitHub data is synced", () => {
-      const result = handleGetGitHubCourseContent(store, userId);
-      expect(result).toEqual([]);
-    });
-
-    it("filters GitHub docs by course code and query terms", () => {
-      const now = new Date().toISOString();
-      store.setGitHubCourseData(userId, {
-        repositories: [
-          { owner: "dat560-2026", repo: "info", courseCode: "DAT560" },
-          { owner: "dat520-2026", repo: "assignments", courseCode: "DAT520" }
-        ],
-        documents: [
-          {
-            id: "doc-dat560-syllabus",
-            courseCode: "DAT560",
-            owner: "dat560-2026",
-            repo: "info",
-            path: "docs/syllabus.md",
-            url: "https://github.com/dat560-2026/info/blob/HEAD/docs/syllabus.md",
-            title: "DAT560 Syllabus",
-            summary: "Project deliverables and grading details.",
-            highlights: ["Project milestone deadlines", "Exam policy"],
-            snippet: "Project deliverables: proposal, implementation, report.",
-            syncedAt: now
-          },
-          {
-            id: "doc-dat520-lab",
-            courseCode: "DAT520",
-            owner: "dat520-2026",
-            repo: "assignments",
-            path: "labs/lab-1.md",
-            url: "https://github.com/dat520-2026/assignments/blob/HEAD/labs/lab-1.md",
-            title: "Lab 1",
-            summary: "Raft implementation details.",
-            highlights: ["Leader election"],
-            snippet: "Implement RPC handlers.",
-            syncedAt: now
-          }
-        ],
-        deadlinesSynced: 2,
-        lastSyncedAt: now
-      });
-
-      const result = handleGetGitHubCourseContent(store, userId, {
-        courseCode: "dat560",
-        query: "deliverables",
-        limit: 5
-      });
-
-      expect(result).toHaveLength(1);
-      expect(result[0]?.id).toBe("doc-dat560-syllabus");
-    });
-  });
-
   describe("queue action handlers", () => {
     it("completes a deadline immediately without pending confirmation", () => {
       const deadline = store.createDeadline(userId, {
@@ -1322,13 +1188,6 @@ describe("gemini-tools", () => {
       expect(Array.isArray(result.response)).toBe(true);
     });
 
-    it("should execute getEmails function", () => {
-      const result = executeFunctionCall("getEmails", { limit: 5 }, store, userId);
-
-      expect(result.name).toBe("getEmails");
-      expect(Array.isArray(result.response)).toBe(true);
-    });
-
     it("should execute getHabitsGoalsStatus function", () => {
       const result = executeFunctionCall("getHabitsGoalsStatus", {}, store, userId);
 
@@ -1520,36 +1379,6 @@ describe("gemini-tools", () => {
 
       expect(result.name).toBe("logMeal");
       expect(result.response).toHaveProperty("success", true);
-    });
-
-    it("should execute getGitHubCourseContent function", () => {
-      const now = new Date().toISOString();
-      store.setGitHubCourseData(userId, {
-        repositories: [{ owner: "dat560-2026", repo: "info", courseCode: "DAT560" }],
-        documents: [
-          {
-            id: "doc-dat560",
-            courseCode: "DAT560",
-            owner: "dat560-2026",
-            repo: "info",
-            path: "README.md",
-            url: "https://github.com/dat560-2026/info/blob/HEAD/README.md",
-            title: "Course Info",
-            summary: "Overview",
-            highlights: ["Deliverables"],
-            snippet: "Course overview snippet",
-            syncedAt: now
-          }
-        ],
-        deadlinesSynced: 0,
-        lastSyncedAt: now
-      });
-
-      const result = executeFunctionCall("getGitHubCourseContent", { courseCode: "DAT560" }, store, userId);
-
-      expect(result.name).toBe("getGitHubCourseContent");
-      expect(Array.isArray(result.response)).toBe(true);
-      expect((result.response as Array<{ id: string }>)[0]?.id).toBe("doc-dat560");
     });
 
     it("should execute queueDeadlineAction function for complete", () => {

@@ -4,9 +4,7 @@ import {
   ChatActionType,
   ChatPendingAction,
   Deadline,
-  GmailMessage,
   GoalWithStatus,
-  GitHubCourseDocument,
   HabitWithStatus,
   LectureEvent,
   RoutinePreset,
@@ -150,25 +148,6 @@ export const functionDeclarations: FunctionDeclaration[] = [
         query: {
           type: SchemaType.STRING,
           description: "General text filter matched against course and task."
-        }
-      },
-      required: []
-    }
-  },
-  {
-    name: "getEmails",
-    description:
-      "Get recent Gmail inbox messages. Returns sender, subject, snippet, read status, and received timestamp. Use this when user asks about emails, inbox, what their latest email said, or message contents.",
-    parameters: {
-      type: SchemaType.OBJECT,
-      properties: {
-        limit: {
-          type: SchemaType.NUMBER,
-          description: "Maximum number of emails to return (default: 5, max: 20)"
-        },
-        unreadOnly: {
-          type: SchemaType.BOOLEAN,
-          description: "Set true to return only unread emails"
         }
       },
       required: []
@@ -1035,29 +1014,6 @@ export const functionDeclarations: FunctionDeclaration[] = [
     }
   },
   {
-    name: "getGitHubCourseContent",
-    description:
-      "Get synced GitHub syllabus/course-info documents. Use this for questions about course policies, deliverables, grading, exams, lab expectations, and repository-based course material.",
-    parameters: {
-      type: SchemaType.OBJECT,
-      properties: {
-        courseCode: {
-          type: SchemaType.STRING,
-          description: "Optional course code filter such as DAT560 or DAT520."
-        },
-        query: {
-          type: SchemaType.STRING,
-          description: "Optional keyword query to rank matching documents."
-        },
-        limit: {
-          type: SchemaType.NUMBER,
-          description: "Maximum number of documents to return (default: 5, max: 10)."
-        }
-      },
-      required: []
-    }
-  },
-  {
     name: "queueDeadlineAction",
     description:
       "Modify a deadline immediately by action. Supports complete and reschedule without extra confirmation.",
@@ -1889,26 +1845,6 @@ export function handleDeleteDeadline(
     deadline: target,
     message: `Deleted deadline "${target.task}" for ${target.course}.`
   };
-}
-
-export function handleGetEmails(
-  store: RuntimeStore, userId: string,
-  args: Record<string, unknown> = {}
-): GmailMessage[] {
-  const limit = clampNumber(args.limit, 5, 1, 20);
-  const unreadOnly = args.unreadOnly === true;
-  const messages = store
-    .getGmailMessages(userId)
-    .filter((message) => (unreadOnly ? !message.isRead : true))
-    .sort((left, right) => {
-      const leftMs = new Date(left.receivedAt).getTime();
-      const rightMs = new Date(right.receivedAt).getTime();
-      const safeLeftMs = Number.isFinite(leftMs) ? leftMs : 0;
-      const safeRightMs = Number.isFinite(rightMs) ? rightMs : 0;
-      return safeRightMs - safeLeftMs;
-    });
-
-  return messages.slice(0, limit);
 }
 
 export function handleGetWithingsHealthSummary(
@@ -4095,78 +4031,6 @@ function parseMealType(value: unknown): NutritionMealType {
   return "other";
 }
 
-function normalizeSearchTokens(value: string): string[] {
-  return value
-    .toLowerCase()
-    .split(/[^a-z0-9]+/i)
-    .map((token) => token.trim())
-    .filter(Boolean);
-}
-
-function scoreGitHubCourseDocument(doc: GitHubCourseDocument, queryTokens: string[]): number {
-  if (queryTokens.length === 0) {
-    return 1;
-  }
-
-  const title = doc.title.toLowerCase();
-  const summary = doc.summary.toLowerCase();
-  const snippet = doc.snippet.toLowerCase();
-  const path = doc.path.toLowerCase();
-  const repo = `${doc.owner}/${doc.repo}`.toLowerCase();
-  const highlights = doc.highlights.join(" ").toLowerCase();
-
-  let score = 0;
-  queryTokens.forEach((token) => {
-    if (title.includes(token)) score += 6;
-    if (summary.includes(token)) score += 5;
-    if (snippet.includes(token)) score += 4;
-    if (highlights.includes(token)) score += 3;
-    if (path.includes(token)) score += 2;
-    if (repo.includes(token)) score += 2;
-    if (doc.courseCode.toLowerCase().includes(token)) score += 3;
-  });
-
-  return score;
-}
-
-export function handleGetGitHubCourseContent(
-  store: RuntimeStore, userId: string,
-  args: Record<string, unknown> = {}
-): GitHubCourseDocument[] {
-  const githubData = store.getGitHubCourseData(userId);
-  if (!githubData || githubData.documents.length === 0) {
-    return [];
-  }
-
-  const requestedCourseCode = asTrimmedString(args.courseCode)?.toUpperCase();
-  const query = asTrimmedString(args.query);
-  const limit = clampNumber(args.limit, 5, 1, 10);
-  const queryTokens = query ? normalizeSearchTokens(query) : [];
-
-  const filteredByCourse = githubData.documents.filter((doc) => {
-    if (!requestedCourseCode) {
-      return true;
-    }
-    return doc.courseCode.toUpperCase().includes(requestedCourseCode);
-  });
-
-  const scored = filteredByCourse
-    .map((doc) => ({
-      doc,
-      score: scoreGitHubCourseDocument(doc, queryTokens)
-    }))
-    .filter((item) => item.score > 0)
-    .sort((left, right) => {
-      if (right.score !== left.score) {
-        return right.score - left.score;
-      }
-      return new Date(right.doc.syncedAt).getTime() - new Date(left.doc.syncedAt).getTime();
-    })
-    .map((item) => item.doc);
-
-  return scored.slice(0, limit);
-}
-
 function toPendingActionResponse(action: ChatPendingAction, message: string): PendingActionToolResponse {
   return {
     requiresConfirmation: true,
@@ -5478,9 +5342,6 @@ export function executeFunctionCall(
     case "getDeadlines":
       response = handleGetDeadlines(store, userId, args);
       break;
-    case "getEmails":
-      response = handleGetEmails(store, userId, args);
-      break;
     case "getWithingsHealthSummary":
       response = handleGetWithingsHealthSummary(store, userId, args);
       break;
@@ -5573,9 +5434,6 @@ export function executeFunctionCall(
       break;
     case "deleteMeal":
       response = handleDeleteMeal(store, userId, args);
-      break;
-    case "getGitHubCourseContent":
-      response = handleGetGitHubCourseContent(store, userId, args);
       break;
     case "createDeadline":
       response = handleCreateDeadline(store, userId, args);

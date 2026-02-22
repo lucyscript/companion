@@ -919,7 +919,7 @@ export interface SyncQueueStatus {
   recentItems: SyncQueueItem[];
 }
 
-export type IntegrationSyncName = "tp" | "canvas" | "gmail" | "withings";
+export type IntegrationSyncName = "tp" | "canvas" | "withings";
 export type IntegrationSyncAttemptStatus = "success" | "failure";
 export type IntegrationSyncRootCause = "none" | "auth" | "network" | "rate_limit" | "validation" | "provider" | "unknown";
 
@@ -1007,68 +1007,6 @@ export interface CanvasData {
   modules: CanvasModule[];
   announcements: CanvasAnnouncement[];
   lastSyncedAt: string | null;
-}
-
-export interface GitHubCourseRepository {
-  owner: string;
-  repo: string;
-  courseCode: string;
-}
-
-/** A user-configured GitHub repo to track for deadlines and course content */
-export interface GitHubTrackedRepo {
-  owner: string;
-  repo: string;
-  /** Optional course code to associate deadlines with (e.g. "DAT520") */
-  courseCode?: string;
-  /** Optional human label (e.g. "Distributed Systems labs") */
-  label?: string;
-  addedAt: string;
-}
-
-export interface GitHubCourseDocument {
-  id: string;
-  courseCode: string;
-  owner: string;
-  repo: string;
-  path: string;
-  url: string;
-  title: string;
-  summary: string;
-  highlights: string[];
-  snippet: string;
-  syncedAt: string;
-}
-
-export interface GitHubCourseData {
-  repositories: GitHubCourseRepository[];
-  documents: GitHubCourseDocument[];
-  deadlinesSynced: number;
-  lastSyncedAt: string | null;
-  /** HEAD SHA index for change detection — maps "owner/repo" → headSha */
-  blobIndex?: Record<string, string>;
-}
-
-// Gmail types
-export interface GmailMessage {
-  id: string;
-  from: string;
-  subject: string;
-  snippet: string;
-  receivedAt: string;
-  labels: string[];
-  isRead: boolean;
-}
-
-export interface GmailData {
-  messages: GmailMessage[];
-  lastSyncedAt: string;
-}
-
-export interface GmailSyncResult {
-  success: boolean;
-  messagesCount: number;
-  error?: string;
 }
 
 export interface WithingsWeightEntry {

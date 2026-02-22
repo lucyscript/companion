@@ -537,6 +537,21 @@ export interface McpServerConfig {
   hasToken: boolean;
 }
 
+export interface McpServerTemplate {
+  id: string;
+  provider: string;
+  label: string;
+  description: string;
+  serverUrl: string;
+  docsUrl: string;
+  verified: boolean;
+  authType: "bearer";
+  tokenLabel: string;
+  tokenPlaceholder: string;
+  tokenHelp: string;
+  suggestedToolAllowlist: string[];
+}
+
 export type FeatureId =
   | "chat"
   | "schedule"
@@ -755,7 +770,7 @@ export interface GeminiStatus {
   error?: string;
 }
 
-export type IntegrationSyncName = "tp" | "canvas" | "gmail" | "withings";
+export type IntegrationSyncName = "tp" | "canvas" | "withings";
 export type IntegrationSyncAttemptStatus = "success" | "failure";
 export type IntegrationSyncRootCause = "none" | "auth" | "network" | "rate_limit" | "validation" | "provider" | "unknown";
 

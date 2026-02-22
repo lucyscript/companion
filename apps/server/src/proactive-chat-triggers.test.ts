@@ -8,7 +8,6 @@ import {
   clearTriggerCooldowns,
   ALL_TRIGGERS
 } from "./proactive-chat-triggers.js";
-import { Deadline, LectureEvent } from "./types.js";
 
 describe("Proactive Chat Triggers", () => {
   let store: RuntimeStore;
@@ -221,59 +220,6 @@ describe("Proactive Chat Triggers", () => {
     });
   });
 
-  describe("New Email Trigger", () => {
-    it("fires when unread email state changes", async () => {
-      const now = new Date("2026-02-17T12:00:00.000Z");
-
-      store.setGmailMessages(userId,
-        [
-          {
-            id: "gmail-1",
-            from: "course@uis.no",
-            subject: "DAT560 deadline update",
-            snippet: "Assignment 2 deadline extended",
-            receivedAt: "2026-02-17T11:45:00.000Z",
-            labels: ["INBOX", "UNREAD"],
-            isRead: false
-          }
-        ],
-        "2026-02-17T11:50:00.000Z"
-      );
-
-      const notifications = await checkProactiveTriggers(store, userId, now);
-      const emailNudge = notifications.find((n) => n.metadata?.triggerType === "new-email");
-      expect(emailNudge).toBeDefined();
-      expect(emailNudge?.title).toBe("New email");
-      expect(emailNudge?.priority).toBe("medium");
-      expect(emailNudge?.url).toBe("/companion/?tab=chat");
-    });
-
-    it("does not repeatedly fire for the same unread snapshot", async () => {
-      const now = new Date("2026-02-17T12:00:00.000Z");
-
-      store.setGmailMessages(userId,
-        [
-          {
-            id: "gmail-1",
-            from: "course@uis.no",
-            subject: "DAT560 deadline update",
-            snippet: "Assignment 2 deadline extended",
-            receivedAt: "2026-02-17T11:45:00.000Z",
-            labels: ["INBOX", "UNREAD"],
-            isRead: false
-          }
-        ],
-        "2026-02-17T11:50:00.000Z"
-      );
-
-      const first = await checkProactiveTriggersWithCooldown(store, userId, now);
-      expect(first.find((n) => n.metadata?.triggerType === "new-email")).toBeDefined();
-
-      const second = await checkProactiveTriggersWithCooldown(store, userId, now);
-      expect(second.find((n) => n.metadata?.triggerType === "new-email")).toBeUndefined();
-    });
-  });
-
   describe("Cooldown Logic", () => {
     it("should respect cooldown period", () => {
       // Mark a trigger as fired
@@ -331,8 +277,8 @@ describe("Proactive Chat Triggers", () => {
   });
 
   describe("All Triggers Configuration", () => {
-    it("should have all 6 trigger types configured", () => {
-      expect(ALL_TRIGGERS).toHaveLength(6);
+    it("should have all 5 trigger types configured", () => {
+      expect(ALL_TRIGGERS).toHaveLength(5);
       
       const types = ALL_TRIGGERS.map(t => t.type);
       expect(types).toContain("morning-briefing");
@@ -340,7 +286,6 @@ describe("Proactive Chat Triggers", () => {
       expect(types).toContain("deadline-approaching");
       expect(types).toContain("post-lecture");
       expect(types).toContain("evening-reflection");
-      expect(types).toContain("new-email");
     });
 
     it("should have priority levels set", () => {

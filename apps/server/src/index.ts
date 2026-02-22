@@ -93,6 +93,7 @@ import {
   upsertMcpServer,
   validateMcpServerConnection
 } from "./mcp.js";
+import { getMcpServerTemplates } from "./mcp-catalog.js";
 
 const app = express();
 const MAX_API_JSON_BODY_SIZE = "10mb";
@@ -1102,6 +1103,15 @@ app.get("/api/mcp/servers", (req, res) => {
 
   return res.json({
     servers: getMcpServersPublic(store, authReq.authUser.id)
+  });
+});
+
+app.get("/api/mcp/catalog", (req, res) => {
+  const authReq = req as AuthenticatedRequest;
+  if (!authReq.authUser) return res.status(401).json({ error: "Unauthorized" });
+
+  return res.json({
+    templates: getMcpServerTemplates()
   });
 });
 

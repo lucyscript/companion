@@ -159,77 +159,6 @@ describe("chat service", () => {
     expect(contextWindow).toBe("");
   });
 
-  it("includes Gmail context with unread count and actionable items", async () => {
-    const now = new Date("2026-02-16T09:00:00.000Z");
-
-    // Add Gmail messages
-    store.setGmailMessages(userId,
-      [
-        {
-          id: "msg1",
-          from: "notifications@instructure.com",
-          subject: "Lab 3 has been graded",
-          snippet: "Your submission for Lab 3: gRPC has been graded. Score: 95/100",
-          receivedAt: "2026-02-16T08:30:00.000Z",
-          labels: ["INBOX", "UNREAD"],
-          isRead: false
-        },
-        {
-          id: "msg2",
-          from: "github@notifications.github.com",
-          subject: "PR merged: defnotai/server",
-          snippet: "Your pull request has been merged into main",
-          receivedAt: "2026-02-15T20:00:00.000Z",
-          labels: ["INBOX", "UNREAD"],
-          isRead: false
-        },
-        {
-          id: "msg3",
-          from: "professor@uis.no",
-          subject: "Reminder: Assignment 2 deadline approaching",
-          snippet: "Just a friendly reminder that Assignment 2 for DAT520 is due on Friday",
-          receivedAt: "2026-02-15T14:00:00.000Z",
-          labels: ["INBOX", "UNREAD"],
-          isRead: false
-        },
-        {
-          id: "msg4",
-          from: "friend@example.com",
-          subject: "Coffee tomorrow?",
-          snippet: "Hey, want to grab coffee tomorrow afternoon?",
-          receivedAt: "2026-02-14T12:00:00.000Z",
-          labels: ["INBOX"],
-          isRead: true
-        }
-      ],
-      "2026-02-16T08:00:00.000Z"
-    );
-
-    const result = await sendChatMessage(store, userId, "What's in my inbox?", {
-      geminiClient: fakeGemini,
-      now,
-    });
-
-    expect(generateChatResponse).toHaveBeenCalled();
-    const contextWindow = result.assistantMessage.metadata?.contextWindow;
-
-    // Check unread count
-    expect(contextWindow).toBe("");
-  });
-
-  it("shows fallback message when no Gmail messages are synced", async () => {
-    const now = new Date("2026-02-16T09:00:00.000Z");
-
-    const result = await sendChatMessage(store, userId, "Check my emails", {
-      geminiClient: fakeGemini,
-      now,
-    });
-
-    expect(generateChatResponse).toHaveBeenCalled();
-    const contextWindow = result.assistantMessage.metadata?.contextWindow;
-    expect(contextWindow).toBe("");
-  });
-
   it("adds deadline citations when getDeadlines tool is used", async () => {
     const dueDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString();
     const deadline = store.createDeadline(userId, {
@@ -331,69 +260,6 @@ describe("chat service", () => {
     expect(fnResponse?.response?.total).toBe(1);
     const deadlines = fnResponse?.response?.deadlines as Array<Record<string, unknown>>;
     expect(deadlines[0]?.id).toBe(dat560.id);
-  });
-
-  it("adds GitHub course citations when getGitHubCourseContent tool is used", async () => {
-    const nowIso = new Date().toISOString();
-    store.setGitHubCourseData(userId, {
-      repositories: [{ owner: "dat560-2026", repo: "info", courseCode: "DAT560" }],
-      documents: [
-        {
-          id: "doc-dat560-syllabus",
-          courseCode: "DAT560",
-          owner: "dat560-2026",
-          repo: "info",
-          path: "docs/syllabus.md",
-          url: "https://github.com/dat560-2026/info/blob/HEAD/docs/syllabus.md",
-          title: "DAT560 Syllabus",
-          summary: "Project grading and deliverables.",
-          highlights: ["Project milestones", "Deliverables"],
-          snippet: "Deliverables include proposal, implementation, and final report.",
-          syncedAt: nowIso
-        }
-      ],
-      deadlinesSynced: 1,
-      lastSyncedAt: nowIso
-    });
-
-    generateChatResponse = vi
-      .fn()
-      .mockResolvedValueOnce({
-        text: "",
-        finishReason: "stop",
-        functionCalls: [
-          {
-            name: "getGitHubCourseContent",
-            args: { courseCode: "DAT560", query: "deliverables" }
-          }
-        ]
-      })
-      .mockResolvedValueOnce({
-        text: "The DAT560 syllabus lists proposal, implementation, and report deliverables.",
-        finishReason: "stop"
-      });
-    fakeGemini = {
-      generateChatResponse,
-      generateLiveChatResponse
-    } as unknown as GeminiClient;
-
-    const result = await sendChatMessage(store, userId, "What does DAT560 say about deliverables?", {
-      geminiClient: fakeGemini,
-    });
-
-    expect(result.citations).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: "doc-dat560-syllabus",
-          type: "github-course-doc",
-          metadata: expect.objectContaining({
-            owner: "dat560-2026",
-            repo: "info",
-            path: "docs/syllabus.md"
-          })
-        })
-      ])
-    );
   });
 
   it("supports multiple tool-call rounds before returning final text", async () => {
@@ -556,7 +422,7 @@ describe("chat service", () => {
 
     const firstRequest = generateChatResponse.mock.calls[0][0] as { systemInstruction: string };
     expect(firstRequest.systemInstruction).toContain("For factual questions about schedule, deadlines, or connected external systems, use tools before answering.");
-    expect(firstRequest.systemInstruction).toContain("For external systems such as GitHub, Gmail, Notion, or docs, call available MCP tools when relevant.");
+    expect(firstRequest.systemInstruction).toContain("For external systems such as docs, project tools, productivity apps, and provider APIs, call available MCP tools when relevant.");
     expect(firstRequest.systemInstruction).toContain(
       "If the user asks to save/update a meal plan, persist it via nutrition tools (targets/meals/items/custom foods)."
     );
@@ -571,22 +437,8 @@ describe("chat service", () => {
     );
   });
 
-  it("injects runtime time and unread email status into system instruction", async () => {
+  it("injects runtime time context into system instruction", async () => {
     const now = new Date("2026-02-18T15:30:00.000Z");
-    store.setGmailMessages(userId,
-      [
-        {
-          id: "msg-new",
-          from: "canvas@instructure.com",
-          subject: "DAT560 deadline update",
-          snippet: "Assignment deadline was extended.",
-          receivedAt: "2026-02-18T14:45:00.000Z",
-          labels: ["INBOX", "UNREAD"],
-          isRead: false
-        }
-      ],
-      "2026-02-18T15:00:00.000Z"
-    );
 
     await sendChatMessage(store, userId, "anything new?", {
       geminiClient: fakeGemini,
@@ -597,8 +449,6 @@ describe("chat service", () => {
     expect(firstRequest.systemInstruction).toContain("Runtime context for this turn:");
     expect(firstRequest.systemInstruction).toContain("Current time reference:");
     expect(firstRequest.systemInstruction).toContain("UTC now: 2026-02-18T15:30:00.000Z");
-    expect(firstRequest.systemInstruction).toContain("Email status: 1 unread (1 new in the last 24h).");
-    expect(firstRequest.systemInstruction).toContain("Newest unread: DAT560 deadline update");
   });
 
   it("preserves markdown styling in assistant output", async () => {
@@ -618,88 +468,6 @@ describe("chat service", () => {
     expect(result.reply).toContain("**OK**. Today's schedule includes");
     expect(result.reply).toContain("* **DAT520 Laboratorium /Lab** from 09:15 to 11:00");
     expect(result.reply).toContain("* **DAT520 Forelesning /Lecture** from 11:15 to 13:00");
-  });
-
-  it("keeps email follow-up handling model-driven (no local email intent override marker)", async () => {
-    store.recordChatMessage(userId, "assistant", "Recent emails (1): DAT560 Assignment update", {
-      citations: [
-        {
-          id: "gmail-1",
-          type: "email",
-          label: "DAT560 Assignment update"
-        }
-      ]
-    });
-
-    await sendChatMessage(store, userId, "what did it contain?", {
-      geminiClient: fakeGemini,
-    });
-
-    const firstRequest = generateChatResponse.mock.calls[0][0] as { systemInstruction: string };
-    expect(firstRequest.systemInstruction).toContain("Tool routing is model-driven");
-    expect(firstRequest.systemInstruction).not.toContain("Detected intent: emails");
-  });
-
-  it("includes Gmail snippet/from/receivedAt in getEmails functionResponse payload", async () => {
-    store.setGmailMessages(userId,
-      [
-        {
-          id: "gmail-123",
-          from: "course@uis.no",
-          subject: "DAT560 Assignment 2 reminder",
-          snippet: "Please submit by Thursday 13:00 and include your report.",
-          receivedAt: "2026-02-17T12:00:00.000Z",
-          labels: ["INBOX", "UNREAD"],
-          isRead: false
-        }
-      ],
-      "2026-02-17T12:05:00.000Z"
-    );
-
-    generateChatResponse = vi
-      .fn()
-      .mockResolvedValueOnce({
-        text: "",
-        finishReason: "stop",
-        functionCalls: [
-          {
-            name: "getEmails",
-            args: { limit: 1 }
-          }
-        ]
-      })
-      .mockResolvedValueOnce({
-        text: "Your latest email is about DAT560 Assignment 2.",
-        finishReason: "stop"
-      });
-    fakeGemini = {
-      generateChatResponse,
-      generateLiveChatResponse
-    } as unknown as GeminiClient;
-
-    await sendChatMessage(store, userId, "What did my last email contain?", {
-      geminiClient: fakeGemini,
-    });
-
-    expect(generateChatResponse).toHaveBeenCalledTimes(2);
-    const secondRequest = generateChatResponse.mock.calls[1][0] as {
-      messages: Array<{ role: string; parts: Array<Record<string, unknown>> }>;
-    };
-    const lastMessage = secondRequest.messages[secondRequest.messages.length - 1];
-    const fnResponse = lastMessage.parts[0]?.functionResponse as
-      | { name: string; response: Record<string, unknown> }
-      | undefined;
-
-    expect(lastMessage.role).toBe("function");
-    expect(fnResponse?.name).toBe("getEmails");
-    expect(fnResponse?.response?.total).toBe(1);
-
-    const emails = fnResponse?.response?.emails as Array<Record<string, unknown>>;
-    expect(Array.isArray(emails)).toBe(true);
-    expect(emails[0]?.from).toBe("course@uis.no");
-    expect(emails[0]?.receivedAt).toBe("2026-02-17T12:00:00.000Z");
-    expect(emails[0]?.snippet).toContain("submit by Thursday");
-    expect(emails[0]?.isRead).toBe(false);
   });
 
   it("compacts large tool responses before sending functionResponse payloads to Gemini", async () => {

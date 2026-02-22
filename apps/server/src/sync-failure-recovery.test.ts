@@ -5,11 +5,11 @@ describe("SyncFailureRecoveryTracker", () => {
   it("emits actionable prompt after repeated failures when no recent successful sync exists", () => {
     const tracker = new SyncFailureRecoveryTracker();
 
-    expect(tracker.recordFailure("gmail", "Gmail not connected", "2026-02-17T10:00:00.000Z")).toBeNull();
-    const prompt = tracker.recordFailure("gmail", "Gmail not connected", "2026-02-17T10:05:00.000Z");
+    expect(tracker.recordFailure("withings", "Withings not connected", "2026-02-17T10:00:00.000Z")).toBeNull();
+    const prompt = tracker.recordFailure("withings", "Withings not connected", "2026-02-17T10:05:00.000Z");
 
     expect(prompt).not.toBeNull();
-    expect(prompt?.integration).toBe("gmail");
+    expect(prompt?.integration).toBe("withings");
     expect(prompt?.failureCount).toBe(2);
     expect(prompt?.rootCauseHint.toLowerCase()).toContain("not connected");
     expect(prompt?.suggestedActions.length).toBeGreaterThan(1);

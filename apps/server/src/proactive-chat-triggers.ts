@@ -11,8 +11,7 @@ export type ProactiveTriggerType =
   | "schedule-gap"
   | "deadline-approaching"
   | "post-lecture"
-  | "evening-reflection"
-  | "new-email";
+  | "evening-reflection";
 
 export interface ProactiveTrigger {
   type: ProactiveTriggerType;
@@ -44,29 +43,6 @@ function isHour(date: Date, targetHour: number): boolean {
 function isWithinHours(date: Date, startHour: number, endHour: number): boolean {
   const hour = date.getHours();
   return hour >= startHour && hour < endHour;
-}
-
-let lastUnreadEmailSignature = new WeakMap<RuntimeStore, string>();
-
-function buildUnreadEmailSignature(store: RuntimeStore, userId: string): string {
-  const gmailData = store.getGmailData(userId);
-  const unread = gmailData.messages
-    .filter((message) => !message.isRead)
-    .slice()
-    .sort((left, right) => Date.parse(right.receivedAt) - Date.parse(left.receivedAt));
-
-  if (unread.length === 0) {
-    return "none";
-  }
-
-  const topIds = unread.slice(0, 10).map((message) => message.id).join(",");
-  return `${unread.length}|${topIds}|${gmailData.lastSyncedAt ?? "unknown"}`;
-}
-
-function hasUnreadEmailDelta(store: RuntimeStore, userId: string): boolean {
-  const signature = buildUnreadEmailSignature(store, userId);
-  const previous = lastUnreadEmailSignature.get(store);
-  return signature !== "none" && signature !== previous;
 }
 
 /**
@@ -154,8 +130,7 @@ async function generateProactiveMessage(
     "schedule-gap": `The user has a gap in their schedule. Suggest how they might use this time productively (work on assignments, review notes, take a break). Be encouraging but not pushy. 2-3 sentences. ${specificContext}`,
     "deadline-approaching": `A deadline is approaching soon (within 48 hours). Gently remind them and offer to help with planning or motivation. Don't be alarmist. 2-3 sentences. ${specificContext}`,
     "post-lecture": `The user just finished a lecture. Check in on how it went and offer to help review concepts or plan next steps. Be friendly and supportive. 2-3 sentences. ${specificContext}`,
-    "evening-reflection": `It's evening. Invite the user to reflect on their day. Ask about accomplishments, challenges, or how they're feeling. Be warm and conversational. 2-3 sentences. ${specificContext}`,
-    "new-email": `The user received new unread email(s). Give a concise inbox update and mention key senders/subjects. Offer one helpful next step. Keep it clear and conversational. 2-3 sentences. ${specificContext}`
+    "evening-reflection": `It's evening. Invite the user to reflect on their day. Ask about accomplishments, challenges, or how they're feeling. Be warm and conversational. 2-3 sentences. ${specificContext}`
   };
 
   const prompt = promptMap[triggerType];
@@ -175,8 +150,7 @@ async function generateProactiveMessage(
       "schedule-gap": "You've got some free time coming up. Want to work on an assignment or take a breather?",
       "deadline-approaching": "Just a heads up — you have a deadline coming up soon. Need help planning your work time?",
       "post-lecture": "How was the lecture? I'm here if you want to discuss any concepts or plan next steps.",
-      "evening-reflection": "How was your day? I'd love to hear about what you accomplished or what's on your mind.",
-      "new-email": "You have new unread email. Want me to summarize the important ones?"
+      "evening-reflection": "How was your day? I'd love to hear about what you accomplished or what's on your mind."
     };
 
     return fallbacks[triggerType];
@@ -297,31 +271,6 @@ const eveningReflectionTrigger: ProactiveTrigger = {
 };
 
 /**
- * New unread email trigger
- */
-const newEmailTrigger: ProactiveTrigger = {
-  type: "new-email",
-  priority: "medium",
-  shouldFire: (context) => {
-    return hasUnreadEmailDelta(context.store, context.userId);
-  },
-  generateMessage: async (context) => {
-    const gmailData = context.store.getGmailData(context.userId);
-    const unread = gmailData.messages
-      .filter((message) => !message.isRead)
-      .slice()
-      .sort((left, right) => Date.parse(right.receivedAt) - Date.parse(left.receivedAt));
-    const newest = unread[0];
-    const sender = newest?.from ?? "unknown sender";
-    const subject = newest?.subject ?? "no subject";
-    const specificContext = `Unread emails: ${unread.length}. Newest unread from ${sender} with subject "${subject}". Last Gmail sync: ${gmailData.lastSyncedAt ?? "unknown"}.`;
-    const message = await generateProactiveMessage(context.store, context.userId, "new-email", specificContext, context.now);
-    lastUnreadEmailSignature.set(context.store, buildUnreadEmailSignature(context.store, context.userId));
-    return message;
-  }
-};
-
-/**
  * All available proactive triggers
  */
 export const ALL_TRIGGERS: ProactiveTrigger[] = [
@@ -329,8 +278,7 @@ export const ALL_TRIGGERS: ProactiveTrigger[] = [
   scheduleGapTrigger,
   deadlineApproachingTrigger,
   postLectureTrigger,
-  eveningReflectionTrigger,
-  newEmailTrigger
+  eveningReflectionTrigger
 ];
 
 /**
@@ -408,8 +356,7 @@ function getTriggerTitle(type: ProactiveTriggerType): string {
     "schedule-gap": "Free time ahead",
     "deadline-approaching": "Deadline reminder",
     "post-lecture": "How was class?",
-    "evening-reflection": "Evening check-in",
-    "new-email": "New email"
+    "evening-reflection": "Evening check-in"
   };
 
   return titles[type];
@@ -418,10 +365,6 @@ function getTriggerTitle(type: ProactiveTriggerType): string {
 function getTriggerDeepLink(type: ProactiveTriggerType): string {
   if (type === "evening-reflection") {
     return "/companion/?tab=settings&section=weekly-review";
-  }
-
-  if (type === "new-email") {
-    return "/companion/?tab=chat";
   }
 
   return "/companion/?tab=chat";
@@ -436,8 +379,7 @@ const triggerCooldownMinutes: Record<ProactiveTriggerType, number> = {
   "schedule-gap": 60,
   "deadline-approaching": 60,
   "post-lecture": 60,
-  "evening-reflection": 60,
-  "new-email": 0
+  "evening-reflection": 60
 };
 
 /**
@@ -467,7 +409,6 @@ export function markTriggerFired(type: ProactiveTriggerType): void {
  */
 export function clearTriggerCooldowns(): void {
   triggerCooldowns.clear();
-  lastUnreadEmailSignature = new WeakMap<RuntimeStore, string>();
 }
 
 /**

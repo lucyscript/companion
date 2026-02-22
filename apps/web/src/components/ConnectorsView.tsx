@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
-import { ConnectorService, UserConnection, CanvasStatus, GeminiStatus, McpServerConfig } from "../types";
+import {
+  ConnectorService,
+  UserConnection,
+  CanvasStatus,
+  GeminiStatus,
+  McpServerConfig,
+  McpServerTemplate
+} from "../types";
 import {
   connectService,
+  getMcpCatalogTemplates,
   deleteMcpServer,
   disconnectService,
   getCanvasStatus,
@@ -57,7 +65,7 @@ const CONNECTORS: ConnectorMeta[] = [
     service: "mcp",
     label: "MCP Servers",
     icon: "🧩",
-    description: "Connect external MCP servers (GitHub, Gmail, Notion, docs, and more).",
+    description: "Connect external MCP servers (provider templates or custom URLs).",
     type: "config",
     configFields: [
       { key: "label", label: "Server label", placeholder: "GitHub MCP" },
@@ -114,6 +122,8 @@ export function ConnectorsView(): JSX.Element {
 
   const [canvasStatus, setCanvasStatus] = useState<CanvasStatus>({ baseUrl: "", lastSyncedAt: null, courses: [] });
   const [mcpServers, setMcpServers] = useState<McpServerConfig[]>([]);
+  const [mcpTemplates, setMcpTemplates] = useState<McpServerTemplate[]>([]);
+  const [selectedMcpTemplateId, setSelectedMcpTemplateId] = useState<string | null>(null);
   const [geminiStatus, setGeminiStatus] = useState<GeminiStatus>({
     apiConfigured: false,
     model: "unknown",
@@ -134,10 +144,16 @@ export function ConnectorsView(): JSX.Element {
 
   const fetchConnectorMeta = useCallback(async () => {
     try {
-      const [canvas, gemini, mcp] = await Promise.all([getCanvasStatus(), getGeminiStatus(), getMcpServers()]);
+      const [canvas, gemini, mcp, mcpCatalog] = await Promise.all([
+        getCanvasStatus(),
+        getGeminiStatus(),
+        getMcpServers(),
+        getMcpCatalogTemplates()
+      ]);
       setCanvasStatus(canvas);
       setGeminiStatus(gemini);
       setMcpServers(mcp);
+      setMcpTemplates(mcpCatalog);
     } catch {
       // Best effort status hydration
     }
@@ -174,7 +190,28 @@ export function ConnectorsView(): JSX.Element {
   };
 
   const handleInputChange = (key: string, value: string): void => {
+    if (key.startsWith("mcp_") && key !== "mcp_token") {
+      setSelectedMcpTemplateId(null);
+    }
     setInputValues((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const selectedMcpTemplate =
+    selectedMcpTemplateId !== null
+      ? (mcpTemplates.find((template) => template.id === selectedMcpTemplateId) ?? null)
+      : null;
+
+  const handleApplyMcpTemplate = (template: McpServerTemplate): void => {
+    setSelectedMcpTemplateId(template.id);
+    setInputValues((prev) => ({
+      ...prev,
+      mcp_label: template.label,
+      mcp_serverUrl: template.serverUrl,
+      mcp_token: "",
+      mcp_toolAllowlistCsv: template.suggestedToolAllowlist.join(", ")
+    }));
+    setExpandedService("mcp");
+    setError(null);
   };
 
   const handleConnect = async (connector: ConnectorMeta): Promise<void> => {
@@ -261,6 +298,7 @@ export function ConnectorsView(): JSX.Element {
           mcp_token: "",
           mcp_toolAllowlistCsv: ""
         }));
+        setSelectedMcpTemplateId(null);
       } else {
         setExpandedService(null);
         setInputValues(getDefaultInputValues());
@@ -303,6 +341,7 @@ export function ConnectorsView(): JSX.Element {
       }
       if (service === "mcp") {
         setMcpServers([]);
+        setSelectedMcpTemplateId(null);
       }
       await fetchConnections();
     } catch (err) {
@@ -498,18 +537,78 @@ export function ConnectorsView(): JSX.Element {
 
                 {connector.type === "config" && connector.configFields && (
                   <div className="connector-config-fields">
+                    {connector.service === "mcp" && mcpTemplates.length > 0 && (
+                      <div className="connector-mcp-templates">
+                        <p className="connector-input-label">Verified templates</p>
+                        <div className="connector-mcp-template-grid">
+                          {mcpTemplates.map((template) => {
+                            const selected = selectedMcpTemplateId === template.id;
+                            return (
+                              <div
+                                key={template.id}
+                                className={`connector-mcp-template-card ${selected ? "connector-mcp-template-card-selected" : ""}`}
+                              >
+                                <div className="connector-mcp-template-head">
+                                  <span className="connector-mcp-template-provider">{template.provider}</span>
+                                  {template.verified && (
+                                    <span className="connector-badge connector-badge-connected">Verified</span>
+                                  )}
+                                </div>
+                                <p className="connector-mcp-template-title">{template.label}</p>
+                                <p className="connector-mcp-template-description">{template.description}</p>
+                                <p className="connector-mcp-template-url">
+                                  <code>{template.serverUrl}</code>
+                                </p>
+                                <p className="connector-help-text">
+                                  Default allowlist: {template.suggestedToolAllowlist.length} tools
+                                </p>
+                                <div className="connector-mcp-template-actions">
+                                  <button
+                                    type="button"
+                                    className="connector-sync-btn"
+                                    onClick={() => handleApplyMcpTemplate(template)}
+                                    disabled={busy}
+                                  >
+                                    {selected ? "Applied" : "Use template"}
+                                  </button>
+                                  <a
+                                    href={template.docsUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="connector-mcp-template-docs"
+                                  >
+                                    Docs
+                                  </a>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                     {connector.configFields.map((field) => (
                       <div key={field.key} className="connector-config-field">
-                        <label>{field.label}</label>
+                        <label>
+                          {connector.service === "mcp" && field.key === "token" && selectedMcpTemplate
+                            ? selectedMcpTemplate.tokenLabel
+                            : field.label}
+                        </label>
                         <input
                           type={field.type ?? "text"}
-                          placeholder={field.placeholder}
+                          placeholder={
+                            connector.service === "mcp" && field.key === "token" && selectedMcpTemplate
+                              ? selectedMcpTemplate.tokenPlaceholder
+                              : field.placeholder
+                          }
                           value={inputValues[`${connector.service}_${field.key}`] ?? ""}
                           onChange={(event) => handleInputChange(`${connector.service}_${field.key}`, event.target.value)}
                           disabled={busy}
                         />
                       </div>
                     ))}
+                    {connector.service === "mcp" && selectedMcpTemplate && (
+                      <p className="connector-help-text">{selectedMcpTemplate.tokenHelp}</p>
+                    )}
                     {connector.service === "mcp" && (
                       <p className="connector-help-text">
                         Keep your allowlist focused. Exposing fewer MCP tools gives better routing quality in Gemini.

@@ -42,6 +42,7 @@ import {
   IntegrationScopePreview,
   GeminiStatus,
   McpServerConfig,
+  McpServerTemplate,
   IntegrationHealthAttempt,
   IntegrationHealthSummary,
   IntegrationSyncAttemptStatus,
@@ -1500,6 +1501,11 @@ export async function disconnectService(service: ConnectorService): Promise<void
 export async function getMcpServers(): Promise<McpServerConfig[]> {
   const response = await jsonOrThrow<{ servers: McpServerConfig[] }>("/api/mcp/servers");
   return response.servers;
+}
+
+export async function getMcpCatalogTemplates(): Promise<McpServerTemplate[]> {
+  const response = await jsonOrThrow<{ templates: McpServerTemplate[] }>("/api/mcp/catalog");
+  return response.templates;
 }
 
 export async function deleteMcpServer(serverId: string): Promise<void> {

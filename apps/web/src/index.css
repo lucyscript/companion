@@ -4719,6 +4719,7 @@ body.keyboard-open .chat-overlay-backdrop {
 }
 
 .connector-input-label {
+  margin: 0;
   font-size: 0.76rem;
   color: var(--muted);
   font-weight: 600;
@@ -4813,6 +4814,88 @@ body.keyboard-open .chat-overlay-backdrop {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.connector-mcp-templates {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.connector-mcp-template-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+
+.connector-mcp-template-card {
+  border: 1px solid var(--card-border);
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 10px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.connector-mcp-template-card-selected {
+  border-color: var(--accent);
+  background: rgba(246, 195, 127, 0.07);
+}
+
+.connector-mcp-template-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.connector-mcp-template-provider {
+  font-size: 0.74rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+}
+
+.connector-mcp-template-title {
+  margin: 0;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.connector-mcp-template-description {
+  margin: 0;
+  font-size: 0.74rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.connector-mcp-template-url {
+  margin: 0;
+  font-size: 0.7rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.connector-mcp-template-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.connector-mcp-template-docs {
+  font-size: 0.78rem;
+  color: #93c5fd;
+  text-decoration: none;
+}
+
+.connector-mcp-template-docs:hover {
+  text-decoration: underline;
 }
 
 .connector-config-field {
