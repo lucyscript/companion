@@ -7,7 +7,13 @@ import {
   getConnectors,
   getGeminiStatus
 } from "../lib/api";
-import { loadCanvasSettings, saveCanvasSettings } from "../lib/storage";
+import {
+  loadCanvasSettings,
+  loadIntegrationScopeSettings,
+  saveCanvasSettings,
+  saveCanvasStatus,
+  saveIntegrationScopeSettings
+} from "../lib/storage";
 
 interface ConnectorMeta {
   service: ConnectorService;
@@ -229,6 +235,23 @@ export function ConnectorsView(): JSX.Element {
 
     try {
       await disconnectService(service);
+      if (service === "canvas") {
+        const clearedCanvasStatus: CanvasStatus = {
+          baseUrl: "",
+          lastSyncedAt: null,
+          courses: []
+        };
+        setCanvasStatus(clearedCanvasStatus);
+        saveCanvasStatus(clearedCanvasStatus);
+
+        const currentScope = loadIntegrationScopeSettings();
+        if (currentScope.canvasCourseIds.length > 0) {
+          saveIntegrationScopeSettings({
+            ...currentScope,
+            canvasCourseIds: []
+          });
+        }
+      }
       await fetchConnections();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Disconnect failed");
@@ -372,6 +395,11 @@ export function ConnectorsView(): JSX.Element {
                         In Canvas go to <strong>Account</strong> → <strong>Settings</strong> → <strong>Approved Integrations</strong> → <strong>+ New Access Token</strong>, then paste the token above.
                       </p>
                     )}
+                    {connector.service === "github_course" && (
+                      <p className="connector-help-text">
+                        Go to <strong>GitHub</strong> → <strong>Settings</strong> → <strong>Developer settings</strong> → <strong>Personal access tokens</strong> → <strong>Fine-grained tokens</strong>. Select the course organizations and grant read access to repositories.
+                      </p>
+                    )}
                     <button
                       className="connector-connect-btn"
                       onClick={() => void handleConnect(connector)}
@@ -436,6 +464,11 @@ export function ConnectorsView(): JSX.Element {
                       onChange={(e) => handleInputChange(connector.service, e.target.value)}
                       disabled={busy}
                     />
+                    {connector.service === "tp_schedule" && (
+                      <p className="connector-help-text">
+                        Go to <strong>tp.educloud.no</strong> → find your courses → click <strong>Verktøy</strong> → <strong>Kopier abonnementlenken til timeplanen</strong>. Paste the iCal URL here (starts with https://tp.educloud.no/...).
+                      </p>
+                    )}
                     <button
                       className="connector-connect-btn"
                       onClick={() => void handleConnect(connector)}
@@ -450,16 +483,6 @@ export function ConnectorsView(): JSX.Element {
                   <p className="connector-error">{error}</p>
                 )}
 
-                {connector.service === "github_course" && (
-                  <p className="connector-help-text">
-                    Go to <strong>GitHub</strong> → <strong>Settings</strong> → <strong>Developer settings</strong> → <strong>Personal access tokens</strong> → <strong>Fine-grained tokens</strong>. Select the course organizations and grant read access to repositories.
-                  </p>
-                )}
-                {connector.service === "tp_schedule" && (
-                  <p className="connector-help-text">
-                    Go to <strong>tp.educloud.no</strong> → find your courses → click <strong>Verktøy</strong> → <strong>Kopier abonnementlenken til timeplanen</strong>. Paste the iCal URL here (starts with https://tp.educloud.no/...).
-                  </p>
-                )}
               </div>
             )}
           </div>

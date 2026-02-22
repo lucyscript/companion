@@ -30,6 +30,25 @@ export function IntegrationScopeSettings(): JSX.Element {
     void load();
   }, []);
 
+  useEffect(() => {
+    if (settings.canvasCourseIds.length === 0) {
+      return;
+    }
+
+    const availableCourseIds = new Set(canvasStatus.courses.map((course) => course.id));
+    const nextCanvasCourseIds = settings.canvasCourseIds.filter((courseId) => availableCourseIds.has(courseId));
+    if (nextCanvasCourseIds.length === settings.canvasCourseIds.length) {
+      return;
+    }
+
+    const nextSettings: IntegrationScopeSettings = {
+      ...settings,
+      canvasCourseIds: nextCanvasCourseIds
+    };
+    setSettings(nextSettings);
+    saveIntegrationScopeSettings(nextSettings);
+  }, [canvasStatus.courses, settings]);
+
   const selectedCanvasSet = useMemo(() => new Set(settings.canvasCourseIds), [settings.canvasCourseIds]);
 
   const updateSettings = (next: IntegrationScopeSettings): void => {

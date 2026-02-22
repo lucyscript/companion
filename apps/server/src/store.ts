@@ -8047,6 +8047,13 @@ export class RuntimeStore {
   }
 
   /**
+   * Remove cached Canvas payload for a user.
+   */
+  clearCanvasData(userId: string): void {
+    this.db.prepare("DELETE FROM canvas_data WHERE userId = ?").run(userId);
+  }
+
+  /**
    * Set GitHub course data
    */
   setGitHubCourseData(userId: string, data: import("./types.js").GitHubCourseData): void {

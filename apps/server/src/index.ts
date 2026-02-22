@@ -1283,6 +1283,9 @@ app.delete("/api/connectors/:service", (req, res) => {
   if (parsed.data === "gmail") {
     store.clearGmailTokens(authReq.authUser.id);
   }
+  if (parsed.data === "canvas") {
+    store.clearCanvasData(authReq.authUser.id);
+  }
   if (parsed.data === "withings") {
     store.clearWithingsTokens(authReq.authUser.id);
   }
