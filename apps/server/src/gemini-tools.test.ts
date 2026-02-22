@@ -352,7 +352,7 @@ describe("gemini-tools", () => {
       expect((result as { deadline: { task: string } }).deadline.task).toBe("Assignment 5 report");
     });
 
-    it("allows non-academic deadline titles", () => {
+    it("allows arbitrary deadline titles", () => {
       const result = handleCreateDeadline(store, userId, {
         course: "DAT560",
         task: "Lunch with classmate",
