@@ -13,7 +13,10 @@ describe("mcp catalog", () => {
       expect(template.label.length).toBeGreaterThan(0);
       expect(template.serverUrl.startsWith("https://")).toBe(true);
       expect(template.docsUrl.startsWith("https://")).toBe(true);
-      expect(template.authType).toBe("bearer");
+      expect(["bearer", "oauth"]).toContain(template.authType);
+      if (template.authType === "oauth") {
+        expect(template.oauthProvider).toBeDefined();
+      }
       expect(template.suggestedToolAllowlist.length).toBeLessThanOrEqual(8);
 
       expect(seenIds.has(template.id)).toBe(false);

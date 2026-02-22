@@ -14,6 +14,11 @@ export interface OAuthUserProfile {
   avatarUrl?: string;
 }
 
+export interface OAuthUserProfileWithAccessToken {
+  profile: OAuthUserProfile;
+  accessToken: string;
+}
+
 // ── Google OAuth ──
 
 export function googleOAuthEnabled(): boolean {
@@ -95,17 +100,25 @@ export function githubOAuthEnabled(): boolean {
   return Boolean(config.GITHUB_OAUTH_CLIENT_ID && config.GITHUB_OAUTH_CLIENT_SECRET);
 }
 
-export function getGitHubOAuthUrl(state: string): string {
+export function getGitHubOAuthUrl(
+  state: string,
+  options: { scope?: string; redirectUri?: string } = {}
+): string {
+  const scope = options.scope?.trim() || "user:email read:user";
+  const redirectUri = options.redirectUri?.trim() || getGitHubRedirectUri();
   const params = new URLSearchParams({
     client_id: config.GITHUB_OAUTH_CLIENT_ID!,
-    redirect_uri: getGitHubRedirectUri(),
-    scope: "user:email read:user",
+    redirect_uri: redirectUri,
+    scope,
     state
   });
   return `https://github.com/login/oauth/authorize?${params.toString()}`;
 }
 
-export async function exchangeGitHubCode(code: string): Promise<OAuthUserProfile> {
+async function exchangeGitHubCodeForAccessToken(
+  code: string,
+  redirectUri = getGitHubRedirectUri()
+): Promise<string> {
   // Exchange code for access token
   const tokenResponse = await fetch("https://github.com/login/oauth/access_token", {
     method: "POST",
@@ -117,7 +130,7 @@ export async function exchangeGitHubCode(code: string): Promise<OAuthUserProfile
       client_id: config.GITHUB_OAUTH_CLIENT_ID!,
       client_secret: config.GITHUB_OAUTH_CLIENT_SECRET!,
       code,
-      redirect_uri: getGitHubRedirectUri()
+      redirect_uri: redirectUri
     })
   });
 
@@ -135,10 +148,14 @@ export async function exchangeGitHubCode(code: string): Promise<OAuthUserProfile
     throw new Error(`GitHub OAuth error: ${tokenData.error_description ?? tokenData.error ?? "no access_token"}`);
   }
 
+  return tokenData.access_token;
+}
+
+async function fetchGitHubProfile(accessToken: string): Promise<OAuthUserProfile> {
   // Fetch user profile
   const profileResponse = await fetch("https://api.github.com/user", {
     headers: {
-      Authorization: `Bearer ${tokenData.access_token}`,
+      Authorization: `Bearer ${accessToken}`,
       Accept: "application/vnd.github+json",
       "User-Agent": "Companion-App"
     }
@@ -161,7 +178,7 @@ export async function exchangeGitHubCode(code: string): Promise<OAuthUserProfile
   if (!email) {
     const emailsResponse = await fetch("https://api.github.com/user/emails", {
       headers: {
-        Authorization: `Bearer ${tokenData.access_token}`,
+        Authorization: `Bearer ${accessToken}`,
         Accept: "application/vnd.github+json",
         "User-Agent": "Companion-App"
       }
@@ -186,6 +203,26 @@ export async function exchangeGitHubCode(code: string): Promise<OAuthUserProfile
     email,
     name: profile.name ?? profile.login,
     avatarUrl: profile.avatar_url
+  };
+}
+
+export async function exchangeGitHubCode(
+  code: string,
+  options: { redirectUri?: string } = {}
+): Promise<OAuthUserProfile> {
+  const accessToken = await exchangeGitHubCodeForAccessToken(code, options.redirectUri);
+  return await fetchGitHubProfile(accessToken);
+}
+
+export async function exchangeGitHubCodeWithToken(
+  code: string,
+  options: { redirectUri?: string } = {}
+): Promise<OAuthUserProfileWithAccessToken> {
+  const accessToken = await exchangeGitHubCodeForAccessToken(code, options.redirectUri);
+  const profile = await fetchGitHubProfile(accessToken);
+  return {
+    profile,
+    accessToken
   };
 }
 

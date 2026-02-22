@@ -4898,6 +4898,22 @@ body.keyboard-open .chat-overlay-backdrop {
   text-decoration: underline;
 }
 
+.connector-mcp-quick-connect {
+  border: 1px solid rgba(246, 195, 127, 0.28);
+  background: rgba(246, 195, 127, 0.06);
+  border-radius: 10px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.connector-mcp-custom-fields {
+  border: 1px dashed var(--card-border);
+  border-radius: 10px;
+  padding: 10px;
+}
+
 .connector-config-field {
   display: flex;
   flex-direction: column;

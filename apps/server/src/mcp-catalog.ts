@@ -6,7 +6,9 @@ export interface McpServerTemplate {
   serverUrl: string;
   docsUrl: string;
   verified: boolean;
-  authType: "bearer";
+  authType: "bearer" | "oauth";
+  oauthProvider?: "github";
+  oauthEnabled?: boolean;
   tokenLabel: string;
   tokenPlaceholder: string;
   tokenHelp: string;
@@ -23,11 +25,12 @@ const MCP_SERVER_TEMPLATES: readonly McpServerTemplate[] = [
     serverUrl: "https://api.githubcopilot.com/mcp/x/repos/readonly",
     docsUrl: "https://github.com/github/github-mcp-server/blob/main/docs/remote-server.md",
     verified: true,
-    authType: "bearer",
+    authType: "oauth",
+    oauthProvider: "github",
     tokenLabel: "GitHub personal access token",
     tokenPlaceholder: "ghp_xxx or github_pat_xxx",
     tokenHelp:
-      "Create a fine-grained GitHub token and grant read-only access to the repositories you want Gemini to use.",
+      "Optional fallback if OAuth is unavailable. Create a fine-grained token with read access to the repositories you want Gemini to use.",
     suggestedToolAllowlist: [
       "search_repositories",
       "search_code",
@@ -71,4 +74,15 @@ export function getMcpServerTemplates(): McpServerTemplate[] {
     ...template,
     suggestedToolAllowlist: [...template.suggestedToolAllowlist]
   }));
+}
+
+export function getMcpServerTemplateById(templateId: string): McpServerTemplate | null {
+  const match = MCP_SERVER_TEMPLATES.find((template) => template.id === templateId);
+  if (!match) {
+    return null;
+  }
+  return {
+    ...match,
+    suggestedToolAllowlist: [...match.suggestedToolAllowlist]
+  };
 }

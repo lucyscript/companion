@@ -545,7 +545,9 @@ export interface McpServerTemplate {
   serverUrl: string;
   docsUrl: string;
   verified: boolean;
-  authType: "bearer";
+  authType: "bearer" | "oauth";
+  oauthProvider?: "github";
+  oauthEnabled?: boolean;
   tokenLabel: string;
   tokenPlaceholder: string;
   tokenHelp: string;

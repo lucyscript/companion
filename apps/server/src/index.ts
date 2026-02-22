@@ -12,7 +12,8 @@ import {
   exchangeGoogleCode,
   githubOAuthEnabled,
   getGitHubOAuthUrl,
-  exchangeGitHubCode
+  exchangeGitHubCode,
+  exchangeGitHubCodeWithToken
 } from "./oauth-login.js";
 import { buildDeadlineDedupResult } from "./deadline-dedup.js";
 import { generateDeadlineSuggestions } from "./deadline-suggestions.js";
@@ -93,7 +94,7 @@ import {
   upsertMcpServer,
   validateMcpServerConnection
 } from "./mcp.js";
-import { getMcpServerTemplates } from "./mcp-catalog.js";
+import { getMcpServerTemplateById, getMcpServerTemplates } from "./mcp-catalog.js";
 
 const app = express();
 const MAX_API_JSON_BODY_SIZE = "10mb";
@@ -197,7 +198,12 @@ interface PendingOAuthState {
   expiresAt: number;
 }
 
+interface PendingMcpGitHubOAuthState extends PendingOAuthState {
+  templateId: string;
+}
+
 const withingsPendingOAuthStates = new Map<string, PendingOAuthState>();
+const mcpGitHubPendingOAuthStates = new Map<string, PendingMcpGitHubOAuthState>();
 const tpSyncInFlightUsers = new Set<string>();
 
 interface CanvasConnectorCredentials {
@@ -383,7 +389,7 @@ function syncOAuthConnectorConnections(userId: string): void {
   }
 }
 
-function cleanupPendingOAuthStates(map: Map<string, PendingOAuthState>): void {
+function cleanupPendingOAuthStates<T extends PendingOAuthState>(map: Map<string, T>): void {
   const now = Date.now();
   for (const [state, entry] of map.entries()) {
     if (entry.expiresAt <= now) {
@@ -416,12 +422,37 @@ function consumePendingOAuthStateUserId(map: Map<string, PendingOAuthState>, sta
   return entry.userId;
 }
 
-function clearPendingOAuthStatesForUser(map: Map<string, PendingOAuthState>, userId: string): void {
+function clearPendingOAuthStatesForUser<T extends PendingOAuthState>(map: Map<string, T>, userId: string): void {
   for (const [state, entry] of map.entries()) {
     if (entry.userId === userId) {
       map.delete(state);
     }
   }
+}
+
+function registerPendingMcpGitHubOAuthState(state: string, userId: string, templateId: string): void {
+  cleanupPendingOAuthStates(mcpGitHubPendingOAuthStates);
+  mcpGitHubPendingOAuthStates.set(state, {
+    userId,
+    templateId,
+    expiresAt: Date.now() + OAUTH_STATE_TTL_MS
+  });
+}
+
+function consumePendingMcpGitHubOAuthState(state: string | null): PendingMcpGitHubOAuthState | null {
+  cleanupPendingOAuthStates(mcpGitHubPendingOAuthStates);
+  if (!state) {
+    return null;
+  }
+
+  const entry = mcpGitHubPendingOAuthStates.get(state);
+  if (!entry || entry.expiresAt <= Date.now()) {
+    mcpGitHubPendingOAuthStates.delete(state);
+    return null;
+  }
+
+  mcpGitHubPendingOAuthStates.delete(state);
+  return entry;
 }
 
 function extractStateFromUrl(url: string): string | null {
@@ -926,7 +957,7 @@ function getOAuthFrontendRedirect(token: string): string {
 }
 
 function getIntegrationFrontendRedirect(
-  connector: "withings",
+  connector: "withings" | "mcp",
   status: "connected" | "failed",
   message?: string,
 ): string {
@@ -984,6 +1015,29 @@ app.get("/api/auth/github", (_req, res) => {
 });
 
 app.get("/api/auth/github/callback", async (req, res) => {
+  const state = typeof req.query.state === "string" ? req.query.state : null;
+  const pendingMcpOAuth = consumePendingMcpGitHubOAuthState(state);
+  if (pendingMcpOAuth) {
+    try {
+      const code = req.query.code as string;
+      if (!code) {
+        return res.redirect(getIntegrationFrontendRedirect("mcp", "failed", "Missing OAuth code"));
+      }
+
+      const template = getMcpServerTemplateById(pendingMcpOAuth.templateId);
+      if (!template) {
+        return res.redirect(getIntegrationFrontendRedirect("mcp", "failed", "MCP template no longer exists"));
+      }
+
+      const exchange = await exchangeGitHubCodeWithToken(code);
+      await upsertMcpTemplateServerWithToken(pendingMcpOAuth.userId, template.id, exchange.accessToken);
+      return res.redirect(getIntegrationFrontendRedirect("mcp", "connected", `${template.label} connected`));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "GitHub OAuth callback failed";
+      return res.redirect(getIntegrationFrontendRedirect("mcp", "failed", message));
+    }
+  }
+
   try {
     const code = req.query.code as string;
     if (!code) return res.status(400).send("Missing OAuth code");
@@ -1048,6 +1102,8 @@ app.delete("/api/user/data", (req, res) => {
   if (!authReq.authUser) return res.status(401).json({ error: "Unauthorized" });
 
   store.deleteAllUserData(authReq.authUser.id);
+  clearPendingOAuthStatesForUser(withingsPendingOAuthStates, authReq.authUser.id);
+  clearPendingOAuthStatesForUser(mcpGitHubPendingOAuthStates, authReq.authUser.id);
   return res.json({ deleted: true });
 });
 
@@ -1067,6 +1123,9 @@ const mcpConnectorServerSchema = z.object({
   toolAllowlist: z.array(z.string().trim().min(1).max(120)).max(128).optional(),
   toolAllowlistCsv: z.string().optional()
 });
+const mcpTemplateConnectSchema = z.object({
+  token: z.string().trim().min(1).max(4096).optional()
+});
 
 function parseMcpToolAllowlist(payload: z.infer<typeof mcpConnectorServerSchema>): string[] {
   if (Array.isArray(payload.toolAllowlist)) {
@@ -1079,6 +1138,32 @@ function parseMcpToolAllowlist(payload: z.infer<typeof mcpConnectorServerSchema>
       .filter((value) => value.length > 0);
   }
   return [];
+}
+
+async function upsertMcpTemplateServerWithToken(
+  userId: string,
+  templateId: string,
+  token: string
+): Promise<{
+  server: ReturnType<typeof upsertMcpServer>;
+  publicServers: ReturnType<typeof getMcpServersPublic>;
+}> {
+  const template = getMcpServerTemplateById(templateId);
+  if (!template) {
+    throw new Error("MCP template not found");
+  }
+
+  const mcpInput = {
+    label: template.label,
+    serverUrl: template.serverUrl,
+    token: token.trim(),
+    toolAllowlist: template.suggestedToolAllowlist
+  };
+
+  await validateMcpServerConnection(mcpInput);
+  const server = upsertMcpServer(store, userId, mcpInput);
+  const publicServers = getMcpServersPublic(store, userId);
+  return { server, publicServers };
 }
 
 app.get("/api/connectors", (req, res) => {
@@ -1110,8 +1195,90 @@ app.get("/api/mcp/catalog", (req, res) => {
   const authReq = req as AuthenticatedRequest;
   if (!authReq.authUser) return res.status(401).json({ error: "Unauthorized" });
 
+  const templates = getMcpServerTemplates().map((template) => ({
+    ...template,
+    oauthEnabled:
+      template.authType === "oauth" && template.oauthProvider === "github"
+        ? githubOAuthEnabled()
+        : false
+  }));
+
   return res.json({
-    templates: getMcpServerTemplates()
+    templates
+  });
+});
+
+app.post("/api/mcp/templates/:templateId/connect", async (req, res) => {
+  const authReq = req as AuthenticatedRequest;
+  if (!authReq.authUser) return res.status(401).json({ error: "Unauthorized" });
+
+  const effectivePlan = getEffectivePlan(authReq.authUser.plan, authReq.authUser.role, authReq.authUser.trialEndsAt);
+  if (!planAllowsConnector(effectivePlan, "mcp")) {
+    return res.status(403).json({
+      error: "Your plan does not include this integration",
+      upgradeRequired: true,
+      service: "mcp"
+    });
+  }
+
+  const templateId = typeof req.params.templateId === "string" ? req.params.templateId.trim() : "";
+  if (!templateId) {
+    return res.status(400).json({ error: "Template ID is required" });
+  }
+
+  const template = getMcpServerTemplateById(templateId);
+  if (!template) {
+    return res.status(404).json({ error: "MCP template not found" });
+  }
+
+  const parsedPayload = mcpTemplateConnectSchema.safeParse(req.body ?? {});
+  if (!parsedPayload.success) {
+    return res.status(400).json({
+      error: "Invalid template payload",
+      issues: parsedPayload.error.issues
+    });
+  }
+
+  const token = parsedPayload.data.token?.trim();
+  if (token && token.length > 0) {
+    try {
+      const { server, publicServers } = await upsertMcpTemplateServerWithToken(authReq.authUser.id, template.id, token);
+      return res.json({
+        ok: true,
+        service: "mcp",
+        displayLabel: publicServers.length === 1 ? "1 server" : `${publicServers.length} servers`,
+        server: {
+          id: server.id,
+          label: server.label,
+          serverUrl: server.serverUrl,
+          enabled: server.enabled,
+          toolAllowlist: server.toolAllowlist,
+          hasToken: Boolean(server.token)
+        }
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not connect to MCP template";
+      return res.status(400).json({ error: message });
+    }
+  }
+
+  if (template.authType === "oauth" && template.oauthProvider === "github") {
+    if (!githubOAuthEnabled()) {
+      return res.status(400).json({
+        error: "GitHub OAuth is not configured on this server. Paste a GitHub token instead."
+      });
+    }
+
+    const state = `mcp_${Math.random().toString(36).slice(2)}`;
+    registerPendingMcpGitHubOAuthState(state, authReq.authUser.id, template.id);
+    const redirectUrl = getGitHubOAuthUrl(state, {
+      scope: "user:email read:user repo read:org"
+    });
+    return res.json({ redirectUrl });
+  }
+
+  return res.status(400).json({
+    error: `${template.tokenLabel} is required for this MCP template`
   });
 });
 
@@ -1258,6 +1425,7 @@ app.delete("/api/connectors/:service", (req, res) => {
   }
   if (parsed.data === "mcp") {
     clearMcpServers(store, authReq.authUser.id);
+    clearPendingOAuthStatesForUser(mcpGitHubPendingOAuthStates, authReq.authUser.id);
   }
   if (parsed.data === "withings") {
     store.clearWithingsTokens(authReq.authUser.id);

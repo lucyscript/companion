@@ -1508,6 +1508,16 @@ export async function getMcpCatalogTemplates(): Promise<McpServerTemplate[]> {
   return response.templates;
 }
 
+export async function connectMcpTemplate(
+  templateId: string,
+  body: { token?: string } = {}
+): Promise<ConnectServiceResponse> {
+  return await jsonOrThrow<ConnectServiceResponse>(`/api/mcp/templates/${encodeURIComponent(templateId)}/connect`, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
+}
+
 export async function deleteMcpServer(serverId: string): Promise<void> {
   await jsonOrThrow<{ ok: boolean }>(`/api/mcp/servers/${encodeURIComponent(serverId)}`, {
     method: "DELETE"

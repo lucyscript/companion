@@ -4,8 +4,12 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { FunctionDeclaration, SchemaType } from "@google/generative-ai";
 import { RuntimeStore } from "./store.js";
 
-const MAX_MCP_TOOLS_PER_SERVER = 8;
-const MAX_MCP_TOOLS_TOTAL = 24;
+const MCP_MIN_TOOLS_PER_SERVER = 4;
+const MCP_MAX_TOOLS_PER_SERVER = 16;
+const MCP_TOOLS_TOTAL_BASE = 12;
+const MCP_TOOLS_TOTAL_STEP_PER_SERVER = 8;
+const MCP_TOOLS_TOTAL_CAP = 48;
+const MCP_FETCH_TOOLS_HARD_CAP = 128;
 const MCP_TOOL_LIST_CACHE_MS = 2 * 60 * 1000;
 const TOOL_NAME_REGEX = /^[a-zA-Z0-9_]+$/;
 
@@ -72,6 +76,30 @@ interface RemoteMcpTool {
 }
 
 const toolCache = new Map<string, CachedServerTools>();
+
+export function calculateMcpToolBudgets(serverCount: number): {
+  totalBudget: number;
+  perServerBudget: number;
+} {
+  if (!Number.isFinite(serverCount) || serverCount <= 0) {
+    return { totalBudget: 0, perServerBudget: 0 };
+  }
+
+  const normalizedServerCount = Math.max(1, Math.floor(serverCount));
+  const totalBudget = Math.min(
+    MCP_TOOLS_TOTAL_CAP,
+    MCP_TOOLS_TOTAL_BASE + normalizedServerCount * MCP_TOOLS_TOTAL_STEP_PER_SERVER
+  );
+  const perServerBudget = Math.max(
+    MCP_MIN_TOOLS_PER_SERVER,
+    Math.min(MCP_MAX_TOOLS_PER_SERVER, Math.floor(totalBudget / normalizedServerCount))
+  );
+
+  return {
+    totalBudget,
+    perServerBudget
+  };
+}
 
 function normalizeServerUrl(value: string): string | null {
   try {
@@ -389,7 +417,7 @@ async function listRemoteTools(userId: string, server: McpServerConfig): Promise
     tools = tools.filter((tool) => allow.has(tool.name));
   }
 
-  tools = tools.slice(0, MAX_MCP_TOOLS_PER_SERVER);
+  tools = tools.slice(0, MCP_FETCH_TOOLS_HARD_CAP);
   toolCache.set(cacheKey, {
     expiresAt: now + MCP_TOOL_LIST_CACHE_MS,
     tools
@@ -412,13 +440,14 @@ export async function buildMcpToolContext(store: RuntimeStore, userId: string): 
 
   const summaryParts: string[] = [];
   let totalTools = 0;
+  const budgets = calculateMcpToolBudgets(servers.length);
 
   for (const server of servers) {
     try {
-      const tools = await listRemoteTools(userId, server);
+      const tools = (await listRemoteTools(userId, server)).slice(0, budgets.perServerBudget);
       const addedToolNames: string[] = [];
       for (const tool of tools) {
-        if (totalTools >= MAX_MCP_TOOLS_TOTAL) {
+        if (totalTools >= budgets.totalBudget) {
           break;
         }
         const geminiName = makeGeminiToolName(server.id, tool.name);
