@@ -61,9 +61,9 @@ const CONNECTORS: ConnectorMeta[] = [
   },
   {
     service: "mcp",
-    label: "MCP Servers",
+    label: "Connected Apps",
     icon: "🧩",
-    description: "Connect approved MCP provider templates.",
+    description: "Connect trusted external apps like GitHub.",
     type: "config"
   },
   {
@@ -102,6 +102,19 @@ function formatRelative(timestamp: string | null): string {
   if (diffMin < 60) return `${diffMin}m ago`;
   if (diffHour < 24) return `${diffHour}h ago`;
   return `${diffDay}d ago`;
+}
+
+function formatConnectedAppLabel(label: string): string {
+  const trimmed = label.trim();
+  if (/^github\b/i.test(trimmed) && /repos?\s*read-?only/i.test(trimmed)) {
+    return "GitHub (read-only repos)";
+  }
+
+  return trimmed
+    .replace(/\bMCP\b/gi, "")
+    .replace(/\s+/g, " ")
+    .replace(/\(\s*\)/g, "")
+    .trim();
 }
 
 export function ConnectorsView(): JSX.Element {
@@ -168,7 +181,7 @@ export function ConnectorsView(): JSX.Element {
       return `${canvasStatus.courses.length} courses · Synced ${formatRelative(canvasStatus.lastSyncedAt)}`;
     }
     if (service === "mcp" && mcpServers.length > 0) {
-      return mcpServers.length === 1 ? "1 server configured" : `${mcpServers.length} servers configured`;
+      return mcpServers.length === 1 ? "1 app connected" : `${mcpServers.length} apps connected`;
     }
     return null;
   };
@@ -227,7 +240,7 @@ export function ConnectorsView(): JSX.Element {
         mcp_token: ""
       }));
     } catch (err) {
-      setError(extractErrorMessage(err, "Failed to connect MCP template"));
+      setError(extractErrorMessage(err, "Failed to connect app template"));
     } finally {
       setSubmitting(null);
     }
@@ -266,7 +279,7 @@ export function ConnectorsView(): JSX.Element {
         }
       } else if (connector.type === "config") {
         if (connector.service === "mcp") {
-          setError("Use a verified MCP template to connect.");
+          setError("Use a verified app template to connect.");
           setSubmitting(null);
           return;
         } else {
@@ -355,7 +368,7 @@ export function ConnectorsView(): JSX.Element {
       await deleteMcpServer(serverId);
       await Promise.all([fetchConnections(), fetchConnectorMeta()]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to remove MCP server");
+      setError(err instanceof Error ? err.message : "Failed to remove connected app");
     } finally {
       setSubmitting(null);
     }
@@ -439,9 +452,11 @@ export function ConnectorsView(): JSX.Element {
 
             {connected && (
               <div className="connector-actions">
-                <span className="connector-connected-since">
-                  Connected {new Date(connection!.connectedAt).toLocaleDateString()}
-                </span>
+                {connector.service !== "mcp" && (
+                  <span className="connector-connected-since">
+                    Connected {new Date(connection!.connectedAt).toLocaleDateString()}
+                  </span>
+                )}
                 {connector.service === "mcp" && (
                   <button
                     className="connector-sync-btn"
@@ -555,12 +570,6 @@ export function ConnectorsView(): JSX.Element {
                                     </div>
                                     <p className="connector-mcp-template-title">{template.label}</p>
                                     <p className="connector-mcp-template-description">{template.description}</p>
-                                    <p className="connector-mcp-template-url">
-                                      <code>{template.serverUrl}</code>
-                                    </p>
-                                    <p className="connector-help-text">
-                                      Default allowlist: {template.suggestedToolAllowlist.length} tools
-                                    </p>
                                     <div className="connector-mcp-template-actions">
                                       <button
                                         type="button"
@@ -568,16 +577,8 @@ export function ConnectorsView(): JSX.Element {
                                         onClick={() => handleApplyMcpTemplate(template)}
                                         disabled={busy}
                                       >
-                                        {selected ? "Selected" : "Use template"}
+                                        {selected ? "Selected" : "Connect"}
                                       </button>
-                                      <a
-                                        href={template.docsUrl}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="connector-mcp-template-docs"
-                                      >
-                                        Docs
-                                      </a>
                                     </div>
                                   </div>
                                 );
@@ -633,13 +634,11 @@ export function ConnectorsView(): JSX.Element {
 
                         <div className="connector-mcp-list">
                           {mcpServers.length === 0 ? (
-                            <p className="connector-help-text">No MCP servers added yet.</p>
+                            <p className="connector-help-text">No connected apps yet.</p>
                           ) : (
                             mcpServers.map((server) => (
                               <div key={server.id} className="connector-actions">
-                                <span className="connector-display-label">
-                                  {server.label} · {server.serverUrl}
-                                </span>
+                                <span className="connector-display-label">{formatConnectedAppLabel(server.label)}</span>
                                 <button
                                   className="connector-disconnect-btn"
                                   onClick={() => void handleDeleteMcpServer(server.id)}
