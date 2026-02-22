@@ -87,7 +87,6 @@ html {
 
 body.chat-tab-active {
   overflow: hidden;
-  overscroll-behavior: none;
 }
 
 .app-shell {
@@ -2401,7 +2400,6 @@ button:disabled {
   overflow: hidden;
   position: relative;
   transition: background 1.2s ease;
-  overscroll-behavior: none;
 }
 
 /* Chat mood backgrounds — gradient shifts driven by Gemini response tone */
@@ -2488,7 +2486,7 @@ button:disabled {
   flex-direction: column;
   gap: 12px;
   -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
+  overscroll-behavior: none;
 }
 
 .chat-load-more {
