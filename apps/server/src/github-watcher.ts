@@ -117,8 +117,16 @@ export class GitHubWatcher {
         const reposToScan = isFirstRun ? repos : changedRepos;
         // Pass previous/current SHAs for diff-based scanning (skip on first run — no base to diff from)
         const agentResult = isFirstRun
-          ? await runGitHubAgent(this.store, this.gemini, this.userId, reposToScan)
-          : await runGitHubAgent(this.store, this.gemini, this.userId, reposToScan, previousShasMap, currentShasMap);
+          ? await runGitHubAgent(this.store, this.gemini, this.userId, reposToScan, undefined, undefined, this.client)
+          : await runGitHubAgent(
+            this.store,
+            this.gemini,
+            this.userId,
+            reposToScan,
+            previousShasMap,
+            currentShasMap,
+            this.client,
+          );
         this.state.lastAgentRunAt = new Date().toISOString();
         this.state.lastAgentResult = agentResult;
         this.saveState();
@@ -143,7 +151,7 @@ export class GitHubWatcher {
     this.running = true;
     try {
       const repos = getTrackedRepos(this.store, this.userId);
-      const result = await runGitHubAgent(this.store, this.gemini, this.userId, repos);
+      const result = await runGitHubAgent(this.store, this.gemini, this.userId, repos, undefined, undefined, this.client);
       this.state.lastAgentRunAt = new Date().toISOString();
       this.state.lastAgentResult = result;
 

@@ -33,6 +33,7 @@ import { TPSyncService } from "./tp-sync-service.js";
 import { CanvasSyncService } from "./canvas-sync.js";
 import type { CanvasSyncOptions } from "./canvas-sync.js";
 import { GitHubWatcher } from "./github-watcher.js";
+import { GitHubCourseClient } from "./github-course-client.js";
 import { GmailOAuthService } from "./gmail-oauth.js";
 import { GmailSyncService } from "./gmail-sync.js";
 import { WithingsOAuthService } from "./withings-oauth.js";
@@ -166,7 +167,6 @@ const syncService = new BackgroundSyncService(store, "");
 const digestService = new EmailDigestService(store, "");
 const tpSyncService = new TPSyncService(store, "");
 const canvasSyncService = new CanvasSyncService(store, "");
-const githubWatcher = new GitHubWatcher(store, "", getGeminiClient());
 const gmailOAuthService = new GmailOAuthService(store, "");
 const gmailSyncService = new GmailSyncService(store, "", gmailOAuthService);
 const withingsOAuthService = new WithingsOAuthService(store, "");
@@ -189,6 +189,11 @@ const analyticsCoachCache = new Map<string, AnalyticsCoachCacheEntry>();
 import type { DailyGrowthSummary } from "./types.js";
 const dailySummaryCache = new Map<string, DailyGrowthSummary>();
 const canvasSyncServicesByUser = new Map<string, CanvasSyncService>();
+interface GitHubWatcherStateEntry {
+  token: string;
+  watcher: GitHubWatcher;
+}
+const githubWatchersByUser = new Map<string, GitHubWatcherStateEntry>();
 const tpSyncInFlightUsers = new Set<string>();
 
 interface CanvasConnectorCredentials {
@@ -274,6 +279,53 @@ function getCanvasConnectorCredentials(userId: string): CanvasConnectorCredentia
     ...(token ? { token } : {}),
     ...(baseUrl ? { baseUrl } : {})
   };
+}
+
+function getGitHubConnectorToken(userId: string): string | undefined {
+  const connection = store.getUserConnection(userId, "github_course");
+  const parsed = parseConnectionCredentials(connection?.credentials);
+  if (!parsed) {
+    return undefined;
+  }
+
+  const token = typeof parsed.token === "string" ? parsed.token.trim() : "";
+  return token || undefined;
+}
+
+function isGitHubConfiguredForUser(userId: string): boolean {
+  return Boolean(getGitHubConnectorToken(userId)) && getGeminiClient().isConfigured();
+}
+
+function stopGitHubWatcherForUser(userId: string): void {
+  const existing = githubWatchersByUser.get(userId);
+  if (!existing) {
+    return;
+  }
+
+  existing.watcher.stop();
+  githubWatchersByUser.delete(userId);
+}
+
+function getGitHubWatcherForUser(userId: string): GitHubWatcher | null {
+  const token = getGitHubConnectorToken(userId);
+  if (!token) {
+    stopGitHubWatcherForUser(userId);
+    return null;
+  }
+
+  const existing = githubWatchersByUser.get(userId);
+  if (existing && existing.token === token) {
+    return existing.watcher;
+  }
+
+  if (existing) {
+    existing.watcher.stop();
+  }
+
+  const watcher = new GitHubWatcher(store, userId, getGeminiClient(), new GitHubCourseClient(token));
+  watcher.start();
+  githubWatchersByUser.set(userId, { token, watcher });
+  return watcher;
 }
 
 function resolveCanvasSyncOptions(userId: string, requested: Partial<CanvasSyncOptions> = {}): CanvasSyncOptions {
@@ -493,7 +545,6 @@ syncService.start();
 digestService.start();
 tpSyncService.start();
 canvasSyncService.start();
-githubWatcher.start();
 gmailSyncService.start();
 withingsSyncService.start();
 
@@ -724,6 +775,7 @@ app.use((req, res, next) => {
 
   (req as AuthenticatedRequest).authUser = authContext.user;
   (req as AuthenticatedRequest).authToken = authContext.token;
+  getGitHubWatcherForUser(authContext.user.id);
   return next();
 });
 
@@ -983,6 +1035,7 @@ app.post("/api/connectors/:service/connect", (req, res) => {
       credentials: JSON.stringify({ token: token.trim() }),
       displayLabel: "GitHub Course"
     });
+    getGitHubWatcherForUser(authReq.authUser.id);
     return res.json({ ok: true, service: "github_course" });
   }
 
@@ -1019,6 +1072,9 @@ app.delete("/api/connectors/:service", (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: "Unknown service" });
 
   store.deleteUserConnection(authReq.authUser.id, parsed.data);
+  if (parsed.data === "github_course") {
+    stopGitHubWatcherForUser(authReq.authUser.id);
+  }
   return res.json({ ok: true });
 });
 
@@ -3603,7 +3659,7 @@ app.get("/api/sync/status", (req, res) => {
   const gmailData = store.getGmailData(userId);
   const withingsData = store.getWithingsData(userId);
   const geminiClient = getGeminiClient();
-  const githubConfigured = githubWatcher.isConfigured();
+  const githubConfigured = isGitHubConfiguredForUser(userId);
   const gmailConnection = gmailOAuthService.getConnectionInfo();
   const withingsConnection = withingsOAuthService.getConnectionInfo();
   const gmailConnectionSource = gmailConnection.connected ? gmailConnection.source : null;
@@ -3787,9 +3843,15 @@ app.post("/api/sync/tp", async (req, res) => {
   });
 });
 
-app.post("/api/sync/github", async (_req, res) => {
+app.post("/api/sync/github", async (req, res) => {
+  const userId = (req as AuthenticatedRequest).authUser?.id ?? "";
+  const watcher = getGitHubWatcherForUser(userId);
+  if (!watcher) {
+    return res.status(400).json({ success: false, error: "GitHub connector is not configured for this account" });
+  }
+
   try {
-    const result = await githubWatcher.forceRescan();
+    const result = await watcher.forceRescan();
     return res.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : "GitHub agent scan failed";
@@ -3874,18 +3936,19 @@ app.get("/api/canvas/status", (req, res) => {
 app.get("/api/github/status", (req, res) => {
   const userId = (req as AuthenticatedRequest).authUser?.id ?? "";
   const githubData = store.getGitHubCourseData(userId);
-  const watcherState = githubWatcher.getState();
+  const watcher = getGitHubWatcherForUser(userId);
+  const watcherState = watcher?.getState();
   const trackedRepos = store.getGitHubTrackedRepos(userId);
   return res.json({
-    configured: githubWatcher.isConfigured(),
+    configured: isGitHubConfiguredForUser(userId),
     lastSyncedAt: githubData?.lastSyncedAt ?? null,
-    lastCheckedAt: watcherState.lastCheckedAt,
-    lastAgentRunAt: watcherState.lastAgentRunAt,
+    lastCheckedAt: watcherState?.lastCheckedAt ?? null,
+    lastAgentRunAt: watcherState?.lastAgentRunAt ?? null,
     trackedRepos,
     repositories: githubData?.repositories ?? [],
     courseDocsSynced: githubData?.documents.length ?? 0,
     deadlinesFound: githubData?.deadlinesSynced ?? 0,
-    lastAgentResult: watcherState.lastAgentResult
+    lastAgentResult: watcherState?.lastAgentResult ?? null
   });
 });
 
@@ -3903,7 +3966,7 @@ app.get("/api/github/course-content", (req, res) => {
   const documents = matchingDocuments.slice(0, parsed.data.limit);
 
   return res.json({
-    configured: githubWatcher.isConfigured(),
+    configured: isGitHubConfiguredForUser(userId),
     lastSyncedAt: githubData?.lastSyncedAt ?? null,
     repositories: githubData?.repositories ?? [],
     total: matchingDocuments.length,
@@ -4287,7 +4350,10 @@ const shutdown = (): void => {
     service.stop();
   }
   canvasSyncServicesByUser.clear();
-  githubWatcher.stop();
+  for (const entry of githubWatchersByUser.values()) {
+    entry.watcher.stop();
+  }
+  githubWatchersByUser.clear();
   gmailSyncService.stop();
   withingsSyncService.stop();
 

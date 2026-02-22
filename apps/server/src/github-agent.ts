@@ -315,9 +315,10 @@ export async function runGitHubAgent(
   previousShas?: Record<string, string>,
   /** Current HEAD SHAs (after detecting changes). Key: "owner/repo", value: current SHA */
   headShas?: Record<string, string>,
+  client?: GitHubCourseClient,
 ): Promise<GitHubAgentResult> {
-  const client = new GitHubCourseClient();
-  if (!client.isConfigured()) {
+  const githubClient = client ?? new GitHubCourseClient();
+  if (!githubClient.isConfigured()) {
     return { success: false, deadlinesCreated: 0, deadlinesUpdated: 0, documentsStored: 0, reposScanned: 0, error: "GitHub PAT not configured" };
   }
   if (!gemini.isConfigured()) {
@@ -375,11 +376,11 @@ export async function runGitHubAgent(
       const functionResponses: GeminiMessage[] = [];
       for (const call of response.functionCalls) {
         const callArgs = (call.args ?? {}) as Record<string, unknown>;
-        const syncResult = handleToolCall(client, call.name, callArgs, results, syncedAt);
+        const syncResult = handleToolCall(githubClient, call.name, callArgs, results, syncedAt);
 
         let toolResponse: unknown;
         if (syncResult && typeof syncResult === "object" && "_async" in (syncResult as Record<string, unknown>)) {
-          toolResponse = await handleAsyncToolCall(client, call.name, callArgs);
+          toolResponse = await handleAsyncToolCall(githubClient, call.name, callArgs);
         } else {
           toolResponse = syncResult;
         }

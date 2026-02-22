@@ -118,7 +118,7 @@ export function IntegrationStatusView(): JSX.Element {
       description: "Lab assignments, deadlines from repos",
       icon: "🐙",
       status: "not-configured",
-      detail: "Add COURSE_GITHUB_PAT to connect"
+      detail: "Connect GitHub in Integrations to start syncing"
     },
     {
       id: "gmail",

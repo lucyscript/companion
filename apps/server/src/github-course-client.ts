@@ -67,7 +67,7 @@ export class GitHubCourseClient {
 
   private async fetch<T>(endpoint: string): Promise<T> {
     if (!this.token) {
-      throw new Error("GitHub PAT not configured (set GITHUB_PAT)");
+      throw new Error("GitHub PAT not configured");
     }
 
     const url = `${this.baseUrl}${endpoint}`;
