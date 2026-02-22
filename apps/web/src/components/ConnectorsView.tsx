@@ -5,10 +5,9 @@ import {
   disconnectService,
   getCanvasStatus,
   getConnectors,
-  getGeminiStatus,
-  triggerCanvasSync
+  getGeminiStatus
 } from "../lib/api";
-import { loadCanvasSettings, saveCanvasSettings, saveCanvasStatus } from "../lib/storage";
+import { loadCanvasSettings, saveCanvasSettings } from "../lib/storage";
 
 interface ConnectorMeta {
   service: ConnectorService;
@@ -105,8 +104,6 @@ export function ConnectorsView(): JSX.Element {
   const [geminiStatus, setGeminiStatus] = useState<GeminiStatus>({
     apiConfigured: false, model: "unknown", rateLimitRemaining: null, lastRequestAt: null
   });
-  const [canvasSyncing, setCanvasSyncing] = useState(false);
-  const [canvasMessage, setCanvasMessage] = useState("");
 
   const fetchConnections = useCallback(async () => {
     try {
@@ -130,18 +127,6 @@ export function ConnectorsView(): JSX.Element {
       } catch { /* ignore */ }
     })();
   }, [fetchConnections]);
-
-  const handleCanvasSync = async (): Promise<void> => {
-    setCanvasSyncing(true);
-    setCanvasMessage("");
-    const result = await triggerCanvasSync(undefined);
-    setCanvasMessage(result.success ? "Synced successfully" : result.error ?? "Sync failed");
-    const nextStatus = await getCanvasStatus();
-    setCanvasStatus(nextStatus);
-    saveCanvasStatus(nextStatus);
-    setCanvasSyncing(false);
-    setTimeout(() => setCanvasMessage(""), 3000);
-  };
 
   /** Get live status detail text for a connector service. */
   const getStatusDetail = (service: ConnectorService): string | null => {
@@ -335,15 +320,6 @@ export function ConnectorsView(): JSX.Element {
                 <span className="connector-connected-since">
                   Connected {new Date(connection!.connectedAt).toLocaleDateString()}
                 </span>
-                {connector.service === "canvas" && (
-                  <button
-                    className="connector-sync-btn"
-                    onClick={() => void handleCanvasSync()}
-                    disabled={canvasSyncing}
-                  >
-                    {canvasSyncing ? "Syncing…" : "Sync"}
-                  </button>
-                )}
                 <button
                   className="connector-disconnect-btn"
                   onClick={() => void handleDisconnect(connector.service)}
@@ -352,9 +328,6 @@ export function ConnectorsView(): JSX.Element {
                   {busy ? "Disconnecting..." : "Disconnect"}
                 </button>
               </div>
-            )}
-            {connected && canvasMessage && connector.service === "canvas" && (
-              <p className="connector-sync-message">{canvasMessage}</p>
             )}
 
             {expanded && (
