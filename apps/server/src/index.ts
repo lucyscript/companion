@@ -4086,9 +4086,14 @@ app.get("/api/tp/status", (req, res) => {
 app.get("/api/canvas/status", (req, res) => {
   const userId = (req as AuthenticatedRequest).authUser?.id ?? "";
   const canvasData = store.getCanvasData(userId);
-  const resolvedCanvasOptions = resolveCanvasSyncOptions(userId);
+  const connectedCanvasCredentials = getCanvasConnectorCredentials(userId);
+  const envFallbackCanvasBaseUrl =
+    config.CANVAS_API_TOKEN
+      ? normalizeHttpUrl(config.CANVAS_BASE_URL, { stripTrailingSlash: true }) ?? ""
+      : "";
+  const canvasBaseUrl = connectedCanvasCredentials?.baseUrl ?? envFallbackCanvasBaseUrl;
   return res.json({
-    baseUrl: resolvedCanvasOptions.baseUrl ?? config.CANVAS_BASE_URL,
+    baseUrl: canvasBaseUrl,
     lastSyncedAt: canvasData?.lastSyncedAt ?? null,
     courses: canvasData?.courses ?? []
   });

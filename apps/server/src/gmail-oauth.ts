@@ -3,7 +3,11 @@ import { RuntimeStore } from "./store.js";
 import { config } from "./config.js";
 
 const SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"];
-const REDIRECT_URI = "http://localhost:8787/api/auth/gmail/callback";
+
+function getGmailRedirectUri(): string {
+  const base = (config.OAUTH_REDIRECT_BASE_URL ?? `http://localhost:${config.PORT}`).replace(/\/+$/, "");
+  return `${base}/api/auth/gmail/callback`;
+}
 
 export class GmailOAuthService {
   private store: RuntimeStore;
@@ -56,7 +60,7 @@ export class GmailOAuthService {
     return new google.auth.OAuth2(
       config.GMAIL_CLIENT_ID,
       config.GMAIL_CLIENT_SECRET,
-      REDIRECT_URI
+      getGmailRedirectUri()
     );
   }
 

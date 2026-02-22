@@ -4704,7 +4704,33 @@ body.keyboard-open .chat-overlay-backdrop {
 
 .connector-token-input {
   display: flex;
+  flex-direction: column;
   gap: 8px;
+}
+
+.connector-token-input-canvas {
+  gap: 10px;
+}
+
+.connector-input-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.connector-input-label {
+  font-size: 0.76rem;
+  color: var(--muted);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.connector-input-hint {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--muted);
+  opacity: 0.85;
+  line-height: 1.35;
 }
 
 .connector-token-input input {
@@ -4720,6 +4746,10 @@ body.keyboard-open .chat-overlay-backdrop {
 .connector-token-input input:focus {
   outline: none;
   border-color: var(--accent);
+}
+
+.connector-token-input .connector-connect-btn {
+  align-self: flex-start;
 }
 
 .connector-url-input {
@@ -4833,6 +4863,13 @@ body.keyboard-open .chat-overlay-backdrop {
 .connector-help-text strong {
   color: var(--text);
   opacity: 1;
+}
+
+@media (max-width: 640px) {
+  .connector-token-input .connector-connect-btn {
+    width: 100%;
+    align-self: stretch;
+  }
 }
 
 .push-message {

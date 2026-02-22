@@ -360,27 +360,48 @@ export function ConnectorsView(): JSX.Element {
             {expanded && (
               <div className="connector-setup">
                 {connector.type === "token" && (
-                  <div className="connector-token-input">
+                  <div className={`connector-token-input ${connector.service === "canvas" ? "connector-token-input-canvas" : ""}`}>
                     {connector.service === "canvas" && (
+                      <div className="connector-input-block">
+                        <label className="connector-input-label" htmlFor="canvas-base-url-input">
+                          Canvas base URL
+                        </label>
+                        <input
+                          id="canvas-base-url-input"
+                          type="url"
+                          placeholder="https://stavanger.instructure.com"
+                          value={inputValues.canvas_baseUrl ?? ""}
+                          onChange={(e) => handleInputChange("canvas_baseUrl", e.target.value)}
+                          disabled={busy}
+                        />
+                        <p className="connector-input-hint">
+                          Use your school&apos;s Canvas root domain from the browser address bar, without any path (no <code>/courses</code>).
+                        </p>
+                      </div>
+                    )}
+                    <div className="connector-input-block">
+                      {connector.service === "canvas" && (
+                        <label className="connector-input-label" htmlFor="canvas-token-input">
+                          Canvas API token
+                        </label>
+                      )}
                       <input
-                        type="url"
-                        placeholder="https://your-school.instructure.com"
-                        value={inputValues.canvas_baseUrl ?? ""}
-                        onChange={(e) => handleInputChange("canvas_baseUrl", e.target.value)}
+                        id={connector.service === "canvas" ? "canvas-token-input" : undefined}
+                        type="password"
+                        placeholder={connector.placeholder}
+                        value={inputValues[connector.service] ?? ""}
+                        onChange={(e) => handleInputChange(connector.service, e.target.value)}
                         disabled={busy}
                       />
-                    )}
-                    <input
-                      type="password"
-                      placeholder={connector.placeholder}
-                      value={inputValues[connector.service] ?? ""}
-                      onChange={(e) => handleInputChange(connector.service, e.target.value)}
-                      disabled={busy}
-                    />
+                    </div>
                     <button
                       className="connector-connect-btn"
                       onClick={() => void handleConnect(connector)}
-                      disabled={busy || !inputValues[connector.service]?.trim()}
+                      disabled={
+                        busy ||
+                        !inputValues[connector.service]?.trim() ||
+                        (connector.service === "canvas" && !inputValues.canvas_baseUrl?.trim())
+                      }
                     >
                       {busy ? "Connecting..." : "Connect"}
                     </button>
@@ -453,7 +474,7 @@ export function ConnectorsView(): JSX.Element {
 
                 {connector.service === "canvas" && (
                   <p className="connector-help-text">
-                    Go to <strong>Canvas</strong> → click your profile picture → <strong>Settings</strong> → scroll to <strong>Approved Integrations</strong> → <strong>+ New Access Token</strong>. Give it a name and copy the token.
+                    Use your own institution domain, for example <code>https://stavanger.instructure.com</code> or <code>https://hvl.instructure.com</code> (or your school&apos;s custom Canvas domain). In Canvas go to <strong>Account</strong> → <strong>Settings</strong> → <strong>Approved Integrations</strong> → <strong>+ New Access Token</strong>, then paste both values above.
                   </p>
                 )}
                 {connector.service === "github_course" && (

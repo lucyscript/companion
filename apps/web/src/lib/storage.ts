@@ -48,8 +48,26 @@ const defaultContext: UserContext = {
   mode: "balanced"
 };
 
+function normalizeCanvasBaseUrl(value: unknown): string {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  const trimmed = value.trim().replace(/\/+$/, "");
+  if (!trimmed) {
+    return "";
+  }
+
+  // Generic Canvas root isn't a tenant URL and confuses users in the connector form.
+  if (trimmed.toLowerCase() === "https://canvas.instructure.com") {
+    return "";
+  }
+
+  return trimmed;
+}
+
 const defaultCanvasSettings: CanvasSettings = {
-  baseUrl: "https://canvas.instructure.com",
+  baseUrl: "",
   token: ""
 };
 
@@ -185,7 +203,14 @@ export function clearCompanionSessionData(options: { keepTheme?: boolean } = {})
 export function loadCanvasSettings(): CanvasSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.canvasSettings);
-    if (raw) return { ...defaultCanvasSettings, ...(JSON.parse(raw) as CanvasSettings) };
+    if (raw) {
+      const parsed = JSON.parse(raw) as CanvasSettings;
+      return {
+        ...defaultCanvasSettings,
+        ...parsed,
+        baseUrl: normalizeCanvasBaseUrl(parsed.baseUrl)
+      };
+    }
   } catch {
     // corrupted
   }
@@ -193,7 +218,13 @@ export function loadCanvasSettings(): CanvasSettings {
 }
 
 export function saveCanvasSettings(settings: CanvasSettings): void {
-  localStorage.setItem(STORAGE_KEYS.canvasSettings, JSON.stringify(settings));
+  localStorage.setItem(
+    STORAGE_KEYS.canvasSettings,
+    JSON.stringify({
+      ...settings,
+      baseUrl: normalizeCanvasBaseUrl(settings.baseUrl)
+    })
+  );
 }
 
 export function loadCanvasStatus(): CanvasStatus {
