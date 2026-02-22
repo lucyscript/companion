@@ -60,17 +60,18 @@ export class GmailOAuthService {
     );
   }
 
-  getAuthUrl(): string {
+  getAuthUrl(state?: string): string {
     if (!this.hasOAuthCredentials()) {
       throw new Error("Gmail OAuth credentials not configured");
     }
 
     const oauth2Client = this.getOAuth2Client();
-    
+
     return oauth2Client.generateAuthUrl({
       access_type: "offline",
       scope: SCOPES,
-      prompt: "consent"
+      prompt: "consent",
+      ...(state ? { state } : {})
     });
   }
 

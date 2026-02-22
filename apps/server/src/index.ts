@@ -1,5 +1,6 @@
 import cors from "cors";
 import express from "express";
+import { randomBytes } from "crypto";
 import { resolve } from "path";
 import { z } from "zod";
 import { AuthService, parseBearerToken, generateSessionToken, hashSessionToken } from "./auth.js";
@@ -167,13 +168,10 @@ const syncService = new BackgroundSyncService(store, "");
 const digestService = new EmailDigestService(store, "");
 const tpSyncService = new TPSyncService(store, "");
 const canvasSyncService = new CanvasSyncService(store, "");
-const gmailOAuthService = new GmailOAuthService(store, "");
-const gmailSyncService = new GmailSyncService(store, "", gmailOAuthService);
-const withingsOAuthService = new WithingsOAuthService(store, "");
-const withingsSyncService = new WithingsSyncService(store, "", withingsOAuthService);
 const syncFailureRecovery = new SyncFailureRecoveryTracker();
 const CANVAS_ON_DEMAND_SYNC_MIN_INTERVAL_MS = 5 * 60 * 1000;
 const CANVAS_ON_DEMAND_SYNC_STALE_MS = 25 * 60 * 1000;
+const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
 
 const MAX_ANALYTICS_CACHE_ITEMS = 15;
 const ANALYTICS_COACH_MIN_REFRESH_MS = config.GROWTH_ANALYTICS_MIN_REFRESH_MINUTES * 60 * 1000;
@@ -189,6 +187,19 @@ const analyticsCoachCache = new Map<string, AnalyticsCoachCacheEntry>();
 import type { DailyGrowthSummary } from "./types.js";
 const dailySummaryCache = new Map<string, DailyGrowthSummary>();
 const canvasSyncServicesByUser = new Map<string, CanvasSyncService>();
+const gmailOAuthServicesByUser = new Map<string, GmailOAuthService>();
+const gmailSyncServicesByUser = new Map<string, GmailSyncService>();
+const withingsOAuthServicesByUser = new Map<string, WithingsOAuthService>();
+const withingsSyncServicesByUser = new Map<string, WithingsSyncService>();
+
+interface PendingOAuthState {
+  userId: string;
+  expiresAt: number;
+}
+
+const gmailPendingOAuthStates = new Map<string, PendingOAuthState>();
+const withingsPendingOAuthStates = new Map<string, PendingOAuthState>();
+
 interface GitHubWatcherStateEntry {
   token: string;
   watcher: GitHubWatcher;
@@ -369,6 +380,127 @@ function getCanvasSyncServiceForUser(userId: string): CanvasSyncService {
   return created;
 }
 
+function getGmailOAuthServiceForUser(userId: string): GmailOAuthService {
+  const existing = gmailOAuthServicesByUser.get(userId);
+  if (existing) {
+    return existing;
+  }
+
+  const created = new GmailOAuthService(store, userId);
+  gmailOAuthServicesByUser.set(userId, created);
+  return created;
+}
+
+function getGmailSyncServiceForUser(userId: string): GmailSyncService {
+  const existing = gmailSyncServicesByUser.get(userId);
+  if (existing) {
+    return existing;
+  }
+
+  const created = new GmailSyncService(store, userId, getGmailOAuthServiceForUser(userId));
+  created.start();
+  gmailSyncServicesByUser.set(userId, created);
+  return created;
+}
+
+function stopGmailServicesForUser(userId: string): void {
+  const syncServiceForUser = gmailSyncServicesByUser.get(userId);
+  if (syncServiceForUser) {
+    syncServiceForUser.stop();
+    gmailSyncServicesByUser.delete(userId);
+  }
+
+  gmailOAuthServicesByUser.delete(userId);
+  clearPendingOAuthStatesForUser(gmailPendingOAuthStates, userId);
+}
+
+function getWithingsOAuthServiceForUser(userId: string): WithingsOAuthService {
+  const existing = withingsOAuthServicesByUser.get(userId);
+  if (existing) {
+    return existing;
+  }
+
+  const created = new WithingsOAuthService(store, userId);
+  withingsOAuthServicesByUser.set(userId, created);
+  return created;
+}
+
+function getWithingsSyncServiceForUser(userId: string): WithingsSyncService {
+  const existing = withingsSyncServicesByUser.get(userId);
+  if (existing) {
+    return existing;
+  }
+
+  const created = new WithingsSyncService(store, userId, getWithingsOAuthServiceForUser(userId));
+  created.start();
+  withingsSyncServicesByUser.set(userId, created);
+  return created;
+}
+
+function stopWithingsServicesForUser(userId: string): void {
+  const syncServiceForUser = withingsSyncServicesByUser.get(userId);
+  if (syncServiceForUser) {
+    syncServiceForUser.stop();
+    withingsSyncServicesByUser.delete(userId);
+  }
+
+  withingsOAuthServicesByUser.delete(userId);
+  clearPendingOAuthStatesForUser(withingsPendingOAuthStates, userId);
+}
+
+function cleanupPendingOAuthStates(map: Map<string, PendingOAuthState>): void {
+  const now = Date.now();
+  for (const [state, entry] of map.entries()) {
+    if (entry.expiresAt <= now) {
+      map.delete(state);
+    }
+  }
+}
+
+function registerPendingOAuthState(map: Map<string, PendingOAuthState>, state: string, userId: string): void {
+  cleanupPendingOAuthStates(map);
+  map.set(state, {
+    userId,
+    expiresAt: Date.now() + OAUTH_STATE_TTL_MS
+  });
+}
+
+function consumePendingOAuthStateUserId(map: Map<string, PendingOAuthState>, state: string | null): string | null {
+  cleanupPendingOAuthStates(map);
+  if (!state) {
+    return null;
+  }
+
+  const entry = map.get(state);
+  if (!entry || entry.expiresAt <= Date.now()) {
+    map.delete(state);
+    return null;
+  }
+
+  map.delete(state);
+  return entry.userId;
+}
+
+function clearPendingOAuthStatesForUser(map: Map<string, PendingOAuthState>, userId: string): void {
+  for (const [state, entry] of map.entries()) {
+    if (entry.userId === userId) {
+      map.delete(state);
+    }
+  }
+}
+
+function createOAuthState(): string {
+  return randomBytes(18).toString("hex");
+}
+
+function extractStateFromUrl(url: string): string | null {
+  try {
+    return new URL(url).searchParams.get("state");
+  } catch {
+    return null;
+  }
+}
+
 async function runTPSyncForUser(userId: string, options: TPUserSyncOptions = {}): Promise<TPUserSyncResult> {
   const requestedIcalUrl = normalizeHttpUrl(options.icalUrl);
   const connectedIcalUrl = getConnectedTPIcalUrl(userId);
@@ -545,8 +677,6 @@ syncService.start();
 digestService.start();
 tpSyncService.start();
 canvasSyncService.start();
-gmailSyncService.start();
-withingsSyncService.start();
 
 async function maybeAutoSyncCanvasData(userId: string): Promise<void> {
   try {
@@ -655,6 +785,20 @@ function recordIntegrationAttempt(
 interface AuthenticatedRequest extends express.Request {
   authUser?: AuthUser;
   authToken?: string;
+}
+
+function resolveRequestUserId(req: express.Request): string | null {
+  const authReq = req as AuthenticatedRequest;
+  if (authReq.authUser?.id) {
+    return authReq.authUser.id;
+  }
+
+  const authContext = authService.authenticateFromAuthorizationHeader(req.headers.authorization);
+  if (authContext?.user.id) {
+    return authContext.user.id;
+  }
+
+  return authService.isRequired() ? null : "";
 }
 
 function isPublicApiRoute(method: string, path: string): boolean {
@@ -776,6 +920,8 @@ app.use((req, res, next) => {
   (req as AuthenticatedRequest).authUser = authContext.user;
   (req as AuthenticatedRequest).authToken = authContext.token;
   getGitHubWatcherForUser(authContext.user.id);
+  getGmailSyncServiceForUser(authContext.user.id);
+  getWithingsSyncServiceForUser(authContext.user.id);
   return next();
 });
 
@@ -1055,10 +1201,19 @@ app.post("/api/connectors/:service/connect", (req, res) => {
 
   // For OAuth connectors (gmail, withings), redirect to their OAuth flow
   if (service === "gmail") {
-    return res.json({ redirectUrl: "/api/auth/gmail" });
+    const state = createOAuthState();
+    registerPendingOAuthState(gmailPendingOAuthStates, state, authReq.authUser.id);
+    const authUrl = getGmailOAuthServiceForUser(authReq.authUser.id).getAuthUrl(state);
+    return res.json({ redirectUrl: authUrl });
   }
   if (service === "withings") {
-    return res.json({ redirectUrl: "/api/auth/withings" });
+    const authUrl = getWithingsOAuthServiceForUser(authReq.authUser.id).getAuthUrl();
+    const state = extractStateFromUrl(authUrl);
+    if (!state) {
+      return res.status(500).json({ error: "Failed to initialize Withings OAuth state" });
+    }
+    registerPendingOAuthState(withingsPendingOAuthStates, state, authReq.authUser.id);
+    return res.json({ redirectUrl: authUrl });
   }
 
   return res.status(400).json({ error: "Unknown connector service" });
@@ -1074,6 +1229,12 @@ app.delete("/api/connectors/:service", (req, res) => {
   store.deleteUserConnection(authReq.authUser.id, parsed.data);
   if (parsed.data === "github_course") {
     stopGitHubWatcherForUser(authReq.authUser.id);
+  }
+  if (parsed.data === "gmail") {
+    stopGmailServicesForUser(authReq.authUser.id);
+  }
+  if (parsed.data === "withings") {
+    stopWithingsServicesForUser(authReq.authUser.id);
   }
   return res.json({ ok: true });
 });
@@ -3660,8 +3821,8 @@ app.get("/api/sync/status", (req, res) => {
   const withingsData = store.getWithingsData(userId);
   const geminiClient = getGeminiClient();
   const githubConfigured = isGitHubConfiguredForUser(userId);
-  const gmailConnection = gmailOAuthService.getConnectionInfo();
-  const withingsConnection = withingsOAuthService.getConnectionInfo();
+  const gmailConnection = getGmailOAuthServiceForUser(userId).getConnectionInfo();
+  const withingsConnection = getWithingsOAuthServiceForUser(userId).getConnectionInfo();
   const gmailConnectionSource = gmailConnection.connected ? gmailConnection.source : null;
   const gmailTokenBootstrap = gmailConnection.connected ? gmailConnection.tokenBootstrap : false;
   const gmailHasRefreshToken = gmailConnection.connected ? gmailConnection.hasRefreshToken : false;
@@ -3719,8 +3880,8 @@ app.get("/api/sync/status", (req, res) => {
       tp: tpSyncService.getAutoHealingStatus(),
       canvas: canvasSyncService.getAutoHealingStatus(),
       github: null,
-      gmail: gmailSyncService.getAutoHealingStatus(),
-      withings: withingsSyncService.getAutoHealingStatus()
+      gmail: getGmailSyncServiceForUser(userId).getAutoHealingStatus(),
+      withings: getWithingsSyncServiceForUser(userId).getAutoHealingStatus()
     }
   });
 });
@@ -4047,9 +4208,16 @@ app.get("/api/gemini/status", (req, res) => {
   });
 });
 
-app.get("/api/auth/gmail", (_req, res) => {
+app.get("/api/auth/gmail", (req, res) => {
+  const userId = resolveRequestUserId(req);
+  if (userId === null) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
   try {
-    const authUrl = gmailOAuthService.getAuthUrl();
+    const state = createOAuthState();
+    registerPendingOAuthState(gmailPendingOAuthStates, state, userId);
+    const authUrl = getGmailOAuthServiceForUser(userId).getAuthUrl(state);
     return res.redirect(authUrl);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
@@ -4071,13 +4239,19 @@ app.get("/api/auth/gmail/callback", async (req, res) => {
   }
 
   const code = typeof req.query.code === "string" ? req.query.code : null;
+  const state = typeof req.query.state === "string" ? req.query.state : null;
 
-  if (!code) {
-    return res.status(400).json({ error: "Missing authorization code" });
+  if (!code || !state) {
+    return res.status(400).json({ error: "Missing authorization code or state" });
+  }
+
+  const userId = consumePendingOAuthStateUserId(gmailPendingOAuthStates, state);
+  if (!userId) {
+    return res.status(400).json({ error: "Invalid or expired Gmail OAuth state" });
   }
 
   try {
-    const result = await gmailOAuthService.handleCallback(code);
+    const result = await getGmailOAuthServiceForUser(userId).handleCallback(code);
     return res.json({
       status: "connected",
       email: result.email,
@@ -4089,14 +4263,25 @@ app.get("/api/auth/gmail/callback", async (req, res) => {
   }
 });
 
-app.get("/api/gmail/status", (_req, res) => {
-  const connectionInfo = gmailOAuthService.getConnectionInfo();
+app.get("/api/gmail/status", (req, res) => {
+  const userId = (req as AuthenticatedRequest).authUser?.id ?? "";
+  const connectionInfo = getGmailOAuthServiceForUser(userId).getConnectionInfo();
   return res.json(connectionInfo);
 });
 
-app.get("/api/auth/withings", (_req, res) => {
+app.get("/api/auth/withings", (req, res) => {
+  const userId = resolveRequestUserId(req);
+  if (userId === null) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
   try {
-    const authUrl = withingsOAuthService.getAuthUrl();
+    const authUrl = getWithingsOAuthServiceForUser(userId).getAuthUrl();
+    const state = extractStateFromUrl(authUrl);
+    if (!state) {
+      return res.status(500).json({ error: "Withings OAuth flow did not return a state value" });
+    }
+    registerPendingOAuthState(withingsPendingOAuthStates, state, userId);
     return res.redirect(authUrl);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
@@ -4117,12 +4302,17 @@ app.get("/api/auth/withings/callback", async (req, res) => {
   const code = typeof req.query.code === "string" ? req.query.code : null;
   const state = typeof req.query.state === "string" ? req.query.state : null;
 
-  if (!code) {
-    return res.status(400).json({ error: "Missing authorization code" });
+  if (!code || !state) {
+    return res.status(400).json({ error: "Missing authorization code or state" });
+  }
+
+  const userId = consumePendingOAuthStateUserId(withingsPendingOAuthStates, state);
+  if (!userId) {
+    return res.status(400).json({ error: "Invalid or expired Withings OAuth state" });
   }
 
   try {
-    const result = await withingsOAuthService.handleCallback(code, state);
+    const result = await getWithingsOAuthServiceForUser(userId).handleCallback(code, state);
     return res.json({
       status: "connected",
       connectedAt: result.connectedAt,
@@ -4131,13 +4321,17 @@ app.get("/api/auth/withings/callback", async (req, res) => {
     });
   } catch (oauthError) {
     const errorMessage = oauthError instanceof Error ? oauthError.message : "Unknown error";
+    if (errorMessage.toLowerCase().includes("invalid or expired withings oauth state")) {
+      return res.status(400).json({ error: errorMessage });
+    }
     return res.status(500).json({ error: `Withings authorization failed: ${errorMessage}` });
   }
 });
 
-app.get("/api/withings/status", (_req, res) => {
-  const connection = withingsOAuthService.getConnectionInfo();
-  const data = withingsSyncService.getData();
+app.get("/api/withings/status", (req, res) => {
+  const userId = (req as AuthenticatedRequest).authUser?.id ?? "";
+  const connection = getWithingsOAuthServiceForUser(userId).getConnectionInfo();
+  const data = getWithingsSyncServiceForUser(userId).getData();
   return res.json({
     ...connection,
     lastSyncedAt: data.lastSyncedAt,
@@ -4147,6 +4341,7 @@ app.get("/api/withings/status", (_req, res) => {
 });
 
 app.post("/api/withings/sync", async (req, res) => {
+  const userId = (req as AuthenticatedRequest).authUser?.id ?? "";
   const parsed = withingsSyncSchema.safeParse(req.body ?? {});
   const syncStartedAt = Date.now();
 
@@ -4155,7 +4350,8 @@ app.post("/api/withings/sync", async (req, res) => {
   }
 
   try {
-    const result = await withingsSyncService.triggerSync({
+    const service = getWithingsSyncServiceForUser(userId);
+    const result = await service.triggerSync({
       daysBack: parsed.data.daysBack
     });
 
@@ -4175,7 +4371,7 @@ app.post("/api/withings/sync", async (req, res) => {
     return res.json({
       ...result,
       startedAt: new Date(syncStartedAt).toISOString(),
-      data: withingsSyncService.getData()
+      data: service.getData()
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
@@ -4187,9 +4383,10 @@ app.post("/api/withings/sync", async (req, res) => {
 });
 
 app.get("/api/withings/summary", (req, res) => {
+  const userId = (req as AuthenticatedRequest).authUser?.id ?? "";
   const parsedDays = typeof req.query.daysBack === "string" ? Number(req.query.daysBack) : 14;
   const daysBack = Number.isFinite(parsedDays) ? Math.max(1, Math.min(90, Math.round(parsedDays))) : 14;
-  const data = withingsSyncService.getData();
+  const data = getWithingsSyncServiceForUser(userId).getData();
   const cutoff = Date.now() - daysBack * 24 * 60 * 60 * 1000;
 
   const weight = data.weight.filter((entry) => Date.parse(entry.measuredAt) >= cutoff);
@@ -4245,10 +4442,11 @@ app.get("/api/integrations/health-log/summary", (req, res) => {
   return res.json(summary);
 });
 
-app.post("/api/gmail/sync", async (_req, res) => {
+app.post("/api/gmail/sync", async (req, res) => {
+  const userId = (req as AuthenticatedRequest).authUser?.id ?? "";
   const syncStartedAt = Date.now();
   try {
-    const result = await gmailSyncService.triggerSync();
+    const result = await getGmailSyncServiceForUser(userId).triggerSync();
     let recoveryPrompt: SyncRecoveryPrompt | null = null;
     if (result.success) {
       syncFailureRecovery.recordSuccess("gmail");
@@ -4276,8 +4474,9 @@ app.post("/api/gmail/sync", async (_req, res) => {
 });
 
 app.get("/api/gmail/summary", (req, res) => {
+  const userId = (req as AuthenticatedRequest).authUser?.id ?? "";
   try {
-    const data = gmailSyncService.getData();
+    const data = getGmailSyncServiceForUser(userId).getData();
     const hours = typeof req.query?.hours === "string" ? parseInt(req.query.hours, 10) : 24;
     const now = new Date();
     const cutoffTime = new Date(now.getTime() - hours * 60 * 60 * 1000);
@@ -4354,8 +4553,19 @@ const shutdown = (): void => {
     entry.watcher.stop();
   }
   githubWatchersByUser.clear();
-  gmailSyncService.stop();
-  withingsSyncService.stop();
+  for (const service of gmailSyncServicesByUser.values()) {
+    service.stop();
+  }
+  gmailSyncServicesByUser.clear();
+  gmailOAuthServicesByUser.clear();
+  gmailPendingOAuthStates.clear();
+
+  for (const service of withingsSyncServicesByUser.values()) {
+    service.stop();
+  }
+  withingsSyncServicesByUser.clear();
+  withingsOAuthServicesByUser.clear();
+  withingsPendingOAuthStates.clear();
 
   const finalize = async (): Promise<void> => {
     // Flush any remaining buffered journal entries before shutdown
