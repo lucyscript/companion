@@ -3801,7 +3801,7 @@ button:disabled {
 .consent-flow-card {
   width: 100%;
   max-width: 560px;
-  max-height: calc(100dvh - 32px);
+  max-height: calc(100dvh - 80px);
   display: flex;
   flex-direction: column;
   background: var(--surface);
