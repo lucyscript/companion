@@ -30,7 +30,7 @@ import {
 interface ConnectorMeta {
   service: ConnectorService;
   label: string;
-  icon: string;
+  icon: { src: string; alt: string };
   description: string;
   type: "token" | "oauth" | "config" | "url";
   placeholder?: string;
@@ -40,7 +40,7 @@ interface ConnectorMeta {
 interface GeminiCard {
   service: "gemini";
   label: string;
-  icon: string;
+  icon: { src: string; alt: string };
   description: string;
 }
 
@@ -60,7 +60,7 @@ const CONNECTORS: ConnectorMeta[] = [
   {
     service: "canvas",
     label: "Canvas LMS",
-    icon: "🎓",
+    icon: { src: "/icons/integrations/canvas.svg", alt: "Canvas" },
     description: "Courses, assignments, deadlines, and grades from your Canvas instance.",
     type: "token",
     placeholder: "Paste your Canvas access token"
@@ -68,21 +68,21 @@ const CONNECTORS: ConnectorMeta[] = [
   {
     service: "mcp",
     label: "Connected Apps",
-    icon: "🧩",
+    icon: { src: "/icons/integrations/connected-apps.svg", alt: "Connected apps" },
     description: "Connect trusted external apps like GitHub.",
     type: "config"
   },
   {
     service: "withings",
     label: "Withings Health",
-    icon: "💪",
+    icon: { src: "/icons/integrations/withings.png", alt: "Withings" },
     description: "Sleep, weight, and health data from Withings devices.",
     type: "oauth"
   },
   {
     service: "tp_schedule",
     label: "TP EduCloud Schedule",
-    icon: "📅",
+    icon: { src: "/icons/integrations/tp.ico", alt: "TP EduCloud" },
     description: "Lecture schedule via iCal subscription from TP.",
     type: "url",
     placeholder: "Paste your TP iCal URL here"
@@ -92,7 +92,7 @@ const CONNECTORS: ConnectorMeta[] = [
 const GEMINI_CARD: GeminiCard = {
   service: "gemini",
   label: "Gemini AI",
-  icon: "✨",
+  icon: { src: "/icons/integrations/gemini.svg", alt: "Gemini" },
   description: "Conversational AI, summaries, coaching"
 };
 
@@ -410,7 +410,9 @@ export function ConnectorsView({ planInfo, onUpgrade }: ConnectorsViewProps): JS
           tabIndex={0}
           onKeyDown={(event) => event.key === "Enter" && handleToggleExpand(connector.service)}
         >
-          <span className="connector-icon">{connector.icon}</span>
+          <span className="connector-icon">
+            <img className="connector-icon-image" src={connector.icon.src} alt={connector.icon.alt} />
+          </span>
           <div className="connector-info">
             <span className="connector-label">{connector.label}</span>
             {connected && statusDetail && (
@@ -707,7 +709,9 @@ export function ConnectorsView({ planInfo, onUpgrade }: ConnectorsViewProps): JS
         </div>
         <div className={`connector-card ${geminiStatus.apiConfigured ? "connector-connected" : ""}`}>
           <div className="connector-header connector-header-static">
-            <span className="connector-icon">{GEMINI_CARD.icon}</span>
+            <span className="connector-icon">
+              <img className="connector-icon-image" src={GEMINI_CARD.icon.src} alt={GEMINI_CARD.icon.alt} />
+            </span>
             <div className="connector-info">
               <span className="connector-label">{GEMINI_CARD.label}</span>
               {geminiStatus.apiConfigured ? (
