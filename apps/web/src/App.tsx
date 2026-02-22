@@ -486,7 +486,6 @@ export default function App(): JSX.Element {
             )}
             {activeTab === "settings" && (
               <SettingsView
-                onCalendarImported={() => setScheduleRevision((revision) => revision + 1)}
                 planInfo={planInfo}
                 onUpgrade={() => openUpgradeModal()}
                 userEmail={authUserEmail}

@@ -1,11 +1,9 @@
 import { NotificationSettings } from "./NotificationSettings";
-import { CalendarImportView } from "./CalendarImportView";
 import { IntegrationScopeSettings } from "./IntegrationScopeSettings";
 import { ConnectorsView } from "./ConnectorsView";
 import type { UserPlanInfo } from "../types";
 
 interface SettingsViewProps {
-  onCalendarImported: () => void;
   planInfo: UserPlanInfo | null;
   onUpgrade: () => void;
   /** Currently signed-in user email (null if auth not required) */
@@ -25,7 +23,6 @@ interface SettingsViewProps {
 }
 
 export function SettingsView({
-  onCalendarImported,
   planInfo,
   onUpgrade,
   userEmail,
@@ -156,10 +153,6 @@ export function SettingsView({
         <NotificationSettings />
       </div>
 
-      <div className="settings-section">
-        <h3 className="settings-section-title">📅 Calendar Import</h3>
-        <CalendarImportView onImported={onCalendarImported} />
-      </div>
     </div>
   );
 }
