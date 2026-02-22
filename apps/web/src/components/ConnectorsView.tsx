@@ -5,7 +5,8 @@ import {
   CanvasStatus,
   GeminiStatus,
   McpServerConfig,
-  McpServerTemplate
+  McpServerTemplate,
+  UserPlanInfo
 } from "../types";
 import {
   connectService,
@@ -41,6 +42,11 @@ interface GeminiCard {
   label: string;
   icon: string;
   description: string;
+}
+
+interface ConnectorsViewProps {
+  planInfo: UserPlanInfo | null;
+  onUpgrade: () => void;
 }
 
 function getDefaultInputValues(): Record<string, string> {
@@ -90,6 +96,9 @@ const GEMINI_CARD: GeminiCard = {
   description: "Conversational AI, summaries, coaching"
 };
 
+const FREE_TIER_SERVICES: ConnectorService[] = ["canvas", "tp_schedule"];
+const CONNECTED_APPS_SERVICES: ConnectorService[] = ["withings", "mcp"];
+
 function formatRelative(timestamp: string | null): string {
   if (!timestamp) return "Never";
   const diffMs = Date.now() - new Date(timestamp).getTime();
@@ -117,7 +126,7 @@ function formatConnectedAppLabel(label: string): string {
     .trim();
 }
 
-export function ConnectorsView(): JSX.Element {
+export function ConnectorsView({ planInfo, onUpgrade }: ConnectorsViewProps): JSX.Element {
   const [connections, setConnections] = useState<UserConnection[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedService, setExpandedService] = useState<ConnectorService | null>(null);
@@ -374,6 +383,311 @@ export function ConnectorsView(): JSX.Element {
     }
   };
 
+  const isPaidPlan = planInfo ? planInfo.plan !== "free" : false;
+  const freeTierConnectors = FREE_TIER_SERVICES
+    .map((service) => CONNECTORS.find((connector) => connector.service === service))
+    .filter((connector): connector is ConnectorMeta => connector !== undefined);
+  const connectedAppConnectors = CONNECTED_APPS_SERVICES
+    .map((service) => CONNECTORS.find((connector) => connector.service === service))
+    .filter((connector): connector is ConnectorMeta => connector !== undefined);
+
+  const renderConnectorCard = (connector: ConnectorMeta): JSX.Element => {
+    const connected = isConnected(connector.service);
+    const connection = getConnection(connector.service);
+    const expanded = expandedService === connector.service && (!connected || connector.service === "mcp");
+    const busy = submitting === connector.service;
+    const statusDetail = connected ? getStatusDetail(connector.service) : null;
+
+    return (
+      <div
+        key={connector.service}
+        className={`connector-card ${connected ? "connector-connected" : ""} ${expanded ? "connector-expanded" : ""}`}
+      >
+        <div
+          className="connector-header"
+          onClick={() => handleToggleExpand(connector.service)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(event) => event.key === "Enter" && handleToggleExpand(connector.service)}
+        >
+          <span className="connector-icon">{connector.icon}</span>
+          <div className="connector-info">
+            <span className="connector-label">{connector.label}</span>
+            {connected && statusDetail && (
+              <span className="connector-display-label">{statusDetail}</span>
+            )}
+            {connected && !statusDetail && connection?.displayLabel && (
+              <span className="connector-display-label">{connection.displayLabel}</span>
+            )}
+            {!connected && (
+              <span className="connector-desc">{connector.description}</span>
+            )}
+          </div>
+          <div className="connector-status">
+            {connected ? (
+              <span className="connector-badge connector-badge-connected">Connected</span>
+            ) : (
+              <span className="connector-badge connector-badge-disconnected">Not connected</span>
+            )}
+          </div>
+        </div>
+
+        {connected && (
+          <div className="connector-actions">
+            {connector.service !== "mcp" && (
+              <span className="connector-connected-since">
+                Connected {new Date(connection!.connectedAt).toLocaleDateString()}
+              </span>
+            )}
+            {connector.service === "mcp" && (
+              <button
+                className="connector-sync-btn"
+                onClick={() => handleToggleExpand("mcp")}
+                disabled={busy}
+              >
+                {expanded ? "Close" : "Manage"}
+              </button>
+            )}
+            <button
+              className="connector-disconnect-btn"
+              onClick={() => void handleDisconnect(connector.service)}
+              disabled={busy}
+            >
+              {busy ? "Disconnecting..." : connector.service === "mcp" ? "Disconnect all" : "Disconnect"}
+            </button>
+          </div>
+        )}
+
+        {expanded && (
+          <div className="connector-setup">
+            {connector.type === "token" && (
+              <div className={`connector-token-input ${connector.service === "canvas" ? "connector-token-input-canvas" : ""}`}>
+                {connector.service === "canvas" && (
+                  <div className="connector-input-block">
+                    <label className="connector-input-label" htmlFor="canvas-base-url-input">
+                      Canvas base URL
+                    </label>
+                    <input
+                      id="canvas-base-url-input"
+                      type="url"
+                      placeholder="https://stavanger.instructure.com"
+                      value={inputValues.canvas_baseUrl ?? ""}
+                      onChange={(event) => handleInputChange("canvas_baseUrl", event.target.value)}
+                      disabled={busy}
+                    />
+                    <p className="connector-input-hint">
+                      Use your school Canvas root URL (no <code>/courses</code>).
+                    </p>
+                  </div>
+                )}
+                <div className="connector-input-block">
+                  {connector.service === "canvas" && (
+                    <label className="connector-input-label" htmlFor="canvas-token-input">
+                      Canvas API token
+                    </label>
+                  )}
+                  <input
+                    id={connector.service === "canvas" ? "canvas-token-input" : undefined}
+                    type="password"
+                    placeholder={connector.placeholder}
+                    value={inputValues[connector.service] ?? ""}
+                    onChange={(event) => handleInputChange(connector.service, event.target.value)}
+                    disabled={busy}
+                  />
+                </div>
+                {connector.service === "canvas" && (
+                  <p className="connector-help-text">
+                    In Canvas go to <strong>Account</strong> → <strong>Settings</strong> → <strong>Approved Integrations</strong> → <strong>+ New Access Token</strong>, then paste the token above.
+                  </p>
+                )}
+                <button
+                  className="connector-connect-btn"
+                  onClick={() => void handleConnect(connector)}
+                  disabled={
+                    busy ||
+                    !inputValues[connector.service]?.trim() ||
+                    (connector.service === "canvas" && !inputValues.canvas_baseUrl?.trim())
+                  }
+                >
+                  {busy ? "Connecting..." : "Connect"}
+                </button>
+              </div>
+            )}
+
+            {connector.type === "oauth" && (
+              <div className="connector-oauth-setup">
+                <p className="connector-oauth-hint">
+                  You&apos;ll be redirected to {connector.label} to authorize access.
+                </p>
+                <button
+                  className="connector-connect-btn"
+                  onClick={() => void handleConnect(connector)}
+                  disabled={busy}
+                >
+                  {busy ? "Redirecting..." : `Connect ${connector.label}`}
+                </button>
+              </div>
+            )}
+
+            {connector.type === "config" && (
+              <div className="connector-config-fields">
+                {connector.service === "mcp" ? (
+                  <>
+                    {mcpTemplates.length > 0 && (
+                      <div className="connector-mcp-templates">
+                        <p className="connector-input-label">Verified templates</p>
+                        <div className="connector-mcp-template-grid">
+                          {mcpTemplates.map((template) => {
+                            const selected = selectedMcpTemplateId === template.id;
+                            return (
+                              <div
+                                key={template.id}
+                                className={`connector-mcp-template-card ${selected ? "connector-mcp-template-card-selected" : ""}`}
+                              >
+                                <div className="connector-mcp-template-head">
+                                  <span className="connector-mcp-template-provider">{template.provider}</span>
+                                  {template.verified && (
+                                    <span className="connector-badge connector-badge-connected">Verified</span>
+                                  )}
+                                </div>
+                                <p className="connector-mcp-template-title">{template.label}</p>
+                                <p className="connector-mcp-template-description">{template.description}</p>
+                                <div className="connector-mcp-template-actions">
+                                  <button
+                                    type="button"
+                                    className="connector-sync-btn"
+                                    onClick={() => handleApplyMcpTemplate(template)}
+                                    disabled={busy}
+                                  >
+                                    {selected ? "Selected" : "Connect"}
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedMcpTemplate && (
+                      <div className="connector-mcp-quick-connect">
+                        <p className="connector-input-label">{selectedMcpTemplate.label}</p>
+                        <p className="connector-help-text">{selectedMcpTemplate.description}</p>
+                        {selectedMcpTemplate.authType === "oauth" ? (
+                          <>
+                            <button
+                              className="connector-connect-btn"
+                              onClick={() => void handleConnectMcpTemplate(selectedMcpTemplate)}
+                              disabled={busy || selectedMcpTemplate.oauthEnabled === false}
+                            >
+                              {busy
+                                ? "Connecting..."
+                                : selectedMcpTemplate.oauthEnabled === false
+                                  ? "OAuth unavailable on this server"
+                                  : `Connect with ${selectedMcpTemplate.provider}`}
+                            </button>
+                            <p className="connector-help-text">
+                              {selectedMcpTemplate.oauthEnabled === false
+                                ? "This deployment has no OAuth client configured for this provider. Paste a token below instead."
+                                : "OAuth is preferred. You can still paste a token below if needed."}
+                            </p>
+                          </>
+                        ) : null}
+                        <div className="connector-config-field">
+                          <label>{selectedMcpTemplate.tokenLabel}</label>
+                          <input
+                            type="password"
+                            placeholder={selectedMcpTemplate.tokenPlaceholder}
+                            value={inputValues.mcp_token ?? ""}
+                            onChange={(event) => handleInputChange("mcp_token", event.target.value)}
+                            disabled={busy}
+                          />
+                        </div>
+                        <p className="connector-help-text">{selectedMcpTemplate.tokenHelp}</p>
+                        <button
+                          className="connector-connect-btn"
+                          onClick={() => void handleConnectMcpTemplate(selectedMcpTemplate, inputValues.mcp_token)}
+                          disabled={busy || !inputValues.mcp_token?.trim()}
+                        >
+                          {busy ? "Connecting..." : "Connect with token"}
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="connector-mcp-list">
+                      {mcpServers.length === 0 ? (
+                        <p className="connector-help-text">No connected apps yet.</p>
+                      ) : (
+                        mcpServers.map((server) => (
+                          <div key={server.id} className="connector-actions">
+                            <span className="connector-display-label">{formatConnectedAppLabel(server.label)}</span>
+                            <button
+                              className="connector-disconnect-btn"
+                              onClick={() => void handleDeleteMcpServer(server.id)}
+                              disabled={busy}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {(connector.configFields ?? []).map((field) => (
+                      <div key={field.key} className="connector-config-field">
+                        <label>{field.label}</label>
+                        <input
+                          type={field.type ?? "text"}
+                          placeholder={field.placeholder}
+                          value={inputValues[`${connector.service}_${field.key}`] ?? ""}
+                          onChange={(event) => handleInputChange(`${connector.service}_${field.key}`, event.target.value)}
+                          disabled={busy}
+                        />
+                      </div>
+                    ))}
+                    <button className="connector-connect-btn" onClick={() => void handleConnect(connector)} disabled={busy}>
+                      {busy ? "Saving..." : "Save & Connect"}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+
+            {connector.type === "url" && (
+              <div className="connector-url-input">
+                <input
+                  type="url"
+                  placeholder={connector.placeholder}
+                  value={inputValues[connector.service] ?? ""}
+                  onChange={(event) => handleInputChange(connector.service, event.target.value)}
+                  disabled={busy}
+                />
+                {connector.service === "tp_schedule" && (
+                  <p className="connector-help-text">
+                    Go to <strong>tp.educloud.no</strong> → find your courses → click <strong>Verktøy</strong> → <strong>Kopier abonnementlenken til timeplanen</strong>. Paste the iCal URL here (starts with https://tp.educloud.no/...).
+                  </p>
+                )}
+                <button
+                  className="connector-connect-btn"
+                  onClick={() => void handleConnect(connector)}
+                  disabled={busy || !inputValues[connector.service]?.trim()}
+                >
+                  {busy ? "Saving..." : "Save"}
+                </button>
+              </div>
+            )}
+
+            {error && expandedService === connector.service && (
+              <p className="connector-error">{error}</p>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="connectors-loading">
@@ -386,325 +700,64 @@ export function ConnectorsView(): JSX.Element {
 
   return (
     <div className="connectors-list">
-      <div className={`connector-card ${geminiStatus.apiConfigured ? "connector-connected" : ""}`}>
-        <div className="connector-header">
-          <span className="connector-icon">{GEMINI_CARD.icon}</span>
-          <div className="connector-info">
-            <span className="connector-label">{GEMINI_CARD.label}</span>
-            {geminiStatus.apiConfigured ? (
-              <span className="connector-display-label">
-                {geminiStatus.model} · Last used {formatRelative(geminiStatus.lastRequestAt)}
-              </span>
-            ) : (
-              <span className="connector-desc">{GEMINI_CARD.description}</span>
-            )}
-          </div>
-          <div className="connector-status">
-            {geminiStatus.apiConfigured ? (
-              <span className="connector-badge connector-badge-connected">Connected</span>
-            ) : (
-              <span className="connector-badge connector-badge-disconnected">Not configured</span>
-            )}
+      <section className="connector-section">
+        <div className="connector-section-head">
+          <h4 className="connector-section-title">Free Tier</h4>
+          <p className="connector-section-desc">Included for every account.</p>
+        </div>
+        <div className={`connector-card ${geminiStatus.apiConfigured ? "connector-connected" : ""}`}>
+          <div className="connector-header connector-header-static">
+            <span className="connector-icon">{GEMINI_CARD.icon}</span>
+            <div className="connector-info">
+              <span className="connector-label">{GEMINI_CARD.label}</span>
+              {geminiStatus.apiConfigured ? (
+                <span className="connector-display-label connector-display-label-wrap">
+                  {geminiStatus.model} · Last used {formatRelative(geminiStatus.lastRequestAt)}
+                </span>
+              ) : (
+                <span className="connector-desc">{GEMINI_CARD.description}</span>
+              )}
+            </div>
+            <div className="connector-status">
+              {geminiStatus.apiConfigured ? (
+                <span className="connector-badge connector-badge-connected">Connected</span>
+              ) : (
+                <span className="connector-badge connector-badge-disconnected">Not configured</span>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+        {freeTierConnectors.map(renderConnectorCard)}
+      </section>
 
-      {CONNECTORS.map((connector) => {
-        const connected = isConnected(connector.service);
-        const connection = getConnection(connector.service);
-        const expanded = expandedService === connector.service && (!connected || connector.service === "mcp");
-        const busy = submitting === connector.service;
-        const statusDetail = connected ? getStatusDetail(connector.service) : null;
-
-        return (
-          <div
-            key={connector.service}
-            className={`connector-card ${connected ? "connector-connected" : ""} ${expanded ? "connector-expanded" : ""}`}
-          >
-            <div
-              className="connector-header"
-              onClick={() => handleToggleExpand(connector.service)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(event) => event.key === "Enter" && handleToggleExpand(connector.service)}
-            >
-              <span className="connector-icon">{connector.icon}</span>
+      <section className="connector-section">
+        <div className="connector-section-head">
+          <h4 className="connector-section-title">Connected Apps</h4>
+          <p className="connector-section-desc">Available on paid plans.</p>
+        </div>
+        {isPaidPlan ? (
+          connectedAppConnectors.map(renderConnectorCard)
+        ) : (
+          <div className="connector-card connector-card-locked">
+            <div className="connector-header connector-header-static">
+              <span className="connector-icon">🔒</span>
               <div className="connector-info">
-                <span className="connector-label">{connector.label}</span>
-                {connected && statusDetail && (
-                  <span className="connector-display-label">{statusDetail}</span>
-                )}
-                {connected && !statusDetail && connection?.displayLabel && (
-                  <span className="connector-display-label">{connection.displayLabel}</span>
-                )}
-                {!connected && (
-                  <span className="connector-desc">{connector.description}</span>
-                )}
+                <span className="connector-label">Upgrade to unlock Connected Apps</span>
+                <span className="connector-desc">Connect external apps like GitHub and Withings.</span>
               </div>
               <div className="connector-status">
-                {connected ? (
-                  <span className="connector-badge connector-badge-connected">Connected</span>
-                ) : (
-                  <span className="connector-badge connector-badge-disconnected">Not connected</span>
-                )}
+                <span className="connector-badge connector-badge-disconnected">Paid plan</span>
               </div>
             </div>
-
-            {connected && (
-              <div className="connector-actions">
-                {connector.service !== "mcp" && (
-                  <span className="connector-connected-since">
-                    Connected {new Date(connection!.connectedAt).toLocaleDateString()}
-                  </span>
-                )}
-                {connector.service === "mcp" && (
-                  <button
-                    className="connector-sync-btn"
-                    onClick={() => handleToggleExpand("mcp")}
-                    disabled={busy}
-                  >
-                    {expanded ? "Close" : "Manage"}
-                  </button>
-                )}
-                <button
-                  className="connector-disconnect-btn"
-                  onClick={() => void handleDisconnect(connector.service)}
-                  disabled={busy}
-                >
-                  {busy ? "Disconnecting..." : connector.service === "mcp" ? "Disconnect all" : "Disconnect"}
-                </button>
-              </div>
-            )}
-
-            {expanded && (
-              <div className="connector-setup">
-                {connector.type === "token" && (
-                  <div className={`connector-token-input ${connector.service === "canvas" ? "connector-token-input-canvas" : ""}`}>
-                    {connector.service === "canvas" && (
-                      <div className="connector-input-block">
-                        <label className="connector-input-label" htmlFor="canvas-base-url-input">
-                          Canvas base URL
-                        </label>
-                        <input
-                          id="canvas-base-url-input"
-                          type="url"
-                          placeholder="https://stavanger.instructure.com"
-                          value={inputValues.canvas_baseUrl ?? ""}
-                          onChange={(event) => handleInputChange("canvas_baseUrl", event.target.value)}
-                          disabled={busy}
-                        />
-                        <p className="connector-input-hint">
-                          Use your school Canvas root URL (no <code>/courses</code>).
-                        </p>
-                      </div>
-                    )}
-                    <div className="connector-input-block">
-                      {connector.service === "canvas" && (
-                        <label className="connector-input-label" htmlFor="canvas-token-input">
-                          Canvas API token
-                        </label>
-                      )}
-                      <input
-                        id={connector.service === "canvas" ? "canvas-token-input" : undefined}
-                        type="password"
-                        placeholder={connector.placeholder}
-                        value={inputValues[connector.service] ?? ""}
-                        onChange={(event) => handleInputChange(connector.service, event.target.value)}
-                        disabled={busy}
-                      />
-                    </div>
-                    {connector.service === "canvas" && (
-                      <p className="connector-help-text">
-                        In Canvas go to <strong>Account</strong> → <strong>Settings</strong> → <strong>Approved Integrations</strong> → <strong>+ New Access Token</strong>, then paste the token above.
-                      </p>
-                    )}
-                    <button
-                      className="connector-connect-btn"
-                      onClick={() => void handleConnect(connector)}
-                      disabled={
-                        busy ||
-                        !inputValues[connector.service]?.trim() ||
-                        (connector.service === "canvas" && !inputValues.canvas_baseUrl?.trim())
-                      }
-                    >
-                      {busy ? "Connecting..." : "Connect"}
-                    </button>
-                  </div>
-                )}
-
-                {connector.type === "oauth" && (
-                  <div className="connector-oauth-setup">
-                    <p className="connector-oauth-hint">
-                      You&apos;ll be redirected to {connector.label} to authorize access.
-                    </p>
-                    <button
-                      className="connector-connect-btn"
-                      onClick={() => void handleConnect(connector)}
-                      disabled={busy}
-                    >
-                      {busy ? "Redirecting..." : `Connect ${connector.label}`}
-                    </button>
-                  </div>
-                )}
-
-                {connector.type === "config" && (
-                  <div className="connector-config-fields">
-                    {connector.service === "mcp" ? (
-                      <>
-                        {mcpTemplates.length > 0 && (
-                          <div className="connector-mcp-templates">
-                            <p className="connector-input-label">Verified templates</p>
-                            <div className="connector-mcp-template-grid">
-                              {mcpTemplates.map((template) => {
-                                const selected = selectedMcpTemplateId === template.id;
-                                return (
-                                  <div
-                                    key={template.id}
-                                    className={`connector-mcp-template-card ${selected ? "connector-mcp-template-card-selected" : ""}`}
-                                  >
-                                    <div className="connector-mcp-template-head">
-                                      <span className="connector-mcp-template-provider">{template.provider}</span>
-                                      {template.verified && (
-                                        <span className="connector-badge connector-badge-connected">Verified</span>
-                                      )}
-                                    </div>
-                                    <p className="connector-mcp-template-title">{template.label}</p>
-                                    <p className="connector-mcp-template-description">{template.description}</p>
-                                    <div className="connector-mcp-template-actions">
-                                      <button
-                                        type="button"
-                                        className="connector-sync-btn"
-                                        onClick={() => handleApplyMcpTemplate(template)}
-                                        disabled={busy}
-                                      >
-                                        {selected ? "Selected" : "Connect"}
-                                      </button>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-
-                        {selectedMcpTemplate && (
-                          <div className="connector-mcp-quick-connect">
-                            <p className="connector-input-label">{selectedMcpTemplate.label}</p>
-                            <p className="connector-help-text">{selectedMcpTemplate.description}</p>
-                            {selectedMcpTemplate.authType === "oauth" ? (
-                              <>
-                                <button
-                                  className="connector-connect-btn"
-                                  onClick={() => void handleConnectMcpTemplate(selectedMcpTemplate)}
-                                  disabled={busy || selectedMcpTemplate.oauthEnabled === false}
-                                >
-                                  {busy
-                                    ? "Connecting..."
-                                    : selectedMcpTemplate.oauthEnabled === false
-                                      ? "OAuth unavailable on this server"
-                                      : `Connect with ${selectedMcpTemplate.provider}`}
-                                </button>
-                                <p className="connector-help-text">
-                                  {selectedMcpTemplate.oauthEnabled === false
-                                    ? "This deployment has no OAuth client configured for this provider. Paste a token below instead."
-                                    : "OAuth is preferred. You can still paste a token below if needed."}
-                                </p>
-                              </>
-                            ) : null}
-                            <div className="connector-config-field">
-                              <label>{selectedMcpTemplate.tokenLabel}</label>
-                              <input
-                                type="password"
-                                placeholder={selectedMcpTemplate.tokenPlaceholder}
-                                value={inputValues.mcp_token ?? ""}
-                                onChange={(event) => handleInputChange("mcp_token", event.target.value)}
-                                disabled={busy}
-                              />
-                            </div>
-                            <p className="connector-help-text">{selectedMcpTemplate.tokenHelp}</p>
-                            <button
-                              className="connector-connect-btn"
-                              onClick={() => void handleConnectMcpTemplate(selectedMcpTemplate, inputValues.mcp_token)}
-                              disabled={busy || !inputValues.mcp_token?.trim()}
-                            >
-                              {busy ? "Connecting..." : "Connect with token"}
-                            </button>
-                          </div>
-                        )}
-
-                        <div className="connector-mcp-list">
-                          {mcpServers.length === 0 ? (
-                            <p className="connector-help-text">No connected apps yet.</p>
-                          ) : (
-                            mcpServers.map((server) => (
-                              <div key={server.id} className="connector-actions">
-                                <span className="connector-display-label">{formatConnectedAppLabel(server.label)}</span>
-                                <button
-                                  className="connector-disconnect-btn"
-                                  onClick={() => void handleDeleteMcpServer(server.id)}
-                                  disabled={busy}
-                                >
-                                  Remove
-                                </button>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        {(connector.configFields ?? []).map((field) => (
-                          <div key={field.key} className="connector-config-field">
-                            <label>{field.label}</label>
-                            <input
-                              type={field.type ?? "text"}
-                              placeholder={field.placeholder}
-                              value={inputValues[`${connector.service}_${field.key}`] ?? ""}
-                              onChange={(event) => handleInputChange(`${connector.service}_${field.key}`, event.target.value)}
-                              disabled={busy}
-                            />
-                          </div>
-                        ))}
-                        <button className="connector-connect-btn" onClick={() => void handleConnect(connector)} disabled={busy}>
-                          {busy ? "Saving..." : "Save & Connect"}
-                        </button>
-                      </>
-                    )}
-                  </div>
-                )}
-
-                {connector.type === "url" && (
-                  <div className="connector-url-input">
-                    <input
-                      type="url"
-                      placeholder={connector.placeholder}
-                      value={inputValues[connector.service] ?? ""}
-                      onChange={(event) => handleInputChange(connector.service, event.target.value)}
-                      disabled={busy}
-                    />
-                    {connector.service === "tp_schedule" && (
-                      <p className="connector-help-text">
-                        Go to <strong>tp.educloud.no</strong> → find your courses → click <strong>Verktøy</strong> → <strong>Kopier abonnementlenken til timeplanen</strong>. Paste the iCal URL here (starts with https://tp.educloud.no/...).
-                      </p>
-                    )}
-                    <button
-                      className="connector-connect-btn"
-                      onClick={() => void handleConnect(connector)}
-                      disabled={busy || !inputValues[connector.service]?.trim()}
-                    >
-                      {busy ? "Saving..." : "Save"}
-                    </button>
-                  </div>
-                )}
-
-                {error && expandedService === connector.service && (
-                  <p className="connector-error">{error}</p>
-                )}
-              </div>
-            )}
+            <div className="connector-actions">
+              <span className="connector-connected-since">Free tier includes Gemini, Canvas, and TP.</span>
+              <button className="connector-sync-btn" onClick={onUpgrade}>
+                Upgrade
+              </button>
+            </div>
           </div>
-        );
-      })}
+        )}
+      </section>
     </div>
   );
 }

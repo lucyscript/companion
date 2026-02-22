@@ -126,7 +126,7 @@ export function SettingsView({
 
       <div className="settings-section">
         <h3 className="settings-section-title">🔗 Integrations</h3>
-        <ConnectorsView />
+        <ConnectorsView planInfo={planInfo} onUpgrade={onUpgrade} />
       </div>
 
       <div className="settings-section">

@@ -50,11 +50,11 @@ export const PLAN_TIERS: Record<PlanId, PlanTier> = {
   free: {
     id: "free",
     name: "Free",
-    description: "Get started with basic AI chat and your schedule.",
+    description: "Get started with AI chat, schedule, Canvas, and TP sync.",
     priceMonthlyNok: 0,
     dailyChatLimit: 10,
-    features: new Set<FeatureId>(["chat", "schedule"]),
-    connectors: [],
+    features: new Set<FeatureId>(["chat", "schedule", "connectors"]),
+    connectors: ["canvas", "tp_schedule"] as ConnectorService[],
     maxChatHistory: 50,
     trialDays: 0,
     badge: "Free"
@@ -69,7 +69,7 @@ export const PLAN_TIERS: Record<PlanId, PlanTier> = {
       "chat", "schedule", "nutrition", "habits",
       "connectors", "gemini_tools", "chat_history", "analytics"
     ]),
-    connectors: ["canvas", "mcp", "tp_schedule"] as ConnectorService[],
+    connectors: ["canvas", "mcp", "withings", "tp_schedule"] as ConnectorService[],
     maxChatHistory: 0, // unlimited
     trialDays: 7,
     badge: "Plus"

@@ -4551,7 +4551,36 @@ body.keyboard-open .chat-overlay-backdrop {
 .connectors-list {
   display: flex;
   flex-direction: column;
+  gap: 14px;
+}
+
+.connector-section {
+  display: flex;
+  flex-direction: column;
   gap: 10px;
+}
+
+.connector-section-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 2px;
+}
+
+.connector-section-title {
+  margin: 0;
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.connector-section-desc {
+  margin: 0;
+  font-size: 0.74rem;
+  color: var(--muted);
+  text-align: right;
 }
 
 .connector-card {
@@ -4570,6 +4599,11 @@ body.keyboard-open .chat-overlay-backdrop {
   border-color: var(--accent);
 }
 
+.connector-card.connector-card-locked {
+  border-style: dashed;
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
 .connector-header {
   display: flex;
   align-items: center;
@@ -4577,6 +4611,10 @@ body.keyboard-open .chat-overlay-backdrop {
   padding: 14px 16px;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+}
+
+.connector-header.connector-header-static {
+  cursor: default;
 }
 
 .connector-icon {
@@ -4606,6 +4644,14 @@ body.keyboard-open .chat-overlay-backdrop {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.connector-display-label.connector-display-label-wrap {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.3;
 }
 
 .connector-desc {
@@ -4965,6 +5011,16 @@ body.keyboard-open .chat-overlay-backdrop {
 }
 
 @media (max-width: 640px) {
+  .connector-section-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .connector-section-desc {
+    text-align: left;
+  }
+
   .connector-token-input .connector-connect-btn {
     width: 100%;
     align-self: stretch;
