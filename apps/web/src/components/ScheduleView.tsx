@@ -325,7 +325,11 @@ export function ScheduleView({ focusLectureId }: ScheduleViewProps): JSX.Element
     .map((item) => item.label);
   const today = new Date();
   const todayBlocks = sortedSchedule.filter((block) => isSameLocalDate(new Date(block.startTime), today));
-  const dayTimeline = buildDayTimeline(todayBlocks, today, deadlineSuggestions, suggestionMutes);
+  // Only build gap-filler suggestions when there are real schedule events;
+  // on a fresh account with no events, show the empty state instead
+  const dayTimeline = todayBlocks.length > 0
+    ? buildDayTimeline(todayBlocks, today, deadlineSuggestions, suggestionMutes)
+    : [];
 
   return (
     <section className="schedule-card">

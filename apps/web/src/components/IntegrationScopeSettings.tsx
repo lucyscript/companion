@@ -117,7 +117,7 @@ export function IntegrationScopeSettings(): JSX.Element {
           )}
         </div>
 
-        <button type="button" className="settings-push-btn" onClick={() => void handleApply()} disabled={applyLoading} style={{ alignSelf: "flex-start" }}>
+        <button type="button" className="settings-push-btn" onClick={() => void handleApply()} disabled={applyLoading || canvasStatus.courses.length === 0} style={{ alignSelf: "flex-start" }}>
           {applyLoading ? "Syncing..." : "Sync now"}
         </button>
 
