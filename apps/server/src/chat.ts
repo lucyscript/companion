@@ -3342,6 +3342,7 @@ export interface SendChatResult {
   citations: ChatCitation[];
   mood?: ChatMood;
   history: ChatHistoryPage;
+  executedTools: string[];
 }
 
 interface SendChatOptions {
@@ -3434,7 +3435,8 @@ export async function sendChatMessage(
       assistantMessage,
       finishReason: "stop",
       citations: [],
-      history: historyPage
+      history: historyPage,
+      executedTools: []
     };
   }
 
@@ -3492,7 +3494,8 @@ export async function sendChatMessage(
       assistantMessage,
       finishReason: "stop",
       citations,
-      history: historyPage
+      history: historyPage,
+      executedTools: []
     };
   }
 
@@ -3565,7 +3568,8 @@ export async function sendChatMessage(
       assistantMessage,
       finishReason: "stop",
       citations,
-      history: historyPage
+      history: historyPage,
+      executedTools: []
     };
   }
 
@@ -3803,7 +3807,8 @@ export async function sendChatMessage(
         usage: assistantMetadata.usage,
         citations: assistantMetadata.citations ?? [],
         mood: rateLimitMood,
-        history: historyPage
+        history: historyPage,
+        executedTools: []
       };
     }
     throw error;
