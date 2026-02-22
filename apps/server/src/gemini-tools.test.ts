@@ -30,6 +30,8 @@ import {
   handleLogMeal,
   handleDeleteMeal,
   handleGetGitHubCourseContent,
+  handleCreateDeadline,
+  handleDeleteDeadline,
   handleQueueDeadlineAction,
   handleQueueScheduleBlock,
   handleQueueUpdateScheduleBlock,
@@ -55,8 +57,8 @@ describe("gemini-tools", () => {
   });
 
   describe("functionDeclarations", () => {
-    it("should define 47 function declarations", () => {
-      expect(functionDeclarations).toHaveLength(47);
+    it("should define 49 function declarations", () => {
+      expect(functionDeclarations).toHaveLength(49);
     });
 
     it("should include getSchedule function", () => {
@@ -124,7 +126,9 @@ describe("gemini-tools", () => {
       expect(getGitHubCourseContent?.description).toContain("GitHub");
     });
 
-    it("should include queue action functions", () => {
+    it("should include deadline and queue action functions", () => {
+      expect(functionDeclarations.find((f) => f.name === "createDeadline")).toBeDefined();
+      expect(functionDeclarations.find((f) => f.name === "deleteDeadline")).toBeDefined();
       expect(functionDeclarations.find((f) => f.name === "queueDeadlineAction")).toBeDefined();
       expect(functionDeclarations.find((f) => f.name === "createScheduleBlock")).toBeDefined();
       expect(functionDeclarations.find((f) => f.name === "updateScheduleBlock")).toBeDefined();
@@ -330,6 +334,49 @@ describe("gemini-tools", () => {
       const result = handleGetDeadlines(store, userId, { courseCode: "DAT520", daysAhead: 30 });
       expect(result).toHaveLength(1);
       expect(result[0]?.id).toBe(dat520.id);
+    });
+  });
+
+  describe("deadline mutation handlers", () => {
+    it("creates a manual deadline", () => {
+      const result = handleCreateDeadline(store, userId, {
+        course: "DAT560",
+        task: "Assignment 5 report",
+        dueDate: "2026-03-01T22:00:00.000Z",
+        priority: "high",
+        effortHoursRemaining: 6
+      });
+
+      expect(result).toHaveProperty("success", true);
+      expect(result).toHaveProperty("created", true);
+      expect((result as { deadline: { task: string } }).deadline.task).toBe("Assignment 5 report");
+    });
+
+    it("rejects non-assignment/exam deadline titles", () => {
+      const result = handleCreateDeadline(store, userId, {
+        course: "DAT560",
+        task: "Lunch with classmate",
+        dueDate: "2026-03-01T22:00:00.000Z"
+      });
+
+      expect(result).toHaveProperty("error");
+      expect((result as { error: string }).error).toContain("assignment or exam");
+    });
+
+    it("deletes a deadline by id", () => {
+      const deadline = store.createDeadline(userId, {
+        course: "DAT520",
+        task: "Assignment 8",
+        dueDate: "2026-03-03T10:00:00.000Z",
+        priority: "medium",
+        completed: false
+      });
+
+      const result = handleDeleteDeadline(store, userId, { deadlineId: deadline.id });
+
+      expect(result).toHaveProperty("success", true);
+      expect(result).toHaveProperty("deleted", true);
+      expect(store.getDeadlineById(userId, deadline.id, false)).toBeNull();
     });
   });
 
@@ -1522,6 +1569,31 @@ describe("gemini-tools", () => {
       expect(result.response).toHaveProperty("requiresConfirmation", false);
       expect(result.response).toHaveProperty("success", true);
       expect(store.getDeadlineById(userId, deadline.id, false)?.completed).toBe(true);
+    });
+
+    it("should execute createDeadline and deleteDeadline functions", () => {
+      const created = executeFunctionCall(
+        "createDeadline",
+        {
+          course: "DAT560",
+          task: "Assignment 9 final report",
+          dueDate: "2026-03-10T22:00:00.000Z",
+          priority: "high"
+        },
+        store,
+        userId
+      );
+
+      expect(created.name).toBe("createDeadline");
+      expect(created.response).toHaveProperty("success", true);
+
+      const createdDeadlineId = (created.response as { deadline?: { id?: string } }).deadline?.id;
+      expect(createdDeadlineId).toBeDefined();
+
+      const deleted = executeFunctionCall("deleteDeadline", { deadlineId: createdDeadlineId }, store, userId);
+      expect(deleted.name).toBe("deleteDeadline");
+      expect(deleted.response).toHaveProperty("success", true);
+      expect(deleted.response).toHaveProperty("deleted", true);
     });
 
     it("should execute updateScheduleBlock function", () => {

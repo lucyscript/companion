@@ -49,6 +49,47 @@ const TAB_DISPLAY_NAMES: Record<TabId, string> = {
   settings: "Settings"
 };
 
+const SCHEDULE_MUTATION_TOOLS = new Set([
+  "queueDeadlineAction",
+  "createDeadline",
+  "deleteDeadline",
+  "createScheduleBlock",
+  "updateScheduleBlock",
+  "deleteScheduleBlock",
+  "clearScheduleWindow",
+  "scheduleReminder",
+  "cancelReminder"
+]);
+
+const NUTRITION_MUTATION_TOOLS = new Set([
+  "updateNutritionTargets",
+  "saveNutritionPlanSnapshot",
+  "applyNutritionPlanSnapshot",
+  "deleteNutritionPlanSnapshot",
+  "createNutritionCustomFood",
+  "updateNutritionCustomFood",
+  "deleteNutritionCustomFood",
+  "logMeal",
+  "createNutritionMeal",
+  "updateNutritionMeal",
+  "addNutritionMealItem",
+  "updateNutritionMealItem",
+  "removeNutritionMealItem",
+  "moveNutritionMeal",
+  "setNutritionMealOrder",
+  "deleteMeal"
+]);
+
+const HABITS_MUTATION_TOOLS = new Set([
+  "updateHabitCheckIn",
+  "checkInGym",
+  "updateGoalCheckIn",
+  "createHabit",
+  "deleteHabit",
+  "createGoal",
+  "deleteGoal"
+]);
+
 function parseApiErrorMessage(error: unknown, fallback: string): string {
   if (!(error instanceof Error)) {
     return fallback;
@@ -86,6 +127,8 @@ export default function App(): JSX.Element {
   const [pushMessage, setPushMessage] = useState("");
 
   const [scheduleRevision, setScheduleRevision] = useState(0);
+  const [nutritionRevision, setNutritionRevision] = useState(0);
+  const [habitsRevision, setHabitsRevision] = useState(0);
   const [activeTab, setActiveTab] = useState<TabId>(initialDeepLink.tab ?? "chat");
   const [focusDeadlineId, setFocusDeadlineId] = useState<string | null>(initialDeepLink.deadlineId);
   const [focusLectureId, setFocusLectureId] = useState<string | null>(initialDeepLink.lectureId);
@@ -423,9 +466,14 @@ export default function App(): JSX.Element {
   }, []);
 
   const handleDataMutated = useCallback((tools: string[]): void => {
-    const SCHEDULE_TOOLS = ["createScheduleBlock", "updateScheduleBlock", "deleteScheduleBlock", "clearScheduleWindow"];
-    if (tools.some((t) => SCHEDULE_TOOLS.includes(t))) {
+    if (tools.some((tool) => SCHEDULE_MUTATION_TOOLS.has(tool))) {
       setScheduleRevision((r) => r + 1);
+    }
+    if (tools.some((tool) => NUTRITION_MUTATION_TOOLS.has(tool))) {
+      setNutritionRevision((r) => r + 1);
+    }
+    if (tools.some((tool) => HABITS_MUTATION_TOOLS.has(tool))) {
+      setHabitsRevision((r) => r + 1);
     }
   }, []);
 
@@ -504,12 +552,12 @@ export default function App(): JSX.Element {
             {activeTab === "nutrition" && (
               isTabLocked("nutrition")
                 ? <LockedFeatureOverlay featureName={TAB_DISPLAY_NAMES.nutrition} onUpgradeClick={() => openUpgradeModal(TAB_DISPLAY_NAMES.nutrition)} />
-                : <NutritionView />
+                : <NutritionView key={`nutrition-${nutritionRevision}`} />
             )}
             {activeTab === "habits" && (
               isTabLocked("habits")
                 ? <LockedFeatureOverlay featureName={TAB_DISPLAY_NAMES.habits} onUpgradeClick={() => openUpgradeModal(TAB_DISPLAY_NAMES.habits)} />
-                : <div className="habits-tab-container habits-analytics-stack">
+                : <div key={`habits-${habitsRevision}`} className="habits-tab-container habits-analytics-stack">
                     <HabitsGoalsView />
                     <AnalyticsDashboard />
                   </div>

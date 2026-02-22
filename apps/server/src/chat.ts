@@ -1309,6 +1309,7 @@ Core behavior:
 - Do not hallucinate user-specific data. If data is unavailable, say so explicitly and suggest the next sync step.
 - For email follow-ups like "what did it contain?" after inbox discussion, call getEmails again and answer from sender/subject/snippet.
 - For deadline completion or rescheduling/extension requests, use queueDeadlineAction with action 'complete' or 'reschedule' (with newDueDate in ISO 8601 UTC). Apply immediately (no confirmation step).
+- For manual deadline entry/removal requests, use createDeadline/deleteDeadline.
 - CRITICAL timezone rule for deadlines: All stored dueDate values from getDeadlines are in UTC. The user sees and speaks in LOCAL time (see timezone in runtime context below). When the user says a date/time like "22.02.2026 23:59", that is LOCAL time — convert it to UTC before passing to queueDeadlineAction. For example, 23:59 Europe/Oslo (UTC+1 winter) = 22:59 UTC → newDueDate "2026-02-22T22:59:00.000Z". Similarly, when comparing a stored UTC dueDate against the user's stated local time, apply the timezone offset — a UTC date of 2026-02-22T23:59Z displays as 2026-02-23T00:59 in Europe/Oslo, NOT Feb 22 23:59. Always call queueDeadlineAction if the user's intended local time differs from the current local-time interpretation of the stored UTC dueDate.
 - For schedule mutations, execute immediately with createScheduleBlock/updateScheduleBlock/deleteScheduleBlock/clearScheduleWindow.
 - IMPORTANT: Only create/modify the specific schedule items the user asks for. Never auto-fill the rest of the day with extra blocks unless explicitly asked (e.g. "plan my whole day"). The schedule UI already shows gap suggestions automatically.
@@ -2946,7 +2947,7 @@ function collectToolCitations(
     return next;
   }
 
-  if (functionName === "queueDeadlineAction") {
+  if (functionName === "queueDeadlineAction" || functionName === "createDeadline") {
     const payload = asRecord(response);
     const directDeadline = asRecord(payload?.deadline);
     const directDeadlineId = asNonEmptyString(directDeadline?.id);

@@ -22,6 +22,7 @@ import {
   WithingsWeightEntry
 } from "./types.js";
 import { applyRoutinePresetPlacements } from "./routine-presets.js";
+import { isAssignmentOrExamDeadline } from "./deadline-eligibility.js";
 
 /**
  * Function declarations for Gemini function calling.
@@ -88,6 +89,68 @@ export const functionDeclarations: FunctionDeclaration[] = [
         includeCompleted: {
           type: SchemaType.BOOLEAN,
           description: "Set true to include completed deadlines."
+        }
+      },
+      required: []
+    }
+  },
+  {
+    name: "createDeadline",
+    description:
+      "Create a new assignment/exam deadline. Use this when the user asks to add a deadline manually.",
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        course: {
+          type: SchemaType.STRING,
+          description: "Course identifier or name (for example DAT560)."
+        },
+        task: {
+          type: SchemaType.STRING,
+          description: "Assignment or exam task title."
+        },
+        dueDate: {
+          type: SchemaType.STRING,
+          description: "Due date/time in ISO 8601 format. Date-only YYYY-MM-DD is also accepted."
+        },
+        priority: {
+          type: SchemaType.STRING,
+          description: "Priority: low, medium, high, or critical. Defaults to medium."
+        },
+        effortHoursRemaining: {
+          type: SchemaType.NUMBER,
+          description: "Optional estimated remaining effort in hours."
+        },
+        effortConfidence: {
+          type: SchemaType.STRING,
+          description: "Optional confidence for effort estimate: low, medium, or high."
+        }
+      },
+      required: ["course", "task", "dueDate"]
+    }
+  },
+  {
+    name: "deleteDeadline",
+    description:
+      "Delete an existing deadline. Prefer deadlineId when known. If unknown, provide course/task or query text to match.",
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        deadlineId: {
+          type: SchemaType.STRING,
+          description: "Deadline ID (preferred)."
+        },
+        course: {
+          type: SchemaType.STRING,
+          description: "Course name/code filter when ID is unknown."
+        },
+        task: {
+          type: SchemaType.STRING,
+          description: "Task title filter when ID is unknown."
+        },
+        query: {
+          type: SchemaType.STRING,
+          description: "General text filter matched against course and task."
         }
       },
       required: []
@@ -1641,6 +1704,196 @@ export function handleGetDeadlines(
     });
 
   return deadlines;
+}
+
+function parseDeadlinePriority(value: unknown, fallback: Deadline["priority"] = "medium"): Deadline["priority"] {
+  const raw = asTrimmedString(value)?.toLowerCase();
+  if (raw === "low" || raw === "medium" || raw === "high" || raw === "critical") {
+    return raw;
+  }
+  return fallback;
+}
+
+function parseDeadlineEffortConfidence(value: unknown): Deadline["effortConfidence"] | undefined {
+  const raw = asTrimmedString(value)?.toLowerCase();
+  if (raw === "low" || raw === "medium" || raw === "high") {
+    return raw;
+  }
+  return undefined;
+}
+
+function toDeadlineIsoDate(value: string): string | null {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return `${value}T23:59:00.000Z`;
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed.toISOString();
+}
+
+export function handleCreateDeadline(
+  store: RuntimeStore, userId: string,
+  args: Record<string, unknown> = {}
+): { success: true; created: boolean; deadline: Deadline; message: string } | { error: string } {
+  const course = asTrimmedString(args.course);
+  const task = asTrimmedString(args.task);
+  const dueDateRaw = asTrimmedString(args.dueDate);
+
+  if (!course || !task || !dueDateRaw) {
+    return { error: "course, task, and dueDate are required." };
+  }
+
+  const dueDate = toDeadlineIsoDate(dueDateRaw);
+  if (!dueDate) {
+    return { error: `Invalid dueDate: ${dueDateRaw}. Use ISO 8601 format or YYYY-MM-DD.` };
+  }
+
+  const priority = parseDeadlinePriority(args.priority, "medium");
+  const effortHoursInput = typeof args.effortHoursRemaining === "number" ? args.effortHoursRemaining : null;
+  const effortHoursRemaining =
+    effortHoursInput !== null && Number.isFinite(effortHoursInput)
+      ? roundToDecimal(Math.max(0, Math.min(200, effortHoursInput)), 1)
+      : undefined;
+  const effortConfidence = parseDeadlineEffortConfidence(args.effortConfidence);
+
+  const candidate: Omit<Deadline, "id"> = {
+    course,
+    task,
+    dueDate,
+    priority,
+    completed: args.completed === true,
+    ...(effortHoursRemaining !== undefined ? { effortHoursRemaining } : {}),
+    ...(effortConfidence ? { effortConfidence } : {})
+  };
+
+  if (!isAssignmentOrExamDeadline(candidate)) {
+    return { error: "Deadlines must be assignment or exam work." };
+  }
+
+  const existing = store
+    .getAcademicDeadlines(userId, new Date(), false)
+    .find(
+      (deadline) =>
+        normalizeSearchText(deadline.course) === normalizeSearchText(course) &&
+        normalizeSearchText(deadline.task) === normalizeSearchText(task) &&
+        deadline.dueDate === dueDate
+    );
+  if (existing) {
+    return {
+      success: true,
+      created: false,
+      deadline: existing,
+      message: `Deadline "${existing.course} ${existing.task}" already exists for ${existing.dueDate}.`
+    };
+  }
+
+  const created = store.createDeadline(userId, candidate);
+  return {
+    success: true,
+    created: true,
+    deadline: created,
+    message: `Created deadline "${created.task}" for ${created.course}, due ${created.dueDate}.`
+  };
+}
+
+export function handleDeleteDeadline(
+  store: RuntimeStore, userId: string,
+  args: Record<string, unknown> = {}
+): {
+  success: true;
+  deleted: boolean;
+  deadlineId?: string;
+  message: string;
+  deadline?: Deadline;
+} | { error: string } {
+  const deadlines = store
+    .getAcademicDeadlines(userId, new Date(), false)
+    .sort((left, right) => new Date(left.dueDate).getTime() - new Date(right.dueDate).getTime());
+  if (deadlines.length === 0) {
+    return {
+      success: true,
+      deleted: false,
+      message: "No deadlines exist yet."
+    };
+  }
+
+  const deadlineId = asTrimmedString(args.deadlineId);
+  const course = asTrimmedString(args.course);
+  const task = asTrimmedString(args.task);
+  const query = asTrimmedString(args.query);
+
+  let matches: Deadline[] = [];
+
+  if (deadlineId) {
+    const byId = deadlines.find((deadline) => deadline.id === deadlineId);
+    if (!byId) {
+      return {
+        success: true,
+        deleted: false,
+        message: `Deadline not found: ${deadlineId}`
+      };
+    }
+    matches = [byId];
+  } else if (query) {
+    const needle = normalizeSearchText(query);
+    matches = deadlines.filter((deadline) => normalizeSearchText(`${deadline.course} ${deadline.task}`).includes(needle));
+  } else {
+    const normalizedCourse = course ? normalizeSearchText(course) : null;
+    const normalizedTask = task ? normalizeSearchText(task) : null;
+    if (!normalizedCourse && !normalizedTask) {
+      if (deadlines.length === 1) {
+        matches = [deadlines[0]!];
+      } else {
+        return { error: "Provide deadlineId, query, course, or task when multiple deadlines exist." };
+      }
+    } else {
+      matches = deadlines.filter((deadline) => {
+        if (normalizedCourse && !normalizeSearchText(deadline.course).includes(normalizedCourse)) {
+          return false;
+        }
+        if (normalizedTask && !normalizeSearchText(deadline.task).includes(normalizedTask)) {
+          return false;
+        }
+        return true;
+      });
+    }
+  }
+
+  if (matches.length === 0) {
+    const descriptor = query ?? [course, task].filter(Boolean).join(" ").trim();
+    return {
+      success: true,
+      deleted: false,
+      message: descriptor ? `No deadline matched "${descriptor}".` : "No matching deadline found."
+    };
+  }
+
+  if (matches.length > 1) {
+    return {
+      error: `Deadline match is ambiguous. Matches: ${matches
+        .slice(0, 4)
+        .map((deadline) => `${deadline.course} ${deadline.task} (${deadline.dueDate})`)
+        .join(", ")}`
+    };
+  }
+
+  const target = matches[0]!;
+  const deleted = store.deleteDeadline(userId, target.id);
+  if (!deleted) {
+    return { error: "Unable to delete deadline." };
+  }
+
+  return {
+    success: true,
+    deleted: true,
+    deadlineId: target.id,
+    deadline: target,
+    message: `Deleted deadline "${target.task}" for ${target.course}.`
+  };
 }
 
 export function handleGetEmails(
@@ -5328,6 +5581,12 @@ export function executeFunctionCall(
       break;
     case "getGitHubCourseContent":
       response = handleGetGitHubCourseContent(store, userId, args);
+      break;
+    case "createDeadline":
+      response = handleCreateDeadline(store, userId, args);
+      break;
+    case "deleteDeadline":
+      response = handleDeleteDeadline(store, userId, args);
       break;
     case "queueDeadlineAction":
       response = handleQueueDeadlineAction(store, userId, args);
