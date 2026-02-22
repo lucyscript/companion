@@ -1142,31 +1142,9 @@ const canvasConnectorCredentialsSchema = z.object({
   token: z.string().trim().min(1),
   baseUrl: z.string().url().optional()
 });
-const mcpConnectorServerSchema = z.object({
-  id: z.string().trim().min(1).max(120).optional(),
-  label: z.string().trim().min(1).max(80),
-  serverUrl: z.string().trim().url(),
-  token: z.string().trim().max(1024).optional(),
-  enabled: z.boolean().optional(),
-  toolAllowlist: z.array(z.string().trim().min(1).max(120)).max(128).optional(),
-  toolAllowlistCsv: z.string().optional()
-});
 const mcpTemplateConnectSchema = z.object({
   token: z.string().trim().min(1).max(4096).optional()
 });
-
-function parseMcpToolAllowlist(payload: z.infer<typeof mcpConnectorServerSchema>): string[] {
-  if (Array.isArray(payload.toolAllowlist)) {
-    return payload.toolAllowlist;
-  }
-  if (typeof payload.toolAllowlistCsv === "string" && payload.toolAllowlistCsv.trim().length > 0) {
-    return payload.toolAllowlistCsv
-      .split(",")
-      .map((value) => value.trim())
-      .filter((value) => value.length > 0);
-  }
-  return [];
-}
 
 async function upsertMcpTemplateServerWithToken(
   userId: string,
@@ -1373,49 +1351,9 @@ app.post("/api/connectors/:service/connect", async (req, res) => {
   }
 
   if (service === "mcp") {
-    const parsedMcpServer = mcpConnectorServerSchema.safeParse(req.body ?? {});
-    if (!parsedMcpServer.success) {
-      return res.status(400).json({
-        error: "Invalid MCP server payload",
-        issues: parsedMcpServer.error.issues
-      });
-    }
-
-    const toolAllowlist = parseMcpToolAllowlist(parsedMcpServer.data);
-    const mcpInput = {
-      id: parsedMcpServer.data.id,
-      label: parsedMcpServer.data.label,
-      serverUrl: parsedMcpServer.data.serverUrl,
-      token: parsedMcpServer.data.token,
-      enabled: parsedMcpServer.data.enabled,
-      toolAllowlist
-    };
-
-    try {
-      await validateMcpServerConnection(mcpInput);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Could not connect to MCP server";
-      return res.status(400).json({ error: message });
-    }
-
-    const server = upsertMcpServer(store, authReq.authUser.id, mcpInput);
-    const publicServers = getMcpServersPublic(store, authReq.authUser.id);
-    if (isGithubMcpServer(server)) {
-      maybeTriggerTpGithubDeadlineSubAgent(authReq.authUser.id, server.id);
-    }
-
-    return res.json({
-      ok: true,
-      service: "mcp",
-      displayLabel: publicServers.length === 1 ? "1 server" : `${publicServers.length} servers`,
-      server: {
-        id: server.id,
-        label: server.label,
-        serverUrl: server.serverUrl,
-        enabled: server.enabled,
-        toolAllowlist: server.toolAllowlist,
-        hasToken: Boolean(server.token)
-      }
+    return res.status(403).json({
+      error: "Manual MCP server connect is disabled. Use a verified template.",
+      templateOnly: true
     });
   }
 

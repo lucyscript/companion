@@ -46,10 +46,7 @@ interface GeminiCard {
 function getDefaultInputValues(): Record<string, string> {
   return {
     canvas_baseUrl: loadCanvasSettings().baseUrl,
-    mcp_label: "",
-    mcp_serverUrl: "",
-    mcp_token: "",
-    mcp_toolAllowlistCsv: ""
+    mcp_token: ""
   };
 }
 
@@ -66,14 +63,8 @@ const CONNECTORS: ConnectorMeta[] = [
     service: "mcp",
     label: "MCP Servers",
     icon: "🧩",
-    description: "Connect external MCP servers (provider templates or custom URLs).",
-    type: "config",
-    configFields: [
-      { key: "label", label: "Server label", placeholder: "GitHub MCP" },
-      { key: "serverUrl", label: "Server URL", placeholder: "https://your-mcp-server.example.com/mcp", type: "url" },
-      { key: "token", label: "Bearer token (optional)", placeholder: "Paste token if required", type: "password" },
-      { key: "toolAllowlistCsv", label: "Tool allowlist (optional)", placeholder: "tool_a, tool_b, tool_c" }
-    ]
+    description: "Connect approved MCP provider templates.",
+    type: "config"
   },
   {
     service: "withings",
@@ -125,7 +116,6 @@ export function ConnectorsView(): JSX.Element {
   const [mcpServers, setMcpServers] = useState<McpServerConfig[]>([]);
   const [mcpTemplates, setMcpTemplates] = useState<McpServerTemplate[]>([]);
   const [selectedMcpTemplateId, setSelectedMcpTemplateId] = useState<string | null>(null);
-  const [showMcpCustomConfig, setShowMcpCustomConfig] = useState(false);
   const [geminiStatus, setGeminiStatus] = useState<GeminiStatus>({
     apiConfigured: false,
     model: "unknown",
@@ -192,9 +182,6 @@ export function ConnectorsView(): JSX.Element {
   };
 
   const handleInputChange = (key: string, value: string): void => {
-    if (key.startsWith("mcp_") && key !== "mcp_token") {
-      setSelectedMcpTemplateId(null);
-    }
     setInputValues((prev) => ({ ...prev, [key]: value }));
   };
 
@@ -205,13 +192,9 @@ export function ConnectorsView(): JSX.Element {
 
   const handleApplyMcpTemplate = (template: McpServerTemplate): void => {
     setSelectedMcpTemplateId(template.id);
-    setShowMcpCustomConfig(false);
     setInputValues((prev) => ({
       ...prev,
-      mcp_label: template.label,
-      mcp_serverUrl: template.serverUrl,
-      mcp_token: "",
-      mcp_toolAllowlistCsv: template.suggestedToolAllowlist.join(", ")
+      mcp_token: ""
     }));
     setExpandedService("mcp");
     setError(null);
@@ -283,27 +266,9 @@ export function ConnectorsView(): JSX.Element {
         }
       } else if (connector.type === "config") {
         if (connector.service === "mcp") {
-          if (!showMcpCustomConfig) {
-            setError("Choose a verified template above or enable custom server setup.");
-            setSubmitting(null);
-            return;
-          }
-          const label = inputValues.mcp_label?.trim();
-          const serverUrl = inputValues.mcp_serverUrl?.trim();
-          if (!label || !serverUrl) {
-            setError("Please enter both server label and server URL");
-            setSubmitting(null);
-            return;
-          }
-
-          const token = inputValues.mcp_token?.trim();
-          const toolAllowlistCsv = inputValues.mcp_toolAllowlistCsv?.trim();
-          await connectService("mcp", {
-            label,
-            serverUrl,
-            ...(token ? { token } : {}),
-            ...(toolAllowlistCsv ? { toolAllowlistCsv } : {})
-          });
+          setError("Use a verified MCP template to connect.");
+          setSubmitting(null);
+          return;
         } else {
           const body: Record<string, string> = {};
           for (const field of connector.configFields ?? []) {
@@ -334,13 +299,9 @@ export function ConnectorsView(): JSX.Element {
         setExpandedService("mcp");
         setInputValues((prev) => ({
           ...prev,
-          mcp_label: "",
-          mcp_serverUrl: "",
-          mcp_token: "",
-          mcp_toolAllowlistCsv: ""
+          mcp_token: ""
         }));
         setSelectedMcpTemplateId(null);
-        setShowMcpCustomConfig(false);
       } else {
         setExpandedService(null);
         setInputValues(getDefaultInputValues());
@@ -378,7 +339,6 @@ export function ConnectorsView(): JSX.Element {
       if (service === "mcp") {
         setMcpServers([]);
         setSelectedMcpTemplateId(null);
-        setShowMcpCustomConfig(false);
       }
       await fetchConnections();
     } catch (err) {
@@ -572,7 +532,7 @@ export function ConnectorsView(): JSX.Element {
                   </div>
                 )}
 
-                {connector.type === "config" && connector.configFields && (
+                {connector.type === "config" && (
                   <div className="connector-config-fields">
                     {connector.service === "mcp" ? (
                       <>
@@ -671,42 +631,6 @@ export function ConnectorsView(): JSX.Element {
                           </div>
                         )}
 
-                        <button
-                          type="button"
-                          className="connector-sync-btn"
-                          onClick={() => setShowMcpCustomConfig((prev) => !prev)}
-                          disabled={busy}
-                        >
-                          {showMcpCustomConfig ? "Hide custom server" : "Use custom server"}
-                        </button>
-
-                        {showMcpCustomConfig && (
-                          <div className="connector-config-fields connector-mcp-custom-fields">
-                            <p className="connector-help-text">
-                              Advanced mode for custom MCP endpoints. Templates above are recommended.
-                            </p>
-                            {connector.configFields.map((field) => (
-                              <div key={field.key} className="connector-config-field">
-                                <label>{field.label}</label>
-                                <input
-                                  type={field.type ?? "text"}
-                                  placeholder={field.placeholder}
-                                  value={inputValues[`${connector.service}_${field.key}`] ?? ""}
-                                  onChange={(event) => handleInputChange(`${connector.service}_${field.key}`, event.target.value)}
-                                  disabled={busy}
-                                />
-                              </div>
-                            ))}
-                            <button
-                              className="connector-connect-btn"
-                              onClick={() => void handleConnect(connector)}
-                              disabled={busy || !inputValues.mcp_label?.trim() || !inputValues.mcp_serverUrl?.trim()}
-                            >
-                              {busy ? "Saving..." : "Add custom server"}
-                            </button>
-                          </div>
-                        )}
-
                         <div className="connector-mcp-list">
                           {mcpServers.length === 0 ? (
                             <p className="connector-help-text">No MCP servers added yet.</p>
@@ -730,7 +654,7 @@ export function ConnectorsView(): JSX.Element {
                       </>
                     ) : (
                       <>
-                        {connector.configFields.map((field) => (
+                        {(connector.configFields ?? []).map((field) => (
                           <div key={field.key} className="connector-config-field">
                             <label>{field.label}</label>
                             <input
