@@ -26,7 +26,7 @@ function formatRelative(timestamp: string | null): string {
   return `${diffDay}d ago`;
 }
 
-type IntegrationId = "canvas" | "gemini" | "ical" | "github" | "gmail";
+type IntegrationId = "canvas" | "gemini" | "ical";
 
 interface IntegrationDef {
   id: IntegrationId;
@@ -111,22 +111,6 @@ export function IntegrationStatusView(): JSX.Element {
       icon: "📅",
       status: "configured",
       detail: "Configured via your TP iCal subscription · Syncs weekly"
-    },
-    {
-      id: "github",
-      name: "GitHub Course Repos",
-      description: "Lab assignments, deadlines from repos",
-      icon: "🐙",
-      status: "not-configured",
-      detail: "Connect GitHub in Integrations to start syncing"
-    },
-    {
-      id: "gmail",
-      name: "Gmail",
-      description: "Inbox summary, email digest",
-      icon: "📧",
-      status: "not-configured",
-      detail: "Add Gmail OAuth credentials to connect"
     }
   ];
 

@@ -204,7 +204,7 @@ export interface AuthSession {
   lastSeenAt: string;
 }
 
-export type ConnectorService = "canvas" | "gmail" | "github_course" | "withings" | "tp_schedule" | "mcp";
+export type ConnectorService = "canvas" | "withings" | "tp_schedule" | "mcp";
 
 export interface UserConnection {
   id: string;

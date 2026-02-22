@@ -1,6 +1,5 @@
 import cors from "cors";
 import express from "express";
-import { randomBytes } from "crypto";
 import { resolve } from "path";
 import { z } from "zod";
 import { AuthService, parseBearerToken, generateSessionToken, hashSessionToken } from "./auth.js";
@@ -33,10 +32,6 @@ import { fetchTPSchedule, diffScheduleEvents } from "./tp-sync.js";
 import { TPSyncService } from "./tp-sync-service.js";
 import { CanvasSyncService } from "./canvas-sync.js";
 import type { CanvasSyncOptions } from "./canvas-sync.js";
-import { GitHubWatcher } from "./github-watcher.js";
-import { GitHubCourseClient } from "./github-course-client.js";
-import { GmailOAuthService } from "./gmail-oauth.js";
-import { GmailSyncService } from "./gmail-sync.js";
 import { WithingsOAuthService } from "./withings-oauth.js";
 import { WithingsSyncService } from "./withings-sync.js";
 import { buildStudyPlanCalendarIcs } from "./study-plan-export.js";
@@ -55,7 +50,6 @@ import type {
   AnalyticsCoachInsight,
   AuthProvider,
   AuthUser,
-  ConnectorService,
   Goal,
   Habit,
   NutritionCustomFood,
@@ -194,8 +188,6 @@ const analyticsCoachCache = new Map<string, AnalyticsCoachCacheEntry>();
 import type { DailyGrowthSummary } from "./types.js";
 const dailySummaryCache = new Map<string, DailyGrowthSummary>();
 const canvasSyncServicesByUser = new Map<string, CanvasSyncService>();
-const gmailOAuthServicesByUser = new Map<string, GmailOAuthService>();
-const gmailSyncServicesByUser = new Map<string, GmailSyncService>();
 const withingsOAuthServicesByUser = new Map<string, WithingsOAuthService>();
 const withingsSyncServicesByUser = new Map<string, WithingsSyncService>();
 
@@ -204,14 +196,7 @@ interface PendingOAuthState {
   expiresAt: number;
 }
 
-const gmailPendingOAuthStates = new Map<string, PendingOAuthState>();
 const withingsPendingOAuthStates = new Map<string, PendingOAuthState>();
-
-interface GitHubWatcherStateEntry {
-  token: string;
-  watcher: GitHubWatcher;
-}
-const githubWatchersByUser = new Map<string, GitHubWatcherStateEntry>();
 const tpSyncInFlightUsers = new Set<string>();
 
 interface CanvasConnectorCredentials {
@@ -312,53 +297,6 @@ function getCanvasConnectorCredentials(userId: string): CanvasConnectorCredentia
   };
 }
 
-function getGitHubConnectorToken(userId: string): string | undefined {
-  const connection = store.getUserConnection(userId, "github_course");
-  const parsed = parseConnectionCredentials(connection?.credentials);
-  if (!parsed) {
-    return undefined;
-  }
-
-  const token = typeof parsed.token === "string" ? parsed.token.trim() : "";
-  return token || undefined;
-}
-
-function isGitHubConfiguredForUser(userId: string): boolean {
-  return Boolean(getGitHubConnectorToken(userId)) && getGeminiClient().isConfigured();
-}
-
-function stopGitHubWatcherForUser(userId: string): void {
-  const existing = githubWatchersByUser.get(userId);
-  if (!existing) {
-    return;
-  }
-
-  existing.watcher.stop();
-  githubWatchersByUser.delete(userId);
-}
-
-function getGitHubWatcherForUser(userId: string): GitHubWatcher | null {
-  const token = getGitHubConnectorToken(userId);
-  if (!token) {
-    stopGitHubWatcherForUser(userId);
-    return null;
-  }
-
-  const existing = githubWatchersByUser.get(userId);
-  if (existing && existing.token === token) {
-    return existing.watcher;
-  }
-
-  if (existing) {
-    existing.watcher.stop();
-  }
-
-  const watcher = new GitHubWatcher(store, userId, getGeminiClient(), new GitHubCourseClient(token));
-  watcher.start();
-  githubWatchersByUser.set(userId, { token, watcher });
-  return watcher;
-}
-
 function resolveCanvasSyncOptions(userId: string, requested: Partial<CanvasSyncOptions> = {}): CanvasSyncOptions {
   const connected = getCanvasConnectorCredentials(userId);
   const requestedToken = typeof requested.token === "string" ? requested.token.trim() : "";
@@ -397,40 +335,6 @@ function getCanvasSyncServiceForUser(userId: string): CanvasSyncService {
   return created;
 }
 
-function getGmailOAuthServiceForUser(userId: string): GmailOAuthService {
-  const existing = gmailOAuthServicesByUser.get(userId);
-  if (existing) {
-    return existing;
-  }
-
-  const created = new GmailOAuthService(store, userId);
-  gmailOAuthServicesByUser.set(userId, created);
-  return created;
-}
-
-function getGmailSyncServiceForUser(userId: string): GmailSyncService {
-  const existing = gmailSyncServicesByUser.get(userId);
-  if (existing) {
-    return existing;
-  }
-
-  const created = new GmailSyncService(store, userId, getGmailOAuthServiceForUser(userId));
-  created.start();
-  gmailSyncServicesByUser.set(userId, created);
-  return created;
-}
-
-function stopGmailServicesForUser(userId: string): void {
-  const syncServiceForUser = gmailSyncServicesByUser.get(userId);
-  if (syncServiceForUser) {
-    syncServiceForUser.stop();
-    gmailSyncServicesByUser.delete(userId);
-  }
-
-  gmailOAuthServicesByUser.delete(userId);
-  clearPendingOAuthStatesForUser(gmailPendingOAuthStates, userId);
-}
-
 function getWithingsOAuthServiceForUser(userId: string): WithingsOAuthService {
   const existing = withingsOAuthServicesByUser.get(userId);
   if (existing) {
@@ -466,17 +370,6 @@ function stopWithingsServicesForUser(userId: string): void {
 }
 
 function syncOAuthConnectorConnections(userId: string): void {
-  const gmailInfo = getGmailOAuthServiceForUser(userId).getConnectionInfo();
-  const gmailConnection = store.getUserConnection(userId, "gmail");
-  if (gmailInfo.connected && !gmailConnection) {
-    store.upsertUserConnection({
-      userId,
-      service: "gmail",
-      credentials: JSON.stringify({ source: gmailInfo.source ?? "oauth" }),
-      displayLabel: gmailInfo.email ?? "Gmail"
-    });
-  }
-
   const withingsInfo = getWithingsOAuthServiceForUser(userId).getConnectionInfo();
   const withingsConnection = store.getUserConnection(userId, "withings");
   if (withingsInfo.connected && !withingsConnection) {
@@ -528,10 +421,6 @@ function clearPendingOAuthStatesForUser(map: Map<string, PendingOAuthState>, use
       map.delete(state);
     }
   }
-}
-
-function createOAuthState(): string {
-  return randomBytes(18).toString("hex");
 }
 
 function extractStateFromUrl(url: string): string | null {
@@ -851,8 +740,6 @@ function isPublicApiRoute(method: string, path: string): boolean {
     (method === "GET" && path === "/api/auth/google/callback") ||
     (method === "GET" && path === "/api/auth/github") ||
     (method === "GET" && path === "/api/auth/github/callback") ||
-    (method === "GET" && path === "/api/auth/gmail") ||
-    (method === "GET" && path === "/api/auth/gmail/callback") ||
     (method === "GET" && path === "/api/auth/withings") ||
     (method === "GET" && path === "/api/auth/withings/callback") ||
     (method === "GET" && path === "/api/plan/tiers") ||
@@ -960,8 +847,6 @@ app.use((req, res, next) => {
 
   (req as AuthenticatedRequest).authUser = authContext.user;
   (req as AuthenticatedRequest).authToken = authContext.token;
-  getGitHubWatcherForUser(authContext.user.id);
-  getGmailSyncServiceForUser(authContext.user.id);
   getWithingsSyncServiceForUser(authContext.user.id);
   return next();
 });
@@ -1040,7 +925,7 @@ function getOAuthFrontendRedirect(token: string): string {
 }
 
 function getIntegrationFrontendRedirect(
-  connector: "gmail" | "withings",
+  connector: "withings",
   status: "connected" | "failed",
   message?: string,
 ): string {
@@ -1167,7 +1052,7 @@ app.delete("/api/user/data", (req, res) => {
 
 // ── User Connections / Connectors ──
 
-const connectorServiceSchema = z.enum(["canvas", "gmail", "github_course", "withings", "tp_schedule", "mcp"]);
+const connectorServiceSchema = z.enum(["canvas", "withings", "tp_schedule", "mcp"]);
 const canvasConnectorCredentialsSchema = z.object({
   token: z.string().trim().min(1),
   baseUrl: z.string().url().optional()
@@ -1323,21 +1208,6 @@ app.post("/api/connectors/:service/connect", async (req, res) => {
     });
   }
 
-  if (service === "github_course") {
-    const { token } = req.body as { token?: string };
-    if (!token || typeof token !== "string" || token.trim().length === 0) {
-      return res.status(400).json({ error: "GitHub PAT is required" });
-    }
-    store.upsertUserConnection({
-      userId: authReq.authUser.id,
-      service: "github_course",
-      credentials: JSON.stringify({ token: token.trim() }),
-      displayLabel: "GitHub Course"
-    });
-    getGitHubWatcherForUser(authReq.authUser.id);
-    return res.json({ ok: true, service: "github_course" });
-  }
-
   if (service === "tp_schedule") {
     const { icalUrl } = req.body as { icalUrl?: string };
     if (!icalUrl || typeof icalUrl !== "string" || !icalUrl.trim().startsWith("http")) {
@@ -1352,13 +1222,7 @@ app.post("/api/connectors/:service/connect", async (req, res) => {
     return res.json({ ok: true, service: "tp_schedule" });
   }
 
-  // For OAuth connectors (gmail, withings), redirect to their OAuth flow
-  if (service === "gmail") {
-    const state = createOAuthState();
-    registerPendingOAuthState(gmailPendingOAuthStates, state, authReq.authUser.id);
-    const authUrl = getGmailOAuthServiceForUser(authReq.authUser.id).getAuthUrl(state);
-    return res.json({ redirectUrl: authUrl });
-  }
+  // For OAuth connectors, redirect to their OAuth flow
   if (service === "withings") {
     const authUrl = getWithingsOAuthServiceForUser(authReq.authUser.id).getAuthUrl();
     const state = extractStateFromUrl(authUrl);
@@ -1379,9 +1243,6 @@ app.delete("/api/connectors/:service", (req, res) => {
   const parsed = connectorServiceSchema.safeParse(req.params.service);
   if (!parsed.success) return res.status(400).json({ error: "Unknown service" });
 
-  if (parsed.data === "gmail") {
-    store.clearGmailTokens(authReq.authUser.id);
-  }
   if (parsed.data === "canvas") {
     store.clearCanvasData(authReq.authUser.id);
   }
@@ -1392,12 +1253,6 @@ app.delete("/api/connectors/:service", (req, res) => {
     store.clearWithingsTokens(authReq.authUser.id);
   }
   store.deleteUserConnection(authReq.authUser.id, parsed.data);
-  if (parsed.data === "github_course") {
-    stopGitHubWatcherForUser(authReq.authUser.id);
-  }
-  if (parsed.data === "gmail") {
-    stopGmailServicesForUser(authReq.authUser.id);
-  }
   if (parsed.data === "withings") {
     stopWithingsServicesForUser(authReq.authUser.id);
   }
@@ -2690,7 +2545,7 @@ const integrationScopePreviewSchema = z.object({
 });
 
 const integrationHealthLogQuerySchema = z.object({
-  integration: z.enum(["tp", "canvas", "gmail", "withings"]).optional(),
+  integration: z.enum(["tp", "canvas", "withings"]).optional(),
   status: z.enum(["success", "failure"]).optional(),
   limit: z.coerce.number().int().min(1).max(2000).optional().default(200),
   hours: z.coerce.number().int().min(1).max(24 * 365).optional()
@@ -2760,11 +2615,6 @@ const studyPlanSessionsQuerySchema = z.object({
 const studyPlanAdherenceQuerySchema = z.object({
   windowStart: z.string().datetime().optional(),
   windowEnd: z.string().datetime().optional()
-});
-
-const githubCourseContentQuerySchema = z.object({
-  courseCode: z.string().trim().min(2).max(16).optional(),
-  limit: z.coerce.number().int().min(1).max(50).optional().default(12)
 });
 
 const locationCreateSchema = z.object({
@@ -3978,20 +3828,12 @@ app.get("/api/sync/queue-status", (req, res) => {
 
 app.get("/api/sync/status", (req, res) => {
   const userId = (req as AuthenticatedRequest).authUser?.id ?? "";
-  // Get data from various integrations
   const storage = storageDiagnostics();
   const canvasData = store.getCanvasData(userId);
-  const githubData = store.getGitHubCourseData(userId);
-  const gmailData = store.getGmailData(userId);
   const withingsData = store.getWithingsData(userId);
   const geminiClient = getGeminiClient();
-  const githubConfigured = isGitHubConfiguredForUser(userId);
-  const gmailConnection = getGmailOAuthServiceForUser(userId).getConnectionInfo();
   const withingsConnection = getWithingsOAuthServiceForUser(userId).getConnectionInfo();
-  const gmailConnectionSource = gmailConnection.connected ? gmailConnection.source : null;
-  const gmailTokenBootstrap = gmailConnection.connected ? gmailConnection.tokenBootstrap : false;
-  const gmailHasRefreshToken = gmailConnection.connected ? gmailConnection.hasRefreshToken : false;
-  const gmailHasAccessToken = gmailConnection.connected ? gmailConnection.hasAccessToken : false;
+  const mcpServers = getMcpServersPublic(store, userId);
 
   return res.json({
     storage,
@@ -4007,12 +3849,9 @@ app.get("/api/sync/status", (req, res) => {
       source: "ical",
       eventsCount: store.getScheduleEvents(userId).length
     },
-    github: {
-      lastSyncAt: githubData?.lastSyncedAt ?? null,
-      status: githubConfigured ? (githubData ? "ok" : "not_synced") : "not_configured",
-      reposTracked: githubData?.repositories.length ?? 0,
-      courseDocsSynced: githubData?.documents.length ?? 0,
-      deadlinesFound: githubData?.deadlinesSynced ?? 0
+    mcp: {
+      status: mcpServers.length > 0 ? "configured" : "not_configured",
+      serversCount: mcpServers.length
     },
     gemini: {
       status: geminiClient.isConfigured() ? "ok" : "not_configured",
@@ -4020,16 +3859,6 @@ app.get("/api/sync/status", (req, res) => {
       requestsToday: null,
       dailyLimit: null,
       rateLimitSource: "provider"
-    },
-    gmail: {
-      lastSyncAt: gmailData.lastSyncedAt,
-      status: gmailConnection.connected ? "ok" : "not_connected",
-      messagesProcessed: gmailData.messages.length,
-      connected: gmailConnection.connected,
-      connectionSource: gmailConnectionSource,
-      tokenBootstrap: gmailTokenBootstrap,
-      hasRefreshToken: gmailHasRefreshToken,
-      hasAccessToken: gmailHasAccessToken
     },
     withings: {
       lastSyncAt: withingsData.lastSyncedAt,
@@ -4044,8 +3873,6 @@ app.get("/api/sync/status", (req, res) => {
     autoHealing: {
       tp: tpSyncService.getAutoHealingStatus(),
       canvas: canvasSyncService.getAutoHealingStatus(),
-      github: null,
-      gmail: getGmailSyncServiceForUser(userId).getAutoHealingStatus(),
       withings: getWithingsSyncServiceForUser(userId).getAutoHealingStatus()
     }
   });
@@ -4169,75 +3996,6 @@ app.post("/api/sync/tp", async (req, res) => {
   });
 });
 
-app.post("/api/sync/github", async (req, res) => {
-  const userId = (req as AuthenticatedRequest).authUser?.id ?? "";
-  const watcher = getGitHubWatcherForUser(userId);
-  if (!watcher) {
-    return res.status(400).json({ success: false, error: "GitHub connector is not configured for this account" });
-  }
-
-  try {
-    const result = await watcher.forceRescan();
-    return res.json(result);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "GitHub agent scan failed";
-    return res.status(500).json({ success: false, error: message });
-  }
-});
-
-// ── GitHub Tracked Repos CRUD ─────────────────────────────────────
-
-app.get("/api/github/repos", (req, res) => {
-  const userId = (req as AuthenticatedRequest).authUser?.id ?? "";
-  const repos = store.getGitHubTrackedRepos(userId);
-  return res.json({ repos });
-});
-
-app.post("/api/github/repos", (req, res) => {
-  const userId = (req as AuthenticatedRequest).authUser?.id ?? "";
-  const body = req.body as { url?: string; owner?: string; repo?: string; courseCode?: string; label?: string } | undefined;
-  if (!body) return res.status(400).json({ error: "Missing body" });
-
-  let owner: string | undefined;
-  let repo: string | undefined;
-
-  // Accept a full GitHub URL or owner/repo string
-  if (body.url) {
-    const match = body.url.match(/(?:github\.com\/)?([^/]+)\/([^/\s?#]+)/);
-    if (!match) return res.status(400).json({ error: "Cannot parse GitHub URL. Use format: https://github.com/owner/repo or owner/repo" });
-    owner = match[1];
-    repo = match[2].replace(/\.git$/, "");
-  } else if (body.owner && body.repo) {
-    owner = body.owner;
-    repo = body.repo;
-  } else {
-    return res.status(400).json({ error: "Provide either 'url' or 'owner' + 'repo'" });
-  }
-
-  const inserted = store.addGitHubTrackedRepo(userId, { owner, repo, courseCode: body.courseCode, label: body.label });
-  if (!inserted) return res.status(409).json({ error: "Repository already tracked", owner, repo });
-
-  return res.json({ success: true, owner, repo, courseCode: body.courseCode ?? null, label: body.label ?? null });
-});
-
-app.delete("/api/github/repos/:owner/:repo", (req, res) => {
-  const userId = (req as AuthenticatedRequest).authUser?.id ?? "";
-  const { owner, repo } = req.params;
-  const deleted = store.removeGitHubTrackedRepo(userId, owner, repo);
-  if (!deleted) return res.status(404).json({ error: "Repository not tracked" });
-  return res.json({ success: true });
-});
-
-app.patch("/api/github/repos/:owner/:repo", (req, res) => {
-  const userId = (req as AuthenticatedRequest).authUser?.id ?? "";
-  const { owner, repo } = req.params;
-  const body = req.body as { courseCode?: string; label?: string } | undefined;
-  if (!body) return res.status(400).json({ error: "Missing body" });
-  const updated = store.updateGitHubTrackedRepo(userId, owner, repo, body);
-  if (!updated) return res.status(404).json({ error: "Repository not found" });
-  return res.json({ success: true });
-});
-
 app.get("/api/tp/status", (req, res) => {
   const userId = (req as AuthenticatedRequest).authUser?.id ?? "";
   const events = store.getScheduleEvents(userId);
@@ -4261,47 +4019,6 @@ app.get("/api/canvas/status", (req, res) => {
     baseUrl: canvasBaseUrl,
     lastSyncedAt: canvasData?.lastSyncedAt ?? null,
     courses: canvasData?.courses ?? []
-  });
-});
-
-app.get("/api/github/status", (req, res) => {
-  const userId = (req as AuthenticatedRequest).authUser?.id ?? "";
-  const githubData = store.getGitHubCourseData(userId);
-  const watcher = getGitHubWatcherForUser(userId);
-  const watcherState = watcher?.getState();
-  const trackedRepos = store.getGitHubTrackedRepos(userId);
-  return res.json({
-    configured: isGitHubConfiguredForUser(userId),
-    lastSyncedAt: githubData?.lastSyncedAt ?? null,
-    lastCheckedAt: watcherState?.lastCheckedAt ?? null,
-    lastAgentRunAt: watcherState?.lastAgentRunAt ?? null,
-    trackedRepos,
-    repositories: githubData?.repositories ?? [],
-    courseDocsSynced: githubData?.documents.length ?? 0,
-    deadlinesFound: githubData?.deadlinesSynced ?? 0,
-    lastAgentResult: watcherState?.lastAgentResult ?? null
-  });
-});
-
-app.get("/api/github/course-content", (req, res) => {
-  const userId = (req as AuthenticatedRequest).authUser?.id ?? "";
-  const parsed = githubCourseContentQuerySchema.safeParse(req.query ?? {});
-  if (!parsed.success) {
-    return res.status(400).json({ error: "Invalid GitHub course-content query", issues: parsed.error.issues });
-  }
-
-  const githubData = store.getGitHubCourseData(userId);
-  const requestedCourseCode = parsed.data.courseCode?.toUpperCase();
-  const matchingDocuments = (githubData?.documents ?? [])
-    .filter((doc) => !requestedCourseCode || doc.courseCode.toUpperCase() === requestedCourseCode);
-  const documents = matchingDocuments.slice(0, parsed.data.limit);
-
-  return res.json({
-    configured: isGitHubConfiguredForUser(userId),
-    lastSyncedAt: githubData?.lastSyncedAt ?? null,
-    repositories: githubData?.repositories ?? [],
-    total: matchingDocuments.length,
-    documents
   });
 });
 
@@ -4376,24 +4093,6 @@ app.get("/api/gemini/status", (req, res) => {
     lastRequestAt,
     error: isConfigured ? undefined : "Vertex Gemini credentials not configured"
   });
-});
-
-app.get("/api/auth/gmail", (req, res) => {
-  return res.status(410).json({
-    error: "Deprecated connector. Gmail is now available through MCP servers."
-  });
-});
-
-app.get("/api/auth/gmail/callback", async (req, res) => {
-  return res.redirect(
-    getIntegrationFrontendRedirect("gmail", "failed", "Deprecated connector. Use MCP servers for Gmail access.")
-  );
-});
-
-app.get("/api/gmail/status", (req, res) => {
-  const userId = (req as AuthenticatedRequest).authUser?.id ?? "";
-  const connectionInfo = getGmailOAuthServiceForUser(userId).getConnectionInfo();
-  return res.json(connectionInfo);
 });
 
 app.get("/api/auth/withings", (req, res) => {
@@ -4564,69 +4263,6 @@ app.get("/api/integrations/health-log/summary", (req, res) => {
   return res.json(summary);
 });
 
-app.post("/api/gmail/sync", async (req, res) => {
-  const userId = (req as AuthenticatedRequest).authUser?.id ?? "";
-  const syncStartedAt = Date.now();
-  try {
-    const result = await getGmailSyncServiceForUser(userId).triggerSync();
-    let recoveryPrompt: SyncRecoveryPrompt | null = null;
-    if (result.success) {
-      syncFailureRecovery.recordSuccess("gmail");
-      recordIntegrationAttempt("gmail", syncStartedAt, true);
-    } else {
-      recoveryPrompt = syncFailureRecovery.recordFailure("gmail", result.error ?? "Gmail sync failed");
-      publishSyncRecoveryPrompt(recoveryPrompt);
-      recordIntegrationAttempt("gmail", syncStartedAt, false, result.error ?? "Gmail sync failed");
-    }
-
-    return res.json({
-      status: result.success ? "syncing" : "failed",
-      messagesFound: result.messagesCount,
-      startedAt: new Date().toISOString(),
-      error: result.error,
-      recoveryPrompt
-    });
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    const recoveryPrompt = syncFailureRecovery.recordFailure("gmail", errorMessage);
-    publishSyncRecoveryPrompt(recoveryPrompt);
-    recordIntegrationAttempt("gmail", syncStartedAt, false, errorMessage);
-    return res.status(500).json({ error: errorMessage, recoveryPrompt });
-  }
-});
-
-app.get("/api/gmail/summary", (req, res) => {
-  const userId = (req as AuthenticatedRequest).authUser?.id ?? "";
-  try {
-    const data = getGmailSyncServiceForUser(userId).getData();
-    const hours = typeof req.query?.hours === "string" ? parseInt(req.query.hours, 10) : 24;
-    const now = new Date();
-    const cutoffTime = new Date(now.getTime() - hours * 60 * 60 * 1000);
-
-    // Filter messages by time
-    const recentMessages = data.messages.filter((msg) => {
-      const receivedAt = new Date(msg.receivedAt);
-      return receivedAt >= cutoffTime;
-    });
-
-    return res.json({
-      generatedAt: new Date().toISOString(),
-      period: {
-        from: cutoffTime.toISOString(),
-        to: now.toISOString()
-      },
-      totalMessages: recentMessages.length,
-      summary: recentMessages.length > 0 
-        ? `You have ${recentMessages.length} recent email${recentMessages.length === 1 ? "" : "s"}`
-        : "No recent emails",
-      messages: recentMessages
-    });
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    return res.status(500).json({ error: errorMessage });
-  }
-});
-
 async function fetchCalendarIcs(url: string): Promise<string | null> {
   try {
     const response = await fetch(url);
@@ -4671,17 +4307,6 @@ const shutdown = (): void => {
     service.stop();
   }
   canvasSyncServicesByUser.clear();
-  for (const entry of githubWatchersByUser.values()) {
-    entry.watcher.stop();
-  }
-  githubWatchersByUser.clear();
-  for (const service of gmailSyncServicesByUser.values()) {
-    service.stop();
-  }
-  gmailSyncServicesByUser.clear();
-  gmailOAuthServicesByUser.clear();
-  gmailPendingOAuthStates.clear();
-
   for (const service of withingsSyncServicesByUser.values()) {
     service.stop();
   }

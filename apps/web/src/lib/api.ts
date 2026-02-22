@@ -1253,7 +1253,7 @@ export async function getIntegrationHealthSummary(hours = 24 * 7): Promise<Integ
           }
         },
         {
-          integration: "gmail",
+          integration: "withings",
           attempts: 0,
           successes: 0,
           failures: 0,

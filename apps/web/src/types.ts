@@ -526,7 +526,7 @@ export interface SendChatMessageStreamDoneResponse {
 export type AuthRole = "admin" | "user";
 export type AuthProvider = "local" | "google" | "github";
 export type PlanId = "free" | "plus" | "pro";
-export type ConnectorService = "canvas" | "gmail" | "github_course" | "withings" | "tp_schedule" | "mcp";
+export type ConnectorService = "canvas" | "withings" | "tp_schedule" | "mcp";
 
 export interface McpServerConfig {
   id: string;
