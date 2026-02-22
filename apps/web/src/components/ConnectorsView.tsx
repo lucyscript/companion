@@ -375,7 +375,7 @@ export function ConnectorsView(): JSX.Element {
                           disabled={busy}
                         />
                         <p className="connector-input-hint">
-                          Use your school&apos;s Canvas root domain from the browser address bar, without any path (no <code>/courses</code>).
+                          Find this in your web browser or Canvas app, then use only the root domain (no <code>/courses</code>).
                         </p>
                       </div>
                     )}
@@ -474,7 +474,7 @@ export function ConnectorsView(): JSX.Element {
 
                 {connector.service === "canvas" && (
                   <p className="connector-help-text">
-                    Use your own institution domain, for example <code>https://stavanger.instructure.com</code> or <code>https://hvl.instructure.com</code> (or your school&apos;s custom Canvas domain). In Canvas go to <strong>Account</strong> → <strong>Settings</strong> → <strong>Approved Integrations</strong> → <strong>+ New Access Token</strong>, then paste both values above.
+                    In Canvas go to <strong>Account</strong> → <strong>Settings</strong> → <strong>Approved Integrations</strong> → <strong>+ New Access Token</strong>, then paste the token above.
                   </p>
                 )}
                 {connector.service === "github_course" && (

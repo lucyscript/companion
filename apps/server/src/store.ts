@@ -8219,6 +8219,19 @@ export class RuntimeStore {
   }
 
   /**
+   * Clear stored Gmail OAuth tokens while preserving synced message history.
+   */
+  clearGmailTokens(userId: string): void {
+    this.db.prepare(`
+      UPDATE gmail_data
+      SET refreshToken = NULL,
+          accessToken = NULL,
+          tokenSource = 'unknown'
+      WHERE userId = ?
+    `).run(userId);
+  }
+
+  /**
    * Set Gmail messages
    */
   setGmailMessages(userId: string, messages: GmailMessage[], lastSyncedAt: string): void {
@@ -8356,6 +8369,20 @@ export class RuntimeStore {
           ? row.tokenSource
           : "unknown"
     };
+  }
+
+  /**
+   * Clear stored Withings OAuth tokens while preserving synced health history.
+   */
+  clearWithingsTokens(userId: string): void {
+    this.db.prepare(`
+      UPDATE withings_data
+      SET refreshToken = NULL,
+          accessToken = NULL,
+          tokenExpiresAt = NULL,
+          tokenSource = 'unknown'
+      WHERE userId = ?
+    `).run(userId);
   }
 
   setWithingsData(userId: string, weight: WithingsWeightEntry[], sleepSummary: WithingsSleepSummaryEntry[], lastSyncedAt: string): void {

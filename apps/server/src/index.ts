@@ -448,6 +448,30 @@ function stopWithingsServicesForUser(userId: string): void {
   clearPendingOAuthStatesForUser(withingsPendingOAuthStates, userId);
 }
 
+function syncOAuthConnectorConnections(userId: string): void {
+  const gmailInfo = getGmailOAuthServiceForUser(userId).getConnectionInfo();
+  const gmailConnection = store.getUserConnection(userId, "gmail");
+  if (gmailInfo.connected && !gmailConnection) {
+    store.upsertUserConnection({
+      userId,
+      service: "gmail",
+      credentials: JSON.stringify({ source: gmailInfo.source ?? "oauth" }),
+      displayLabel: gmailInfo.email ?? "Gmail"
+    });
+  }
+
+  const withingsInfo = getWithingsOAuthServiceForUser(userId).getConnectionInfo();
+  const withingsConnection = store.getUserConnection(userId, "withings");
+  if (withingsInfo.connected && !withingsConnection) {
+    store.upsertUserConnection({
+      userId,
+      service: "withings",
+      credentials: JSON.stringify({ source: withingsInfo.source ?? "oauth" }),
+      displayLabel: "Withings Health"
+    });
+  }
+}
+
 function cleanupPendingOAuthStates(map: Map<string, PendingOAuthState>): void {
   const now = Date.now();
   for (const [state, entry] of map.entries()) {
@@ -1136,6 +1160,7 @@ app.get("/api/connectors", (req, res) => {
   const authReq = req as AuthenticatedRequest;
   if (!authReq.authUser) return res.status(401).json({ error: "Unauthorized" });
 
+  syncOAuthConnectorConnections(authReq.authUser.id);
   const connections = store.getUserConnections(authReq.authUser.id);
   // Strip credentials from response — only send service + status
   const result = connections.map((c) => ({
@@ -1245,6 +1270,12 @@ app.delete("/api/connectors/:service", (req, res) => {
   const parsed = connectorServiceSchema.safeParse(req.params.service);
   if (!parsed.success) return res.status(400).json({ error: "Unknown service" });
 
+  if (parsed.data === "gmail") {
+    store.clearGmailTokens(authReq.authUser.id);
+  }
+  if (parsed.data === "withings") {
+    store.clearWithingsTokens(authReq.authUser.id);
+  }
   store.deleteUserConnection(authReq.authUser.id, parsed.data);
   if (parsed.data === "github_course") {
     stopGitHubWatcherForUser(authReq.authUser.id);
@@ -4272,7 +4303,13 @@ app.get("/api/auth/gmail/callback", async (req, res) => {
   }
 
   try {
-    await getGmailOAuthServiceForUser(userId).handleCallback(code);
+    const result = await getGmailOAuthServiceForUser(userId).handleCallback(code);
+    store.upsertUserConnection({
+      userId,
+      service: "gmail",
+      credentials: JSON.stringify({ source: "oauth" }),
+      displayLabel: result.email
+    });
     return res.redirect(getIntegrationFrontendRedirect("gmail", "connected"));
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
@@ -4327,6 +4364,12 @@ app.get("/api/auth/withings/callback", async (req, res) => {
 
   try {
     await getWithingsOAuthServiceForUser(userId).handleCallback(code, state);
+    store.upsertUserConnection({
+      userId,
+      service: "withings",
+      credentials: JSON.stringify({ source: "oauth" }),
+      displayLabel: "Withings Health"
+    });
     return res.redirect(getIntegrationFrontendRedirect("withings", "connected"));
   } catch (oauthError) {
     const errorMessage = oauthError instanceof Error ? oauthError.message : "Unknown error";
