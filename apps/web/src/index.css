@@ -2436,7 +2436,7 @@ button:disabled {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.3);
-  z-index: 89;
+  z-index: 101;
   animation: chat-overlay-fade-in 0.2s ease both;
   -webkit-tap-highlight-color: transparent;
 }
@@ -2450,11 +2450,11 @@ button:disabled {
   position: fixed !important;
   left: 0;
   right: 0;
-  bottom: var(--tab-bar-safe-space);
+  bottom: 0;
   top: auto;
   height: 50dvh;
-  max-height: calc(100dvh - var(--tab-bar-safe-space) - 60px);
-  z-index: 90;
+  max-height: calc(100dvh - 60px);
+  z-index: 102;
   border-radius: 16px 16px 0 0;
   box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.45);
   animation: chat-overlay-slide-up 0.28s cubic-bezier(0.32, 0.72, 0, 1) both;
@@ -2530,6 +2530,34 @@ button:disabled {
   bottom: auto;
   border-radius: 0;
   flex-shrink: 0;
+  padding-bottom: max(6px, env(safe-area-inset-bottom));
+}
+
+/* When keyboard is open, expand overlay to full screen like regular chat */
+body.keyboard-open .chat-overlay-panel {
+  height: 100dvh;
+  max-height: 100dvh;
+  border-radius: 0;
+  animation: none;
+}
+
+body.keyboard-open .chat-overlay-panel .chat-input-container {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--keyboard-gap);
+  z-index: 6;
+  padding: 4px 6px 4px;
+  border-top: 1px solid var(--border-soft);
+  background: rgba(7, 14, 20, 0.96);
+}
+
+body.keyboard-open .chat-overlay-panel .chat-messages {
+  padding-bottom: calc(72px + var(--keyboard-gap));
+}
+
+body.keyboard-open .chat-overlay-backdrop {
+  display: none;
 }
 
 @keyframes chat-overlay-slide-up {
