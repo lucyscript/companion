@@ -998,6 +998,25 @@ function getOAuthFrontendRedirect(token: string): string {
   return `${normalizedBase}#auth_token=${encodeURIComponent(token)}`;
 }
 
+function getIntegrationFrontendRedirect(
+  connector: "gmail" | "withings",
+  status: "connected" | "failed",
+  message?: string,
+): string {
+  const url = new URL(config.FRONTEND_URL);
+  const params = url.searchParams;
+  params.set("tab", "settings");
+  params.set("section", "integrations");
+  params.set("connector", connector);
+  params.set("oauthStatus", status);
+  if (message && message.trim().length > 0) {
+    params.set("oauthMessage", message.trim().slice(0, 220));
+  } else {
+    params.delete("oauthMessage");
+  }
+  return url.toString();
+}
+
 app.get("/api/auth/google", (_req, res) => {
   if (!googleOAuthEnabled()) {
     return res.status(404).json({ error: "Google OAuth not configured" });
@@ -4237,34 +4256,27 @@ app.get("/api/auth/gmail/callback", async (req, res) => {
     const errorDescription = typeof req.query.error_description === "string" 
       ? req.query.error_description 
       : error;
-    return res.status(400).json({ 
-      error: "OAuth authorization failed", 
-      details: errorDescription 
-    });
+    return res.redirect(getIntegrationFrontendRedirect("gmail", "failed", errorDescription));
   }
 
   const code = typeof req.query.code === "string" ? req.query.code : null;
   const state = typeof req.query.state === "string" ? req.query.state : null;
 
   if (!code || !state) {
-    return res.status(400).json({ error: "Missing authorization code or state" });
+    return res.redirect(getIntegrationFrontendRedirect("gmail", "failed", "Missing authorization code or state"));
   }
 
   const userId = consumePendingOAuthStateUserId(gmailPendingOAuthStates, state);
   if (!userId) {
-    return res.status(400).json({ error: "Invalid or expired Gmail OAuth state" });
+    return res.redirect(getIntegrationFrontendRedirect("gmail", "failed", "Invalid or expired Gmail OAuth state"));
   }
 
   try {
-    const result = await getGmailOAuthServiceForUser(userId).handleCallback(code);
-    return res.json({
-      status: "connected",
-      email: result.email,
-      connectedAt: result.connectedAt
-    });
+    await getGmailOAuthServiceForUser(userId).handleCallback(code);
+    return res.redirect(getIntegrationFrontendRedirect("gmail", "connected"));
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    return res.status(500).json({ error: `Gmail authorization failed: ${errorMessage}` });
+    return res.redirect(getIntegrationFrontendRedirect("gmail", "failed", errorMessage));
   }
 });
 
@@ -4298,38 +4310,27 @@ app.get("/api/auth/withings/callback", async (req, res) => {
   const error = typeof req.query.error === "string" ? req.query.error : null;
   if (error) {
     const errorDescription = typeof req.query.error_description === "string" ? req.query.error_description : error;
-    return res.status(400).json({
-      error: "Withings authorization failed",
-      details: errorDescription
-    });
+    return res.redirect(getIntegrationFrontendRedirect("withings", "failed", errorDescription));
   }
 
   const code = typeof req.query.code === "string" ? req.query.code : null;
   const state = typeof req.query.state === "string" ? req.query.state : null;
 
   if (!code || !state) {
-    return res.status(400).json({ error: "Missing authorization code or state" });
+    return res.redirect(getIntegrationFrontendRedirect("withings", "failed", "Missing authorization code or state"));
   }
 
   const userId = consumePendingOAuthStateUserId(withingsPendingOAuthStates, state);
   if (!userId) {
-    return res.status(400).json({ error: "Invalid or expired Withings OAuth state" });
+    return res.redirect(getIntegrationFrontendRedirect("withings", "failed", "Invalid or expired Withings OAuth state"));
   }
 
   try {
-    const result = await getWithingsOAuthServiceForUser(userId).handleCallback(code, state);
-    return res.json({
-      status: "connected",
-      connectedAt: result.connectedAt,
-      userId: result.userId ?? null,
-      scope: result.scope ?? null
-    });
+    await getWithingsOAuthServiceForUser(userId).handleCallback(code, state);
+    return res.redirect(getIntegrationFrontendRedirect("withings", "connected"));
   } catch (oauthError) {
     const errorMessage = oauthError instanceof Error ? oauthError.message : "Unknown error";
-    if (errorMessage.toLowerCase().includes("invalid or expired withings oauth state")) {
-      return res.status(400).json({ error: errorMessage });
-    }
-    return res.status(500).json({ error: `Withings authorization failed: ${errorMessage}` });
+    return res.redirect(getIntegrationFrontendRedirect("withings", "failed", errorMessage));
   }
 });
 
