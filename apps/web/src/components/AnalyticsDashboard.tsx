@@ -80,7 +80,6 @@ export function AnalyticsDashboard(): JSX.Element {
       <header className="analytics-header">
         <div>
           <h2 className="analytics-title">{periodDays === 1 ? "Daily Reflection" : "Narrative Analytics"}</h2>
-          {periodDays !== 1 && <p className="analytics-subtitle">Gemini coaching over your recent patterns.</p>}
         </div>
 
         <div className="analytics-controls">

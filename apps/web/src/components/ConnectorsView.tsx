@@ -375,7 +375,7 @@ export function ConnectorsView(): JSX.Element {
                           disabled={busy}
                         />
                         <p className="connector-input-hint">
-                          Find this in your web browser or Canvas app; use the school root domain (no <code>/courses</code>). If you paste a full Canvas link, we keep only the root domain.
+                          Use your school Canvas root URL (no <code>/courses</code>).
                         </p>
                       </div>
                     )}
