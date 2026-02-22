@@ -2461,7 +2461,7 @@ button:disabled {
   overflow: hidden;
   display: flex !important;
   flex-direction: column;
-  background: var(--surface-soft);
+  background: transparent;
 }
 
 /* Header bar at top of overlay with close button */
@@ -2529,7 +2529,9 @@ button:disabled {
   bottom: auto;
   border-radius: 0;
   flex-shrink: 0;
-  padding: 6px 8px 6px;
+  padding: 6px 8px 8px;
+  background: transparent;
+  border-top: none;
 }
 
 /* When keyboard is open, expand overlay to full screen like regular chat */
@@ -2539,7 +2541,7 @@ body.keyboard-open .chat-overlay-panel {
   max-height: 100dvh;
   border-radius: 0;
   animation: none;
-  background: var(--surface-soft);
+  background: transparent;
 }
 
 body.keyboard-open .chat-overlay-panel .chat-view {
@@ -2565,9 +2567,9 @@ body.keyboard-open .chat-overlay-panel .chat-messages {
   padding-bottom: calc(72px + var(--keyboard-gap));
 }
 
-/* Fill gap between input and keyboard with console background color */
+/* Blur background content visible between input and keyboard */
 body.keyboard-open.chat-overlay-active .tab-content-area {
-  background: var(--surface-soft);
+  filter: blur(8px);
   pointer-events: none;
 }
 
