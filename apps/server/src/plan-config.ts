@@ -69,7 +69,7 @@ export const PLAN_TIERS: Record<PlanId, PlanTier> = {
       "chat", "schedule", "nutrition", "habits",
       "connectors", "gemini_tools", "chat_history", "analytics"
     ]),
-    connectors: ["canvas", "gmail", "github_course", "tp_schedule"] as ConnectorService[],
+    connectors: ["canvas", "mcp", "tp_schedule"] as ConnectorService[],
     maxChatHistory: 0, // unlimited
     trialDays: 7,
     badge: "Plus"
@@ -84,7 +84,7 @@ export const PLAN_TIERS: Record<PlanId, PlanTier> = {
       "chat", "schedule", "nutrition", "habits",
       "connectors", "gemini_tools", "chat_history", "analytics", "custom_moods"
     ]),
-    connectors: ["canvas", "gmail", "github_course", "withings", "tp_schedule"] as ConnectorService[],
+    connectors: ["canvas", "mcp", "withings", "tp_schedule"] as ConnectorService[],
     maxChatHistory: 0,
     trialDays: 7,
     badge: "Pro"

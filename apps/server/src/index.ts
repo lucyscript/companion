@@ -92,6 +92,13 @@ import {
   type VippsWebhookPayload
 } from "./vipps-integration.js";
 import { nowIso } from "./utils.js";
+import {
+  clearMcpServers,
+  getMcpServersPublic,
+  removeMcpServer,
+  upsertMcpServer,
+  validateMcpServerConnection
+} from "./mcp.js";
 
 const app = express();
 const MAX_API_JSON_BODY_SIZE = "10mb";
@@ -1160,11 +1167,33 @@ app.delete("/api/user/data", (req, res) => {
 
 // ── User Connections / Connectors ──
 
-const connectorServiceSchema = z.enum(["canvas", "gmail", "github_course", "withings", "tp_schedule"]);
+const connectorServiceSchema = z.enum(["canvas", "gmail", "github_course", "withings", "tp_schedule", "mcp"]);
 const canvasConnectorCredentialsSchema = z.object({
   token: z.string().trim().min(1),
   baseUrl: z.string().url().optional()
 });
+const mcpConnectorServerSchema = z.object({
+  id: z.string().trim().min(1).max(120).optional(),
+  label: z.string().trim().min(1).max(80),
+  serverUrl: z.string().trim().url(),
+  token: z.string().trim().max(1024).optional(),
+  enabled: z.boolean().optional(),
+  toolAllowlist: z.array(z.string().trim().min(1).max(120)).max(128).optional(),
+  toolAllowlistCsv: z.string().optional()
+});
+
+function parseMcpToolAllowlist(payload: z.infer<typeof mcpConnectorServerSchema>): string[] {
+  if (Array.isArray(payload.toolAllowlist)) {
+    return payload.toolAllowlist;
+  }
+  if (typeof payload.toolAllowlistCsv === "string" && payload.toolAllowlistCsv.trim().length > 0) {
+    return payload.toolAllowlistCsv
+      .split(",")
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0);
+  }
+  return [];
+}
 
 app.get("/api/connectors", (req, res) => {
   const authReq = req as AuthenticatedRequest;
@@ -1182,7 +1211,33 @@ app.get("/api/connectors", (req, res) => {
   return res.json({ connections: result });
 });
 
-app.post("/api/connectors/:service/connect", (req, res) => {
+app.get("/api/mcp/servers", (req, res) => {
+  const authReq = req as AuthenticatedRequest;
+  if (!authReq.authUser) return res.status(401).json({ error: "Unauthorized" });
+
+  return res.json({
+    servers: getMcpServersPublic(store, authReq.authUser.id)
+  });
+});
+
+app.delete("/api/mcp/servers/:serverId", (req, res) => {
+  const authReq = req as AuthenticatedRequest;
+  if (!authReq.authUser) return res.status(401).json({ error: "Unauthorized" });
+
+  const serverId = typeof req.params.serverId === "string" ? req.params.serverId.trim() : "";
+  if (!serverId) {
+    return res.status(400).json({ error: "Server ID is required" });
+  }
+
+  const removed = removeMcpServer(store, authReq.authUser.id, serverId);
+  if (!removed) {
+    return res.status(404).json({ error: "MCP server not found" });
+  }
+
+  return res.json({ ok: true });
+});
+
+app.post("/api/connectors/:service/connect", async (req, res) => {
   const authReq = req as AuthenticatedRequest;
   if (!authReq.authUser) return res.status(401).json({ error: "Unauthorized" });
 
@@ -1200,7 +1255,7 @@ app.post("/api/connectors/:service/connect", (req, res) => {
     });
   }
 
-  // For token-paste connectors (canvas, github_course), expect { token: string }
+  // Token/config connectors
   if (service === "canvas") {
     const parsedCanvasCredentials = canvasConnectorCredentialsSchema.safeParse(req.body ?? {});
     if (!parsedCanvasCredentials.success) {
@@ -1222,6 +1277,50 @@ app.post("/api/connectors/:service/connect", (req, res) => {
       displayLabel: "Canvas LMS"
     });
     return res.json({ ok: true, service: "canvas" });
+  }
+
+  if (service === "mcp") {
+    const parsedMcpServer = mcpConnectorServerSchema.safeParse(req.body ?? {});
+    if (!parsedMcpServer.success) {
+      return res.status(400).json({
+        error: "Invalid MCP server payload",
+        issues: parsedMcpServer.error.issues
+      });
+    }
+
+    const toolAllowlist = parseMcpToolAllowlist(parsedMcpServer.data);
+    const mcpInput = {
+      id: parsedMcpServer.data.id,
+      label: parsedMcpServer.data.label,
+      serverUrl: parsedMcpServer.data.serverUrl,
+      token: parsedMcpServer.data.token,
+      enabled: parsedMcpServer.data.enabled,
+      toolAllowlist
+    };
+
+    try {
+      await validateMcpServerConnection(mcpInput);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not connect to MCP server";
+      return res.status(400).json({ error: message });
+    }
+
+    const server = upsertMcpServer(store, authReq.authUser.id, mcpInput);
+    const publicServers = getMcpServersPublic(store, authReq.authUser.id);
+
+    return res.json({
+      ok: true,
+      service: "mcp",
+      displayLabel: publicServers.length === 1 ? "1 server" : `${publicServers.length} servers`,
+      server: {
+        id: server.id,
+        label: server.label,
+        serverUrl: server.serverUrl,
+        enabled: server.enabled,
+        toolAllowlist: server.toolAllowlist,
+        hasToken: Boolean(server.token)
+      }
+    });
   }
 
   if (service === "github_course") {
@@ -1285,6 +1384,9 @@ app.delete("/api/connectors/:service", (req, res) => {
   }
   if (parsed.data === "canvas") {
     store.clearCanvasData(authReq.authUser.id);
+  }
+  if (parsed.data === "mcp") {
+    clearMcpServers(store, authReq.authUser.id);
   }
   if (parsed.data === "withings") {
     store.clearWithingsTokens(authReq.authUser.id);
@@ -4277,57 +4379,15 @@ app.get("/api/gemini/status", (req, res) => {
 });
 
 app.get("/api/auth/gmail", (req, res) => {
-  const userId = resolveRequestUserId(req);
-  if (userId === null) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-
-  try {
-    const state = createOAuthState();
-    registerPendingOAuthState(gmailPendingOAuthStates, state, userId);
-    const authUrl = getGmailOAuthServiceForUser(userId).getAuthUrl(state);
-    return res.redirect(authUrl);
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    return res.status(500).json({ error: `Gmail OAuth error: ${errorMessage}` });
-  }
+  return res.status(410).json({
+    error: "Deprecated connector. Gmail is now available through MCP servers."
+  });
 });
 
 app.get("/api/auth/gmail/callback", async (req, res) => {
-  // Check for OAuth error from Google
-  const error = typeof req.query.error === "string" ? req.query.error : null;
-  if (error) {
-    const errorDescription = typeof req.query.error_description === "string" 
-      ? req.query.error_description 
-      : error;
-    return res.redirect(getIntegrationFrontendRedirect("gmail", "failed", errorDescription));
-  }
-
-  const code = typeof req.query.code === "string" ? req.query.code : null;
-  const state = typeof req.query.state === "string" ? req.query.state : null;
-
-  if (!code || !state) {
-    return res.redirect(getIntegrationFrontendRedirect("gmail", "failed", "Missing authorization code or state"));
-  }
-
-  const userId = consumePendingOAuthStateUserId(gmailPendingOAuthStates, state);
-  if (!userId) {
-    return res.redirect(getIntegrationFrontendRedirect("gmail", "failed", "Invalid or expired Gmail OAuth state"));
-  }
-
-  try {
-    const result = await getGmailOAuthServiceForUser(userId).handleCallback(code);
-    store.upsertUserConnection({
-      userId,
-      service: "gmail",
-      credentials: JSON.stringify({ source: "oauth" }),
-      displayLabel: result.email
-    });
-    return res.redirect(getIntegrationFrontendRedirect("gmail", "connected"));
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    return res.redirect(getIntegrationFrontendRedirect("gmail", "failed", errorMessage));
-  }
+  return res.redirect(
+    getIntegrationFrontendRedirect("gmail", "failed", "Deprecated connector. Use MCP servers for Gmail access.")
+  );
 });
 
 app.get("/api/gmail/status", (req, res) => {

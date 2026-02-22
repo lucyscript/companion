@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
-import { ConnectorService, UserConnection, CanvasStatus, GeminiStatus } from "../types";
+import { ConnectorService, UserConnection, CanvasStatus, GeminiStatus, McpServerConfig } from "../types";
 import {
   connectService,
+  deleteMcpServer,
   disconnectService,
   getCanvasStatus,
   getConnectors,
-  getGeminiStatus
+  getGeminiStatus,
+  getMcpServers
 } from "../lib/api";
 import {
   loadCanvasSettings,
@@ -22,15 +24,24 @@ interface ConnectorMeta {
   description: string;
   type: "token" | "oauth" | "config" | "url";
   placeholder?: string;
-  configFields?: { key: string; label: string; placeholder: string }[];
+  configFields?: { key: string; label: string; placeholder: string; type?: "text" | "password" | "url" }[];
 }
 
-/** Gemini is server-configured, not a user connector — shown as a status-only card. */
 interface GeminiCard {
   service: "gemini";
   label: string;
   icon: string;
   description: string;
+}
+
+function getDefaultInputValues(): Record<string, string> {
+  return {
+    canvas_baseUrl: loadCanvasSettings().baseUrl,
+    mcp_label: "",
+    mcp_serverUrl: "",
+    mcp_token: "",
+    mcp_toolAllowlistCsv: ""
+  };
 }
 
 const CONNECTORS: ConnectorMeta[] = [
@@ -43,19 +54,17 @@ const CONNECTORS: ConnectorMeta[] = [
     placeholder: "Paste your Canvas access token"
   },
   {
-    service: "gmail",
-    label: "Gmail",
-    icon: "📧",
-    description: "Inbox summaries and email digests for the AI context.",
-    type: "oauth"
-  },
-  {
-    service: "github_course",
-    label: "GitHub (Course Orgs)",
-    icon: "🐙",
-    description: "Lab assignments and repos from course organizations.",
-    type: "token",
-    placeholder: "Paste your GitHub personal access token"
+    service: "mcp",
+    label: "MCP Servers",
+    icon: "🧩",
+    description: "Connect external MCP servers (GitHub, Gmail, Notion, docs, and more).",
+    type: "config",
+    configFields: [
+      { key: "label", label: "Server label", placeholder: "GitHub MCP" },
+      { key: "serverUrl", label: "Server URL", placeholder: "https://your-mcp-server.example.com/mcp", type: "url" },
+      { key: "token", label: "Bearer token (optional)", placeholder: "Paste token if required", type: "password" },
+      { key: "toolAllowlistCsv", label: "Tool allowlist (optional)", placeholder: "tool_a, tool_b, tool_c" }
+    ]
   },
   {
     service: "withings",
@@ -99,16 +108,17 @@ export function ConnectorsView(): JSX.Element {
   const [connections, setConnections] = useState<UserConnection[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedService, setExpandedService] = useState<ConnectorService | null>(null);
-  const [inputValues, setInputValues] = useState<Record<string, string>>(() => ({
-    canvas_baseUrl: loadCanvasSettings().baseUrl
-  }));
+  const [inputValues, setInputValues] = useState<Record<string, string>>(() => getDefaultInputValues());
   const [submitting, setSubmitting] = useState<ConnectorService | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Live integration status
   const [canvasStatus, setCanvasStatus] = useState<CanvasStatus>({ baseUrl: "", lastSyncedAt: null, courses: [] });
+  const [mcpServers, setMcpServers] = useState<McpServerConfig[]>([]);
   const [geminiStatus, setGeminiStatus] = useState<GeminiStatus>({
-    apiConfigured: false, model: "unknown", rateLimitRemaining: null, lastRequestAt: null
+    apiConfigured: false,
+    model: "unknown",
+    rateLimitRemaining: null,
+    lastRequestAt: null
   });
 
   const fetchConnections = useCallback(async () => {
@@ -116,40 +126,49 @@ export function ConnectorsView(): JSX.Element {
       const data = await getConnectors();
       setConnections(data);
     } catch {
-      // Silently fail — user may not have any connections yet
+      // Silent fallback for fresh accounts
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    void fetchConnections();
-    // Also load integration statuses
-    void (async () => {
-      try {
-        const [canvas, gemini] = await Promise.all([getCanvasStatus(), getGeminiStatus()]);
-        setCanvasStatus(canvas);
-        setGeminiStatus(gemini);
-      } catch { /* ignore */ }
-    })();
-  }, [fetchConnections]);
+  const fetchConnectorMeta = useCallback(async () => {
+    try {
+      const [canvas, gemini, mcp] = await Promise.all([getCanvasStatus(), getGeminiStatus(), getMcpServers()]);
+      setCanvasStatus(canvas);
+      setGeminiStatus(gemini);
+      setMcpServers(mcp);
+    } catch {
+      // Best effort status hydration
+    }
+  }, []);
 
-  /** Get live status detail text for a connector service. */
+  useEffect(() => {
+    void (async () => {
+      await Promise.all([fetchConnections(), fetchConnectorMeta()]);
+    })();
+  }, [fetchConnections, fetchConnectorMeta]);
+
+  const isConnected = (service: ConnectorService): boolean =>
+    connections.some((connection) => connection.service === service);
+
+  const getConnection = (service: ConnectorService): UserConnection | undefined =>
+    connections.find((connection) => connection.service === service);
+
   const getStatusDetail = (service: ConnectorService): string | null => {
     if (service === "canvas" && canvasStatus.lastSyncedAt) {
       return `${canvasStatus.courses.length} courses · Synced ${formatRelative(canvasStatus.lastSyncedAt)}`;
     }
+    if (service === "mcp" && mcpServers.length > 0) {
+      return mcpServers.length === 1 ? "1 server configured" : `${mcpServers.length} servers configured`;
+    }
     return null;
   };
 
-  const isConnected = (service: ConnectorService): boolean =>
-    connections.some((c) => c.service === service);
-
-  const getConnection = (service: ConnectorService): UserConnection | undefined =>
-    connections.find((c) => c.service === service);
-
   const handleToggleExpand = (service: ConnectorService): void => {
-    if (isConnected(service)) return; // Don't expand if already connected
+    if (isConnected(service) && service !== "mcp") {
+      return;
+    }
     setExpandedService((prev) => (prev === service ? null : service));
     setError(null);
   };
@@ -164,7 +183,6 @@ export function ConnectorsView(): JSX.Element {
 
     try {
       if (connector.type === "oauth") {
-        // For OAuth connectors, redirect to the connect endpoint to get the OAuth URL
         const result = await connectService(connector.service, {});
         if (result.redirectUrl) {
           window.location.href = result.redirectUrl;
@@ -177,6 +195,7 @@ export function ConnectorsView(): JSX.Element {
           setSubmitting(null);
           return;
         }
+
         if (connector.service === "canvas") {
           const baseUrl = inputValues.canvas_baseUrl?.trim();
           if (!baseUrl || !baseUrl.startsWith("http")) {
@@ -184,24 +203,42 @@ export function ConnectorsView(): JSX.Element {
             setSubmitting(null);
             return;
           }
+
           await connectService(connector.service, { token, baseUrl });
           const current = loadCanvasSettings();
           saveCanvasSettings({ ...current, baseUrl });
-        } else {
-          await connectService(connector.service, { token });
         }
       } else if (connector.type === "config") {
-        const body: Record<string, string> = {};
-        for (const field of connector.configFields ?? []) {
-          const val = inputValues[`${connector.service}_${field.key}`]?.trim();
-          if (!val) {
-            setError(`Please fill in ${field.label}`);
+        if (connector.service === "mcp") {
+          const label = inputValues.mcp_label?.trim();
+          const serverUrl = inputValues.mcp_serverUrl?.trim();
+          if (!label || !serverUrl) {
+            setError("Please enter both server label and server URL");
             setSubmitting(null);
             return;
           }
-          body[field.key] = val;
+
+          const token = inputValues.mcp_token?.trim();
+          const toolAllowlistCsv = inputValues.mcp_toolAllowlistCsv?.trim();
+          await connectService("mcp", {
+            label,
+            serverUrl,
+            ...(token ? { token } : {}),
+            ...(toolAllowlistCsv ? { toolAllowlistCsv } : {})
+          });
+        } else {
+          const body: Record<string, string> = {};
+          for (const field of connector.configFields ?? []) {
+            const val = inputValues[`${connector.service}_${field.key}`]?.trim();
+            if (!val) {
+              setError(`Please fill in ${field.label}`);
+              setSubmitting(null);
+              return;
+            }
+            body[field.key] = val;
+          }
+          await connectService(connector.service, body);
         }
-        await connectService(connector.service, body);
       } else if (connector.type === "url") {
         const url = inputValues[connector.service]?.trim();
         if (!url || !url.startsWith("http")) {
@@ -209,20 +246,32 @@ export function ConnectorsView(): JSX.Element {
           setSubmitting(null);
           return;
         }
+
         await connectService(connector.service, { icalUrl: url });
       }
 
-      // Refresh connections list
-      await fetchConnections();
-      setExpandedService(null);
-      setInputValues({});
+      await Promise.all([fetchConnections(), fetchConnectorMeta()]);
+
+      if (connector.service === "mcp") {
+        setExpandedService("mcp");
+        setInputValues((prev) => ({
+          ...prev,
+          mcp_label: "",
+          mcp_serverUrl: "",
+          mcp_token: "",
+          mcp_toolAllowlistCsv: ""
+        }));
+      } else {
+        setExpandedService(null);
+        setInputValues(getDefaultInputValues());
+      }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Connection failed";
+      const message = err instanceof Error ? err.message : "Connection failed";
       try {
-        const parsed = JSON.parse(msg) as { error?: string };
-        setError(parsed.error ?? msg);
+        const parsed = JSON.parse(message) as { error?: string };
+        setError(parsed.error ?? message);
       } catch {
-        setError(msg);
+        setError(message);
       }
     } finally {
       setSubmitting(null);
@@ -252,9 +301,25 @@ export function ConnectorsView(): JSX.Element {
           });
         }
       }
+      if (service === "mcp") {
+        setMcpServers([]);
+      }
       await fetchConnections();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Disconnect failed");
+    } finally {
+      setSubmitting(null);
+    }
+  };
+
+  const handleDeleteMcpServer = async (serverId: string): Promise<void> => {
+    setSubmitting("mcp");
+    setError(null);
+    try {
+      await deleteMcpServer(serverId);
+      await Promise.all([fetchConnections(), fetchConnectorMeta()]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to remove MCP server");
     } finally {
       setSubmitting(null);
     }
@@ -272,7 +337,6 @@ export function ConnectorsView(): JSX.Element {
 
   return (
     <div className="connectors-list">
-      {/* Gemini AI — server-configured status card */}
       <div className={`connector-card ${geminiStatus.apiConfigured ? "connector-connected" : ""}`}>
         <div className="connector-header">
           <span className="connector-icon">{GEMINI_CARD.icon}</span>
@@ -296,11 +360,10 @@ export function ConnectorsView(): JSX.Element {
         </div>
       </div>
 
-      {/* User-connectable services */}
       {CONNECTORS.map((connector) => {
         const connected = isConnected(connector.service);
         const connection = getConnection(connector.service);
-        const expanded = expandedService === connector.service && !connected;
+        const expanded = expandedService === connector.service && (!connected || connector.service === "mcp");
         const busy = submitting === connector.service;
         const statusDetail = connected ? getStatusDetail(connector.service) : null;
 
@@ -314,7 +377,7 @@ export function ConnectorsView(): JSX.Element {
               onClick={() => handleToggleExpand(connector.service)}
               role="button"
               tabIndex={0}
-              onKeyDown={(e) => e.key === "Enter" && handleToggleExpand(connector.service)}
+              onKeyDown={(event) => event.key === "Enter" && handleToggleExpand(connector.service)}
             >
               <span className="connector-icon">{connector.icon}</span>
               <div className="connector-info">
@@ -343,12 +406,21 @@ export function ConnectorsView(): JSX.Element {
                 <span className="connector-connected-since">
                   Connected {new Date(connection!.connectedAt).toLocaleDateString()}
                 </span>
+                {connector.service === "mcp" && (
+                  <button
+                    className="connector-sync-btn"
+                    onClick={() => handleToggleExpand("mcp")}
+                    disabled={busy}
+                  >
+                    {expanded ? "Close" : "Manage"}
+                  </button>
+                )}
                 <button
                   className="connector-disconnect-btn"
                   onClick={() => void handleDisconnect(connector.service)}
                   disabled={busy}
                 >
-                  {busy ? "Disconnecting..." : "Disconnect"}
+                  {busy ? "Disconnecting..." : connector.service === "mcp" ? "Disconnect all" : "Disconnect"}
                 </button>
               </div>
             )}
@@ -367,7 +439,7 @@ export function ConnectorsView(): JSX.Element {
                           type="url"
                           placeholder="https://stavanger.instructure.com"
                           value={inputValues.canvas_baseUrl ?? ""}
-                          onChange={(e) => handleInputChange("canvas_baseUrl", e.target.value)}
+                          onChange={(event) => handleInputChange("canvas_baseUrl", event.target.value)}
                           disabled={busy}
                         />
                         <p className="connector-input-hint">
@@ -386,18 +458,13 @@ export function ConnectorsView(): JSX.Element {
                         type="password"
                         placeholder={connector.placeholder}
                         value={inputValues[connector.service] ?? ""}
-                        onChange={(e) => handleInputChange(connector.service, e.target.value)}
+                        onChange={(event) => handleInputChange(connector.service, event.target.value)}
                         disabled={busy}
                       />
                     </div>
                     {connector.service === "canvas" && (
                       <p className="connector-help-text">
                         In Canvas go to <strong>Account</strong> → <strong>Settings</strong> → <strong>Approved Integrations</strong> → <strong>+ New Access Token</strong>, then paste the token above.
-                      </p>
-                    )}
-                    {connector.service === "github_course" && (
-                      <p className="connector-help-text">
-                        Go to <strong>GitHub</strong> → <strong>Settings</strong> → <strong>Developer settings</strong> → <strong>Personal access tokens</strong> → <strong>Fine-grained tokens</strong>. Select the course organizations and grant read access to repositories.
                       </p>
                     )}
                     <button
@@ -435,23 +502,53 @@ export function ConnectorsView(): JSX.Element {
                       <div key={field.key} className="connector-config-field">
                         <label>{field.label}</label>
                         <input
-                          type="text"
+                          type={field.type ?? "text"}
                           placeholder={field.placeholder}
                           value={inputValues[`${connector.service}_${field.key}`] ?? ""}
-                          onChange={(e) =>
-                            handleInputChange(`${connector.service}_${field.key}`, e.target.value)
-                          }
+                          onChange={(event) => handleInputChange(`${connector.service}_${field.key}`, event.target.value)}
                           disabled={busy}
                         />
                       </div>
                     ))}
+                    {connector.service === "mcp" && (
+                      <p className="connector-help-text">
+                        Keep your allowlist focused. Exposing fewer MCP tools gives better routing quality in Gemini.
+                      </p>
+                    )}
                     <button
                       className="connector-connect-btn"
                       onClick={() => void handleConnect(connector)}
-                      disabled={busy}
+                      disabled={
+                        busy ||
+                        (connector.service === "mcp" &&
+                          (!inputValues.mcp_label?.trim() || !inputValues.mcp_serverUrl?.trim()))
+                      }
                     >
-                      {busy ? "Saving..." : "Save & Connect"}
+                      {busy ? "Saving..." : connector.service === "mcp" ? "Add server" : "Save & Connect"}
                     </button>
+
+                    {connector.service === "mcp" && (
+                      <div className="connector-mcp-list">
+                        {mcpServers.length === 0 ? (
+                          <p className="connector-help-text">No MCP servers added yet.</p>
+                        ) : (
+                          mcpServers.map((server) => (
+                            <div key={server.id} className="connector-actions">
+                              <span className="connector-display-label">
+                                {server.label} · {server.serverUrl}
+                              </span>
+                              <button
+                                className="connector-disconnect-btn"
+                                onClick={() => void handleDeleteMcpServer(server.id)}
+                                disabled={busy}
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -461,7 +558,7 @@ export function ConnectorsView(): JSX.Element {
                       type="url"
                       placeholder={connector.placeholder}
                       value={inputValues[connector.service] ?? ""}
-                      onChange={(e) => handleInputChange(connector.service, e.target.value)}
+                      onChange={(event) => handleInputChange(connector.service, event.target.value)}
                       disabled={busy}
                     />
                     {connector.service === "tp_schedule" && (
@@ -482,7 +579,6 @@ export function ConnectorsView(): JSX.Element {
                 {error && expandedService === connector.service && (
                   <p className="connector-error">{error}</p>
                 )}
-
               </div>
             )}
           </div>

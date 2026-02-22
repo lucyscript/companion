@@ -555,7 +555,8 @@ describe("chat service", () => {
     });
 
     const firstRequest = generateChatResponse.mock.calls[0][0] as { systemInstruction: string };
-    expect(firstRequest.systemInstruction).toContain("For factual questions about schedule, deadlines, email, or GitHub course materials, use tools before answering.");
+    expect(firstRequest.systemInstruction).toContain("For factual questions about schedule, deadlines, or connected external systems, use tools before answering.");
+    expect(firstRequest.systemInstruction).toContain("For external systems such as GitHub, Gmail, Notion, or docs, call available MCP tools when relevant.");
     expect(firstRequest.systemInstruction).toContain(
       "If the user asks to save/update a meal plan, persist it via nutrition tools (targets/meals/items/custom foods)."
     );

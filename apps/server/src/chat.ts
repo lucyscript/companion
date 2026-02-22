@@ -10,6 +10,8 @@ import {
 import { FunctionDeclaration, Part, SchemaType } from "@google/generative-ai";
 import { functionDeclarations, executeFunctionCall, executePendingChatAction } from "./gemini-tools.js";
 import { RuntimeStore } from "./store.js";
+import { buildMcpToolContext, executeMcpToolCall } from "./mcp.js";
+import type { McpToolBinding } from "./mcp.js";
 import {
   ChatCitation,
   ChatHistoryPage,
@@ -264,7 +266,6 @@ export function buildChatContext(store: RuntimeStore, userId: string, now: Date 
 
   const userState: UserContext = store.getUserContext(userId);
   const canvasContext = buildCanvasContextSummary(store, userId, now);
-  const gmailContext = buildGmailContextSummary(store, userId, now);
   const nutritionContext = buildNutritionContextSummary(store, userId, now);
   const withingsContext = buildWithingsContextSummary(store, userId, now);
 
@@ -274,7 +275,6 @@ export function buildChatContext(store: RuntimeStore, userId: string, now: Date 
     userState,
     customContext: [
       canvasContext,
-      gmailContext,
       nutritionContext,
       withingsContext
     ]
@@ -1288,12 +1288,13 @@ function buildFunctionCallingSystemInstruction(
   userName: string,
   habitGoalNudge: string,
   runtimeContextNudge: string,
-  longTermMemoryNudge: string
+  longTermMemoryNudge: string,
+  mcpToolNudge: string
 ): string {
   return `You are Companion, a personal AI assistant for ${userName}.
 
 Core behavior:
-- For factual questions about schedule, deadlines, email, or GitHub course materials, use tools before answering.
+- For factual questions about schedule, deadlines, or connected external systems, use tools before answering.
 - For simple greetings/small talk (for example "hi", "hello", "yo"), reply naturally without tool calls.
 - For habits and goals questions, call getHabitsGoalsStatus first. For create/delete requests, use createHabit/deleteHabit/createGoal/deleteGoal. For check-ins, use updateHabitCheckIn/updateGoalCheckIn.
 - For nutrition requests, use nutrition tools and focus on macro tracking only: calories, protein, carbs, and fat.
@@ -1306,8 +1307,8 @@ Core behavior:
 - For each item in image-based meal logs, include realistic grams (quantity) and per-item macro values so totals are traceable item-by-item.
 - Do not log image-based meals as a single generic meal item unless the image clearly contains only one food item.
 - For body metrics, weight trends, or sleep questions, call getWithingsHealthSummary.
+- For external systems such as GitHub, Gmail, Notion, or docs, call available MCP tools when relevant.
 - Do not hallucinate user-specific data. If data is unavailable, say so explicitly and suggest the next sync step.
-- For email follow-ups like "what did it contain?" after inbox discussion, call getEmails again and answer from sender/subject/snippet.
 - For deadline completion or rescheduling/extension requests, use queueDeadlineAction with action 'complete' or 'reschedule' (with newDueDate in ISO 8601 UTC). Apply immediately (no confirmation step).
 - For manual deadline entry/removal requests, use createDeadline/deleteDeadline.
 - CRITICAL timezone rule for deadlines: All stored dueDate values from getDeadlines are in UTC. The user sees and speaks in LOCAL time (see timezone in runtime context below). When the user says a date/time like "22.02.2026 23:59", that is LOCAL time — convert it to UTC before passing to queueDeadlineAction. For example, 23:59 Europe/Oslo (UTC+1 winter) = 22:59 UTC → newDueDate "2026-02-22T22:59:00.000Z". Similarly, when comparing a stored UTC dueDate against the user's stated local time, apply the timezone offset — a UTC date of 2026-02-22T23:59Z displays as 2026-02-23T00:59 in Europe/Oslo, NOT Feb 22 23:59. Always call queueDeadlineAction if the user's intended local time differs from the current local-time interpretation of the stored UTC dueDate.
@@ -1335,7 +1336,6 @@ Core behavior:
 - For emotional or personal check-ins, respond with empathy first, then offer one helpful next question or step.
 - Mention priority only when it is high or critical. Do not explicitly call out medium priority unless the user asks.
 - Always use the runtime time reference provided below as the source of truth for "now", "today", "tomorrow", and all relative date/time language.
-- For broad status prompts ("what's new", "anything new", "quick update"), include new/unread email status when available.
 - Use only lightweight Markdown that the chat UI supports:
   - **bold** for key facts and warnings
   - *italic* for gentle emphasis
@@ -1353,7 +1353,10 @@ Long-term conversation memory (compressed):
 ${longTermMemoryNudge}
 
 Habit/goal context for this conversation:
-${habitGoalNudge}`;
+${habitGoalNudge}
+
+Available MCP external tools:
+${mcpToolNudge}`;
 }
 
 function extractPendingActions(value: unknown): ChatPendingAction[] {
@@ -3579,7 +3582,7 @@ export async function sendChatMessage(
     generateChatResponseStream?: (request: {
       messages: GeminiMessage[];
       systemInstruction?: string;
-      tools?: typeof functionDeclarations;
+      tools?: FunctionDeclaration[];
       onTextChunk?: (chunk: string) => void;
     }) => Promise<Awaited<ReturnType<GeminiClient["generateChatResponse"]>>>;
   };
@@ -3614,11 +3617,20 @@ export async function sendChatMessage(
     }
   }
   const longTermMemoryNudge = buildLongTermMemoryNudge(longTermMemory);
+  const baseToolDeclarations = functionDeclarations.filter(
+    (tool) => tool.name !== "getEmails" && tool.name !== "getGitHubCourseContent"
+  );
+  const mcpToolContext = await buildMcpToolContext(store, userId);
+  const activeToolDeclarations: FunctionDeclaration[] = [
+    ...baseToolDeclarations,
+    ...mcpToolContext.declarations
+  ];
   const systemInstruction = buildFunctionCallingSystemInstruction(
     config.USER_NAME,
     buildHabitGoalNudgeContext(store, userId),
     buildRuntimeContextNudge(store, userId, now),
-    longTermMemoryNudge
+    longTermMemoryNudge,
+    mcpToolContext.summary
   );
 
   const messages = toGeminiMessages(history, userInput, attachments);
@@ -3643,7 +3655,7 @@ export async function sendChatMessage(
         gemini.generateChatResponse({
           messages: workingMessages,
           systemInstruction,
-          tools: functionDeclarations,
+          tools: activeToolDeclarations,
           googleSearchGrounding: true
         });
       const roundResponse = useNativeStreaming
@@ -3652,7 +3664,7 @@ export async function sendChatMessage(
               return await streamCapableGemini.generateChatResponseStream!({
                 messages: workingMessages,
                 systemInstruction,
-                tools: functionDeclarations,
+                tools: activeToolDeclarations,
                 googleSearchGrounding: true,
                 onTextChunk: (chunk: string) => {
                   if (chunk.length === 0) {
@@ -3681,7 +3693,8 @@ export async function sendChatMessage(
         break;
       }
 
-      const roundResponses = functionCalls.map((call, callIndex) => {
+      const roundResponses: ExecutedFunctionResponse[] = [];
+      for (const [callIndex, call] of functionCalls.entries()) {
         const callArgs =
           call.args && typeof call.args === "object" && !Array.isArray(call.args)
             ? (call.args as Record<string, unknown>)
@@ -3690,27 +3703,34 @@ export async function sendChatMessage(
         console.log(`[tool] Round ${round + 1}/${callIndex + 1}: ${call.name}(${JSON.stringify(args).slice(0, 200)})`);
         let result: { name: string; response: unknown };
         try {
-          result = executeFunctionCall(call.name, args, store, userId);
+          const mcpBinding: McpToolBinding | undefined = mcpToolContext.bindings.get(call.name);
+          if (mcpBinding) {
+            result = {
+              name: call.name,
+              response: await executeMcpToolCall(mcpBinding, args)
+            };
+          } else {
+            result = executeFunctionCall(call.name, args, store, userId);
+          }
           const resultSummary = JSON.stringify(result.response);
           console.log(`[tool] ${call.name} → ${resultSummary.length > 300 ? resultSummary.slice(0, 300) + "..." : resultSummary}`);
         } catch (error) {
           const message = error instanceof Error ? error.message : "Tool call failed";
-          return {
-            id: `${round + 1}-${callIndex}`,
+          roundResponses.push({
             name: call.name,
             rawResponse: { error: message },
             modelResponse: { error: message }
-          };
+          });
+          continue;
         }
         const nextCitations = collectToolCitations(store, userId, result.name, result.response);
         nextCitations.forEach((citation) => addCitation(citations, citation));
-        return {
-          id: `${round + 1}-${callIndex}`,
+        roundResponses.push({
           name: result.name,
           rawResponse: result.response,
           modelResponse: compactFunctionResponseForModel(result.name, result.response)
-        };
-      });
+        });
+      }
       executedFunctionResponses = [...executedFunctionResponses, ...roundResponses];
       pendingActionsFromTooling = [
         ...pendingActionsFromTooling,

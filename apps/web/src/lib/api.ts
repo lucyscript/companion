@@ -41,6 +41,7 @@ import {
   TPSyncResult,
   IntegrationScopePreview,
   GeminiStatus,
+  McpServerConfig,
   IntegrationHealthAttempt,
   IntegrationHealthSummary,
   IntegrationSyncAttemptStatus,
@@ -1484,7 +1485,7 @@ export interface ConnectServiceResponse {
 
 export async function connectService(
   service: ConnectorService,
-  body: Record<string, string>
+  body: Record<string, unknown>
 ): Promise<ConnectServiceResponse> {
   return await jsonOrThrow<ConnectServiceResponse>(`/api/connectors/${service}/connect`, {
     method: "POST",
@@ -1494,6 +1495,17 @@ export async function connectService(
 
 export async function disconnectService(service: ConnectorService): Promise<void> {
   await jsonOrThrow<{ ok: boolean }>(`/api/connectors/${service}`, { method: "DELETE" });
+}
+
+export async function getMcpServers(): Promise<McpServerConfig[]> {
+  const response = await jsonOrThrow<{ servers: McpServerConfig[] }>("/api/mcp/servers");
+  return response.servers;
+}
+
+export async function deleteMcpServer(serverId: string): Promise<void> {
+  await jsonOrThrow<{ ok: boolean }>(`/api/mcp/servers/${encodeURIComponent(serverId)}`, {
+    method: "DELETE"
+  });
 }
 
 // ── Plan / Tiers ─────────────────────────────────────────────────────────
