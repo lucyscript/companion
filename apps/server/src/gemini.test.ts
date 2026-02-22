@@ -567,7 +567,7 @@ describe("buildSystemPrompt", () => {
     const result = buildSystemPrompt("Lucy", contextWindow);
 
     expect(result).toContain("Lucy");
-    expect(result).toContain("UiS (University of Stavanger)");
+    expect(result).toContain("personal AI assistant for Lucy");
     expect(result).toContain(contextWindow);
     expect(result).toContain("encouraging, conversational, and proactive");
   });

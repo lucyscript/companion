@@ -1529,7 +1529,7 @@ export function buildContextWindow(context: ContextWindow): string {
 }
 
 export function buildSystemPrompt(userName: string, contextWindow: string): string {
-  return `You are Companion, a personal AI assistant for ${userName}, a university student at UiS (University of Stavanger). You have access to their full academic context including schedule and deadlines.
+  return `You are Companion, a personal AI assistant for ${userName}. You have access to their schedule, deadlines, and personal context — use it to give relevant, grounded answers.
 
 ${contextWindow}
 

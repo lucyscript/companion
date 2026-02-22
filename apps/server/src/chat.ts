@@ -1290,7 +1290,7 @@ function buildFunctionCallingSystemInstruction(
   runtimeContextNudge: string,
   longTermMemoryNudge: string
 ): string {
-  return `You are Companion, a personal AI assistant for ${userName}, a university student at UiS (University of Stavanger).
+  return `You are Companion, a personal AI assistant for ${userName}.
 
 Core behavior:
 - For factual questions about schedule, deadlines, email, or GitHub course materials, use tools before answering.

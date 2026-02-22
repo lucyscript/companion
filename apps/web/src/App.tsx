@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ChatFab } from "./components/ChatFab";
 import { ChatTab } from "./components/ChatTab";
 import { ConsentGate } from "./components/ConsentGate";
 import { LoginView } from "./components/LoginView";
@@ -92,6 +93,7 @@ export default function App(): JSX.Element {
   const [chatMood, setChatMood] = useState<ChatMood>(loadChatMood);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [upgradeFeatureLabel, setUpgradeFeatureLabel] = useState<string | undefined>(undefined);
+  const [chatOverlayOpen, setChatOverlayOpen] = useState(false);
   const seenCriticalNotifications = useRef<Set<string>>(new Set());
   const { planInfo, hasFeature } = usePlan(authState === "ready");
 
@@ -382,6 +384,11 @@ export default function App(): JSX.Element {
   const handleTabChange = (tab: TabId): void => {
     setActiveTab(tab);
 
+    // Close chat overlay when switching to the chat tab directly
+    if (tab === "chat") {
+      setChatOverlayOpen(false);
+    }
+
     if (tab !== "schedule") {
       setFocusDeadlineId(null);
       setFocusLectureId(null);
@@ -453,6 +460,12 @@ export default function App(): JSX.Element {
     return <ConsentGate onAccepted={() => setAuthState("ready")} />;
   }
 
+  const chatPanelClass = activeTab === "chat"
+    ? "tab-panel tab-panel-active"
+    : chatOverlayOpen
+      ? "tab-panel tab-panel-active chat-overlay-panel"
+      : "tab-panel tab-panel-hidden";
+
   return (
     <main className={`app-shell chat-mood-${chatMood} ${activeTab === "chat" ? "app-shell-chat-active" : ""}`}>
       <InstallPrompt />
@@ -464,7 +477,7 @@ export default function App(): JSX.Element {
         <>
           {/* Tab content area */}
           <div className="tab-content-area">
-            <div className={`tab-panel ${activeTab === "chat" ? "tab-panel-active" : "tab-panel-hidden"}`}>
+            <div className={chatPanelClass}>
               <ChatTab mood={chatMood} onMoodChange={handleMoodChange} />
             </div>
             {activeTab === "schedule" && (
@@ -503,6 +516,17 @@ export default function App(): JSX.Element {
               />
             )}
           </div>
+
+          {/* Chat overlay backdrop — tap to dismiss */}
+          {chatOverlayOpen && activeTab !== "chat" && (
+            <div className="chat-overlay-backdrop" onClick={() => setChatOverlayOpen(false)} />
+          )}
+
+          {/* Floating chat button — visible on non-chat tabs when overlay is closed */}
+          <ChatFab
+            visible={activeTab !== "chat" && !chatOverlayOpen}
+            onClick={() => setChatOverlayOpen(true)}
+          />
 
           {/* Bottom tab bar */}
           <TabBar activeTab={activeTab} onTabChange={handleTabChange} />
