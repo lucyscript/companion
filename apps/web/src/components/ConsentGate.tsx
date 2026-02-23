@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { acceptConsent, getConsentStatus, type ConsentStatusResponse } from "../lib/api";
+import { useI18n } from "../lib/i18n";
 
 interface ConsentGateProps {
   onAccepted: () => void;
@@ -8,6 +9,7 @@ interface ConsentGateProps {
 type Step = "loading" | "tos" | "privacy" | "done";
 
 export function ConsentGate({ onAccepted }: ConsentGateProps): JSX.Element {
+  const { t } = useI18n();
   const [consent, setConsent] = useState<ConsentStatusResponse | null>(null);
   const [step, setStep] = useState<Step>("loading");
   const [submitting, setSubmitting] = useState(false);
@@ -74,18 +76,18 @@ export function ConsentGate({ onAccepted }: ConsentGateProps): JSX.Element {
       await acceptConsent(consent.currentTosVersion, consent.currentPrivacyVersion);
       onAccepted();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to accept. Please try again.");
+      setError(err instanceof Error ? err.message : t("Failed to accept. Please try again."));
     } finally {
       setSubmitting(false);
     }
-  }, [consent, onAccepted]);
+  }, [consent, onAccepted, t]);
 
   if (step === "loading") {
     return (
       <main className="app-shell">
         <section className="consent-gate">
           <div className="consent-card">
-            <p className="consent-loading">Loading…</p>
+            <p className="consent-loading">{t("Loading…")}</p>
           </div>
         </section>
       </main>
@@ -98,15 +100,15 @@ export function ConsentGate({ onAccepted }: ConsentGateProps): JSX.Element {
         <section className="consent-gate">
           <div className="consent-flow-card">
             <div className="consent-flow-header">
-              <span className="consent-step-badge">Step 1 of 2</span>
-              <h2 className="consent-flow-title">Terms of Service</h2>
+              <span className="consent-step-badge">{t("Step 1 of 2")}</span>
+              <h2 className="consent-flow-title">{t("Terms of Service")}</h2>
             </div>
             <div className="consent-flow-body" ref={scrollRef}>
               <TermsOfService />
             </div>
             <div className="consent-flow-footer">
               {!scrolledToBottom && (
-                <p className="consent-scroll-hint">↓ Scroll to read the full document</p>
+                <p className="consent-scroll-hint">{t("↓ Scroll to read the full document")}</p>
               )}
               <button
                 type="button"
@@ -114,7 +116,7 @@ export function ConsentGate({ onAccepted }: ConsentGateProps): JSX.Element {
                 onClick={() => setStep("privacy")}
                 disabled={!scrolledToBottom}
               >
-                I agree to the Terms of Service
+                {t("I agree to the Terms of Service")}
               </button>
             </div>
           </div>
@@ -129,8 +131,8 @@ export function ConsentGate({ onAccepted }: ConsentGateProps): JSX.Element {
         <section className="consent-gate">
           <div className="consent-flow-card">
             <div className="consent-flow-header">
-              <span className="consent-step-badge">Step 2 of 2</span>
-              <h2 className="consent-flow-title">Privacy Policy</h2>
+              <span className="consent-step-badge">{t("Step 2 of 2")}</span>
+              <h2 className="consent-flow-title">{t("Privacy Policy")}</h2>
             </div>
             <div className="consent-flow-body" ref={scrollRef}>
               <PrivacyPolicy />
@@ -138,7 +140,7 @@ export function ConsentGate({ onAccepted }: ConsentGateProps): JSX.Element {
             <div className="consent-flow-footer">
               {error && <p className="consent-error">{error}</p>}
               {!scrolledToBottom && (
-                <p className="consent-scroll-hint">↓ Scroll to read the full document</p>
+                <p className="consent-scroll-hint">{t("↓ Scroll to read the full document")}</p>
               )}
               <button
                 type="button"
@@ -146,7 +148,7 @@ export function ConsentGate({ onAccepted }: ConsentGateProps): JSX.Element {
                 onClick={() => void handleAcceptPrivacy()}
                 disabled={!scrolledToBottom || submitting}
               >
-                {submitting ? "Accepting…" : "I agree to the Privacy Policy"}
+                {submitting ? t("Accepting…") : t("I agree to the Privacy Policy")}
               </button>
             </div>
           </div>

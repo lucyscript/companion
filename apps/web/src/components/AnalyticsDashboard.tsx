@@ -1,17 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
 import { getAnalyticsCoachInsight, getDailyGrowthSummary } from "../lib/api";
+import { useI18n } from "../lib/i18n";
 import { AnalyticsCoachInsight, ChallengePrompt, DailyGrowthSummary } from "../types";
 
 type PeriodDays = 1 | 7 | 14 | 30;
 
 const PERIOD_OPTIONS: PeriodDays[] = [1, 7, 14, 30];
 
-function formatGeneratedAt(value: string): string {
+function formatGeneratedAt(value: string, localeTag: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return value;
   }
-  return date.toLocaleString("en-GB", {
+  return date.toLocaleString(localeTag, {
     day: "2-digit",
     month: "short",
     hour: "2-digit",
@@ -37,6 +38,8 @@ const CHALLENGE_LABELS: Record<ChallengePrompt["type"], string> = {
 const CHALLENGE_TYPES: ChallengePrompt["type"][] = ["reflect", "predict", "commit", "connect"];
 
 export function AnalyticsDashboard(): JSX.Element {
+  const { locale, t } = useI18n();
+  const localeTag = locale === "no" ? "nb-NO" : "en-US";
   const [periodDays, setPeriodDays] = useState<PeriodDays>(1);
   const [insight, setInsight] = useState<AnalyticsCoachInsight | null>(null);
   const [dailySummary, setDailySummary] = useState<DailyGrowthSummary | null>(null);
@@ -53,7 +56,7 @@ export function AnalyticsDashboard(): JSX.Element {
     if (days === 1) {
       const next = await getDailyGrowthSummary({ forceRefresh: options.forceRefresh });
       if (!next) {
-        setError("Could not load daily reflection right now.");
+        setError(t("Could not load daily reflection right now."));
         setLoading(false);
         return;
       }
@@ -61,7 +64,7 @@ export function AnalyticsDashboard(): JSX.Element {
     } else {
       const next = await getAnalyticsCoachInsight(days, options);
       if (!next) {
-        setError("Could not load narrative analytics right now.");
+        setError(t("Could not load narrative analytics right now."));
         setLoading(false);
         return;
       }
@@ -69,7 +72,7 @@ export function AnalyticsDashboard(): JSX.Element {
     }
 
     setLoading(false);
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void loadInsight(periodDays);
@@ -79,11 +82,11 @@ export function AnalyticsDashboard(): JSX.Element {
     <div className="analytics-container">
       <header className="analytics-header">
         <div>
-          <h2 className="analytics-title">{periodDays === 1 ? "Daily Reflection" : "Narrative Analytics"}</h2>
+          <h2 className="analytics-title">{periodDays === 1 ? t("Daily Reflection") : t("Narrative Analytics")}</h2>
         </div>
 
         <div className="analytics-controls">
-          <div className="analytics-period-picker" role="tablist" aria-label="Analysis period">
+          <div className="analytics-period-picker" role="tablist" aria-label={t("Analysis period")}>
             {PERIOD_OPTIONS.map((option) => (
               <button
                 key={option}
@@ -148,7 +151,7 @@ export function AnalyticsDashboard(): JSX.Element {
                       <div key={i} className="swipe-card challenge-card">
                         <div className="challenge-header">
                           <span className="challenge-icon">{CHALLENGE_ICONS[type]}</span>
-                          <span className="challenge-type">{CHALLENGE_LABELS[type]}</span>
+                          <span className="challenge-type">{t(CHALLENGE_LABELS[type])}</span>
                         </div>
                         <p className="challenge-question">{c.question}</p>
                         {c.hint && <p className="challenge-hint">💡 {c.hint}</p>}
@@ -175,8 +178,8 @@ export function AnalyticsDashboard(): JSX.Element {
             )}
             <div className="analytics-summary-content">
               <div className="analytics-summary-meta">
-                <span>{insight.source === "gemini" ? "Gemini insight" : "Fallback insight"}</span>
-                <span>{formatGeneratedAt(insight.generatedAt)}</span>
+                <span>{insight.source === "gemini" ? t("Gemini insight") : t("Fallback insight")}</span>
+                <span>{formatGeneratedAt(insight.generatedAt, localeTag)}</span>
               </div>
               <p>{insight.summary}</p>
             </div>
@@ -195,7 +198,7 @@ export function AnalyticsDashboard(): JSX.Element {
                         <div key={i} className="swipe-card challenge-card">
                           <div className="challenge-header">
                             <span className="challenge-icon">{CHALLENGE_ICONS[type]}</span>
-                            <span className="challenge-type">{CHALLENGE_LABELS[type]}</span>
+                            <span className="challenge-type">{t(CHALLENGE_LABELS[type])}</span>
                           </div>
                           <p className="challenge-question">{c.question}</p>
                           {c.hint && <p className="challenge-hint">💡 {c.hint}</p>}
@@ -211,7 +214,7 @@ export function AnalyticsDashboard(): JSX.Element {
             {/* Insight cards: each category is its own swipeable row */}
             <div className="swipeable-card-stack">
               <div className="swipe-card decorated-card next-steps-card">
-                <div className="challenge-header"><span className="challenge-icon">🎯</span><span className="challenge-type" style={{color: 'var(--accent)'}}>Next Steps</span></div>
+                <div className="challenge-header"><span className="challenge-icon">🎯</span><span className="challenge-type" style={{color: 'var(--accent)'}}>{t("Next Steps")}</span></div>
                 <ol className="analytics-list analytics-list-numbered">
                   {insight.recommendations.map((item) => (
                     <li key={item}>{item}</li>
@@ -219,7 +222,7 @@ export function AnalyticsDashboard(): JSX.Element {
                 </ol>
               </div>
               <div className="swipe-card decorated-card coaching-card">
-                <div className="challenge-header"><span className="challenge-icon">🧠</span><span className="challenge-type" style={{color: '#a78bfa'}}>Coaching</span></div>
+                <div className="challenge-header"><span className="challenge-icon">🧠</span><span className="challenge-type" style={{color: '#a78bfa'}}>{t("Coaching")}</span></div>
                 <ul className="analytics-list">
                   {insight.correlations.map((item) => (
                     <li key={item}>{item}</li>
@@ -227,7 +230,7 @@ export function AnalyticsDashboard(): JSX.Element {
                 </ul>
               </div>
               <div className="swipe-card decorated-card strengths-card">
-                <div className="challenge-header"><span className="challenge-icon">💪</span><span className="challenge-type" style={{color: '#34d399'}}>Strengths</span></div>
+                <div className="challenge-header"><span className="challenge-icon">💪</span><span className="challenge-type" style={{color: '#34d399'}}>{t("Strengths")}</span></div>
                 <ul className="analytics-list">
                   {insight.strengths.map((item) => (
                     <li key={item}>{item}</li>
@@ -235,7 +238,7 @@ export function AnalyticsDashboard(): JSX.Element {
                 </ul>
               </div>
               <div className="swipe-card decorated-card risks-card">
-                <div className="challenge-header"><span className="challenge-icon">⚠️</span><span className="challenge-type" style={{color: 'var(--danger)'}}>Risks</span></div>
+                <div className="challenge-header"><span className="challenge-icon">⚠️</span><span className="challenge-type" style={{color: 'var(--danger)'}}>{t("Risks")}</span></div>
                 <ul className="analytics-list">
                   {insight.risks.map((item) => (
                     <li key={item}>{item}</li>

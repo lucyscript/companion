@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { apiUrl } from "../lib/config";
+import { useI18n } from "../lib/i18n";
 import { Priority } from "../types";
 
 interface FloatingQuickCaptureProps {
@@ -7,6 +8,7 @@ interface FloatingQuickCaptureProps {
 }
 
 export function FloatingQuickCapture({ onUpdated }: FloatingQuickCaptureProps): JSX.Element {
+  const { t } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
@@ -27,7 +29,7 @@ export function FloatingQuickCapture({ onUpdated }: FloatingQuickCaptureProps): 
 
   const handleSubmit = async (): Promise<void> => {
     if (!course.trim() || !task.trim() || !dueDate) {
-      setMessage("Please fill in all deadline fields");
+      setMessage(t("Please fill in all deadline fields"));
       return;
     }
 
@@ -49,7 +51,7 @@ export function FloatingQuickCapture({ onUpdated }: FloatingQuickCaptureProps): 
       setSubmitting(false);
 
       if (response.ok) {
-        setMessage("Deadline created!");
+        setMessage(t("Deadline created!"));
         resetForm();
         setTimeout(() => {
           setIsOpen(false);
@@ -60,11 +62,15 @@ export function FloatingQuickCapture({ onUpdated }: FloatingQuickCaptureProps): 
         }
       } else {
         const body = await response.text();
-        setMessage(`Failed: ${body}`);
+        setMessage(t("Failed: {message}", { message: body }));
       }
     } catch (error) {
       setSubmitting(false);
-      setMessage(`Error: ${error instanceof Error ? error.message : "Unknown error"}`);
+      setMessage(
+        t("Error: {message}", {
+          message: error instanceof Error ? error.message : t("Unknown error")
+        })
+      );
     }
   };
 
@@ -81,8 +87,8 @@ export function FloatingQuickCapture({ onUpdated }: FloatingQuickCaptureProps): 
         type="button"
         className="floating-quick-capture-btn"
         onClick={() => setIsOpen(true)}
-        aria-label="Quick deadline"
-        title="Quick deadline"
+        aria-label={t("Quick deadline")}
+        title={t("Quick deadline")}
       >
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <line x1="12" y1="5" x2="12" y2="19" />
@@ -97,12 +103,12 @@ export function FloatingQuickCapture({ onUpdated }: FloatingQuickCaptureProps): 
       <div className="floating-quick-capture-overlay" onClick={() => setIsOpen(false)} />
       <div className="floating-quick-capture-modal" onKeyDown={handleKeyDown}>
         <div className="quick-capture-header">
-          <h3>Quick Deadline</h3>
+          <h3>{t("Quick Deadline")}</h3>
           <button
             type="button"
             className="quick-capture-close"
             onClick={() => setIsOpen(false)}
-            aria-label="Close"
+            aria-label={t("Close")}
           >
             ×
           </button>
@@ -112,14 +118,14 @@ export function FloatingQuickCapture({ onUpdated }: FloatingQuickCaptureProps): 
           <div className="quick-capture-deadline-form">
             <input
               type="text"
-              placeholder="Course"
+              placeholder={t("Course")}
               value={course}
               onChange={(e) => setCourse(e.target.value)}
               autoFocus
             />
             <input
               type="text"
-              placeholder="Task"
+              placeholder={t("Task")}
               value={task}
               onChange={(e) => setTask(e.target.value)}
             />
@@ -129,10 +135,10 @@ export function FloatingQuickCapture({ onUpdated }: FloatingQuickCaptureProps): 
               onChange={(e) => setDueDate(e.target.value)}
             />
             <select value={priority} onChange={(e) => setPriority(e.target.value as Priority)}>
-              <option value="low">Low Priority</option>
-              <option value="medium">Medium Priority</option>
-              <option value="high">High Priority</option>
-              <option value="critical">Critical Priority</option>
+              <option value="low">{t("Low Priority")}</option>
+              <option value="medium">{t("Medium Priority")}</option>
+              <option value="high">{t("High Priority")}</option>
+              <option value="critical">{t("Critical Priority")}</option>
             </select>
           </div>
 
@@ -141,7 +147,7 @@ export function FloatingQuickCapture({ onUpdated }: FloatingQuickCaptureProps): 
 
         <div className="quick-capture-actions">
           <button type="button" onClick={() => setIsOpen(false)} disabled={submitting}>
-            Cancel
+            {t("Cancel")}
           </button>
           <button
             type="button"
@@ -149,7 +155,7 @@ export function FloatingQuickCapture({ onUpdated }: FloatingQuickCaptureProps): 
             onClick={() => void handleSubmit()}
             disabled={submitting}
           >
-            {submitting ? "Saving..." : "Create Deadline"}
+            {submitting ? t("Saving...") : t("Create Deadline")}
           </button>
         </div>
       </div>

@@ -5,6 +5,7 @@ import {
   toggleHabitCheckIn,
   toggleGoalCheckIn
 } from "../lib/api";
+import { useI18n } from "../lib/i18n";
 import { Goal, Habit } from "../types";
 import { hapticSuccess } from "../lib/haptics";
 
@@ -15,10 +16,13 @@ interface BusyState {
 
 const UNBOUNDED_HABIT_TARGET = -1;
 
-function formatHabitCadence(cadence: string): string {
+function formatHabitCadence(
+  cadence: string,
+  t: (text: string, vars?: Record<string, string | number>) => string
+): string {
   const trimmed = cadence.trim();
   if (!trimmed) {
-    return "Flexible";
+    return t("Flexible");
   }
   return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
 }
@@ -31,6 +35,8 @@ function formatHabitTarget(targetPerWeek: number): string {
 }
 
 export function HabitsGoalsView(): JSX.Element {
+  const { locale, t } = useI18n();
+  const localeTag = locale === "no" ? "nb-NO" : "en-US";
   const [habits, setHabits] = useState<Habit[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [busy, setBusy] = useState<BusyState | null>(null);
@@ -84,11 +90,11 @@ export function HabitsGoalsView(): JSX.Element {
       <article key={habit.id} className="habit-card habit-card-compact">
         <header className="habit-card-header">
           <div>
-            <p className="eyebrow">Habit</p>
+            <p className="eyebrow">{t("Habit")}</p>
             <h3>{habit.name}</h3>
             <p className="muted">
-              {formatHabitCadence(habit.cadence)} • Target {formatHabitTarget(habit.targetPerWeek)}
-              {habit.streak > 0 ? ` • ${habit.streak} day streak` : ""}
+              {formatHabitCadence(habit.cadence, t)} • {t("Target")} {formatHabitTarget(habit.targetPerWeek)}
+              {habit.streak > 0 ? t(" • {count} day streak", { count: habit.streak }) : ""}
             </p>
             {habit.motivation && <p className="muted">{habit.motivation}</p>}
           </div>
@@ -97,7 +103,7 @@ export function HabitsGoalsView(): JSX.Element {
             className={`habit-checkin-button ${habit.todayCompleted ? "habit-checkin-done" : ""}`}
             onClick={() => void handleHabitCheckIn(habit)}
             disabled={isBusy}
-            aria-label={habit.todayCompleted ? "Undo check-in" : "Check in"}
+            aria-label={habit.todayCompleted ? t("Undo check-in") : t("Check in")}
           >
             {isBusy ? "…" : habit.todayCompleted ? "✓" : "○"}
           </button>
@@ -113,19 +119,19 @@ export function HabitsGoalsView(): JSX.Element {
     const progressPercent = Math.min(100, Math.round((goal.progressCount / goal.targetCount) * 100));
     const dueLabel =
       goal.dueDate &&
-      new Date(goal.dueDate).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+      new Date(goal.dueDate).toLocaleDateString(localeTag, { month: "short", day: "numeric" });
     const isBusy = busy?.type === "goal" && busy.id === goal.id;
 
     return (
       <article key={goal.id} className="habit-card goal-card habit-card-compact">
         <header className="habit-card-header">
           <div>
-            <p className="eyebrow">Goal</p>
+            <p className="eyebrow">{t("Goal")}</p>
             <h3>{goal.title}</h3>
             <p className="muted">
-              {goal.progressCount}/{goal.targetCount} check-ins
-              {dueLabel ? ` • due ${dueLabel}` : ""}
-              {goal.streak > 0 ? ` • ${goal.streak} day streak` : ""}
+              {t("{progress}/{target} check-ins", { progress: goal.progressCount, target: goal.targetCount })}
+              {dueLabel ? t(" • due {date}", { date: dueLabel }) : ""}
+              {goal.streak > 0 ? t(" • {count} day streak", { count: goal.streak }) : ""}
             </p>
             {goal.motivation && <p className="muted">{goal.motivation}</p>}
           </div>
@@ -134,7 +140,7 @@ export function HabitsGoalsView(): JSX.Element {
             className={`habit-checkin-button ${goal.todayCompleted ? "habit-checkin-done" : ""}`}
             onClick={() => void handleGoalCheckIn(goal)}
             disabled={isBusy}
-            aria-label={goal.todayCompleted ? "Undo check-in" : "Check in"}
+            aria-label={goal.todayCompleted ? t("Undo check-in") : t("Check in")}
           >
             {isBusy ? "…" : goal.todayCompleted ? "✓" : "○"}
           </button>
@@ -151,21 +157,21 @@ export function HabitsGoalsView(): JSX.Element {
   return (
     <section className="panel habit-goal-panel">
       <header className="panel-header">
-        <h2>Habits & Goals</h2>
+        <h2>{t("Habits & Goals")}</h2>
         <div className="pill-group">
-          <span className="pill-muted">{habits.length} habits</span>
-          <span className="pill-muted">{goals.length} goals</span>
+          <span className="pill-muted">{t("{count} habits", { count: habits.length })}</span>
+          <span className="pill-muted">{t("{count} goals", { count: goals.length })}</span>
         </div>
       </header>
 
       <div className="habit-grid">
         {habits.map(renderHabit)}
-        {habits.length === 0 && <p className="muted">No habits yet — ask Gemini to create one.</p>}
+        {habits.length === 0 && <p className="muted">{t("No habits yet — ask Gemini to create one.")}</p>}
       </div>
 
       <div className="habit-grid">
         {goals.map(renderGoal)}
-        {goals.length === 0 && <p className="muted">No goals yet — ask Gemini to create one.</p>}
+        {goals.length === 0 && <p className="muted">{t("No goals yet — ask Gemini to create one.")}</p>}
       </div>
     </section>
   );

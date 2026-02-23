@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { getCanvasStatus, triggerCanvasSync } from "../lib/api";
+import { useI18n } from "../lib/i18n";
 import {
   loadIntegrationScopeSettings,
   saveIntegrationScopeSettings
@@ -11,6 +12,7 @@ const DEFAULT_PAST_DAYS = 7;
 const DEFAULT_FUTURE_DAYS = 180;
 
 export function IntegrationScopeSettings(): JSX.Element {
+  const { t } = useI18n();
   const [settings, setSettings] = useState<IntegrationScopeSettings>(loadIntegrationScopeSettings());
   const [canvasStatus, setCanvasStatus] = useState<CanvasStatus>({
     baseUrl: "",
@@ -81,9 +83,9 @@ export function IntegrationScopeSettings(): JSX.Element {
     });
 
     if (canvasResult.success) {
-      setMessage("Canvas synced successfully.");
+      setMessage(t("Canvas synced successfully."));
     } else {
-      setError(canvasResult.error ?? "Sync completed with errors.");
+      setError(canvasResult.error ?? t("Sync completed with errors."));
     }
 
     const latestCanvasStatus = await getCanvasStatus();
@@ -94,16 +96,16 @@ export function IntegrationScopeSettings(): JSX.Element {
   return (
     <section className="panel">
       <div className="settings-stack">
-        <p className="muted">Select which Canvas courses to track. TP schedule is managed via the iCal connector above.</p>
+        <p className="muted">{t("Select which Canvas courses to track. TP schedule is managed via the iCal connector above.")}</p>
 
         <div className="panel">
           <header className="panel-header">
-            <h3>Canvas course scope</h3>
-            <p className="muted">{settings.canvasCourseIds.length} selected</p>
+            <h3>{t("Canvas course scope")}</h3>
+            <p className="muted">{t("{count} selected", { count: settings.canvasCourseIds.length })}</p>
           </header>
 
           {canvasStatus.courses.length === 0 ? (
-            <p className="muted">No Canvas courses available yet. Connect Canvas above, then sync.</p>
+            <p className="muted">{t("No Canvas courses available yet. Connect Canvas above, then sync.")}</p>
           ) : (
             <>
               <div className="panel-header">
@@ -111,10 +113,10 @@ export function IntegrationScopeSettings(): JSX.Element {
                   type="button"
                   onClick={() => updateSettings({ ...settings, canvasCourseIds: canvasStatus.courses.map((course) => course.id) })}
                 >
-                  Select all
+                  {t("Select all")}
                 </button>
                 <button type="button" onClick={() => updateSettings({ ...settings, canvasCourseIds: [] })}>
-                  Clear
+                  {t("Clear")}
                 </button>
               </div>
               <ul className="list">
@@ -137,7 +139,7 @@ export function IntegrationScopeSettings(): JSX.Element {
         </div>
 
         <button type="button" className="settings-push-btn" onClick={() => void handleApply()} disabled={applyLoading || canvasStatus.courses.length === 0} style={{ alignSelf: "flex-start" }}>
-          {applyLoading ? "Syncing..." : "Sync now"}
+          {applyLoading ? t("Syncing...") : t("Sync now")}
         </button>
 
         {message && <p className="muted">{message}</p>}

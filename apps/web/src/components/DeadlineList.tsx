@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { confirmDeadlineStatus, getDeadlines } from "../lib/api";
 import { hapticSuccess } from "../lib/haptics";
+import { useI18n } from "../lib/i18n";
 import { Deadline } from "../types";
 import { usePullToRefresh } from "../hooks/usePullToRefresh";
 import { PullToRefreshIndicator } from "./PullToRefreshIndicator";
@@ -27,6 +28,8 @@ function formatDeadlineTaskLabel(task: string): string {
 }
 
 export function DeadlineList({ focusDeadlineId }: DeadlineListProps): JSX.Element {
+  const { locale, t } = useI18n();
+  const localeTag = locale === "no" ? "nb-NO" : "en-US";
   const [deadlines, setDeadlines] = useState<Deadline[]>([]);
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState<boolean>(() => navigator.onLine);
@@ -39,7 +42,7 @@ export function DeadlineList({ focusDeadlineId }: DeadlineListProps): JSX.Elemen
     try {
       const next = await getDeadlines();
       setDeadlines(next);
-      setSyncMessage("Deadlines refreshed");
+      setSyncMessage(t("Deadlines refreshed"));
       setTimeout(() => setSyncMessage(""), 2000);
     } catch { /* keep current state */ }
     setRefreshing(false);
@@ -100,17 +103,17 @@ export function DeadlineList({ focusDeadlineId }: DeadlineListProps): JSX.Elemen
     const diffHours = Math.floor(diffMinutes / 60);
     const diffDays = Math.floor(diffHours / 24);
 
-    if (diffMs < 0) return "Overdue";
-    if (diffHours < 1) return `${diffMinutes}m left`;
-    if (diffHours < 24) return `${diffHours}h left`;
-    if (diffDays === 1 && diffHours % 24 > 0) return `1 day ${diffHours % 24}h left`;
-    if (diffDays === 1) return "1 day left";
-    return `${diffDays} days left`;
+    if (diffMs < 0) return t("Overdue");
+    if (diffHours < 1) return t("{count}m left", { count: diffMinutes });
+    if (diffHours < 24) return t("{count}h left", { count: diffHours });
+    if (diffDays === 1 && diffHours % 24 > 0) return t("1 day {hours}h left", { hours: diffHours % 24 });
+    if (diffDays === 1) return t("1 day left");
+    return t("{count} days left", { count: diffDays });
   };
 
   const formatDueDate = (dueDate: string): string => {
     const date = new Date(normalizeDueDateInput(dueDate));
-    return date.toLocaleString(undefined, {
+    return date.toLocaleString(localeTag, {
       weekday: "short",
       month: "short",
       day: "numeric",
@@ -143,7 +146,7 @@ export function DeadlineList({ focusDeadlineId }: DeadlineListProps): JSX.Elemen
 
     if (!confirmation) {
       setDeadlines(before);
-      setSyncMessage("Could not sync deadline status right now.");
+      setSyncMessage(t("Could not sync deadline status right now."));
       setUpdatingId(null);
       return false;
     }
@@ -155,7 +158,7 @@ export function DeadlineList({ focusDeadlineId }: DeadlineListProps): JSX.Elemen
     if (completed) {
       hapticSuccess();
     }
-    setSyncMessage(completed ? "Marked complete." : "Saved as still working.");
+    setSyncMessage(completed ? t("Marked complete.") : t("Saved as still working."));
     setUpdatingId(null);
     return true;
   };
@@ -172,15 +175,15 @@ export function DeadlineList({ focusDeadlineId }: DeadlineListProps): JSX.Elemen
       <div className="deadline-card-header">
         <div className="deadline-card-title-row">
           <span className="deadline-card-icon">🎯</span>
-          <h2>Deadlines</h2>
+          <h2>{t("Deadlines")}</h2>
         </div>
         <div className="deadline-card-meta">
           {activeCount > 0 ? (
-            <span className="deadline-badge">{activeCount} pending</span>
+            <span className="deadline-badge">{t("{count} pending", { count: activeCount })}</span>
           ) : (
-            <span className="deadline-badge deadline-badge-clear">All clear</span>
+            <span className="deadline-badge deadline-badge-clear">{t("All clear")}</span>
           )}
-          {!isOnline && <span className="deadline-badge deadline-badge-offline">Offline</span>}
+          {!isOnline && <span className="deadline-badge deadline-badge-offline">{t("Offline")}</span>}
         </div>
       </div>
 
@@ -245,7 +248,7 @@ export function DeadlineList({ focusDeadlineId }: DeadlineListProps): JSX.Elemen
                         onClick={() => void setCompletion(deadline.id, true)}
                         disabled={updatingId === deadline.id}
                       >
-                        ✓ Complete
+                        ✓ {t("Complete")}
                       </button>
                       <button
                         type="button"
@@ -253,7 +256,7 @@ export function DeadlineList({ focusDeadlineId }: DeadlineListProps): JSX.Elemen
                         onClick={() => void setCompletion(deadline.id, false)}
                         disabled={updatingId === deadline.id}
                       >
-                        Still working
+                        {t("Still working")}
                       </button>
                     </div>
                   )}
@@ -264,8 +267,8 @@ export function DeadlineList({ focusDeadlineId }: DeadlineListProps): JSX.Elemen
         ) : (
           <div className="deadline-empty-state">
             <span className="deadline-empty-icon">✅</span>
-            <p>No deadlines tracked</p>
-            <p className="deadline-empty-hint">Add assignments to stay on top of your work</p>
+            <p>{t("No deadlines tracked")}</p>
+            <p className="deadline-empty-hint">{t("Add assignments to stay on top of your work")}</p>
           </div>
         )}
       </div>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getDeadlines, getSchedule, getScheduleSuggestionMutes } from "../lib/api";
+import { useI18n } from "../lib/i18n";
 import { Deadline, LectureEvent, ScheduleSuggestionMute } from "../types";
 
 interface DayTimelineSegment {
@@ -67,12 +68,13 @@ function suggestGapActivity(
   gapStart: Date,
   gapDurationMinutes: number,
   deadlineSuggestions: string[],
-  consumedDeadlineIndex: { value: number }
+  consumedDeadlineIndex: { value: number },
+  t: (text: string, vars?: Record<string, string | number>) => string
 ): string {
   const hour = gapStart.getHours();
 
   if (hour < 9) {
-    return "Morning routine (gym, breakfast, planning)";
+    return t("Morning routine (gym, breakfast, planning)");
   }
 
   if (consumedDeadlineIndex.value < deadlineSuggestions.length) {
@@ -82,17 +84,18 @@ function suggestGapActivity(
   }
 
   if (gapDurationMinutes >= 90) {
-    return "Focus block for assignments or revision";
+    return t("Focus block for assignments or revision");
   }
 
-  return "Buffer, review notes, or take a short reset";
+  return t("Buffer, review notes, or take a short reset");
 }
 
 function allocatePlannedBlocks(
   start: Date,
   end: Date,
   deadlineSuggestions: string[],
-  consumedDeadlineIndex: { value: number }
+  consumedDeadlineIndex: { value: number },
+  t: (text: string, vars?: Record<string, string | number>) => string
 ): DayTimelineSegment[] {
   const segments: DayTimelineSegment[] = [];
   let cursor = new Date(start);
@@ -122,7 +125,7 @@ function allocatePlannedBlocks(
       type: "planned",
       start: new Date(cursor),
       end: blockEnd,
-      suggestion: suggestGapActivity(new Date(cursor), blockMinutes, deadlineSuggestions, consumedDeadlineIndex)
+      suggestion: suggestGapActivity(new Date(cursor), blockMinutes, deadlineSuggestions, consumedDeadlineIndex, t)
     });
 
     cursor = blockEnd;
@@ -132,12 +135,15 @@ function allocatePlannedBlocks(
   return segments;
 }
 
-function formatDayTimelineLabel(segment: DayTimelineSegment): string {
+function formatDayTimelineLabel(
+  segment: DayTimelineSegment,
+  t: (text: string, vars?: Record<string, string | number>) => string
+): string {
   if (segment.type !== "event") {
-    return segment.suggestion ?? "Focus block";
+    return segment.suggestion ?? t("Focus block");
   }
 
-  const title = formatLectureTitle(segment.event?.title ?? "Scheduled block");
+  const title = formatLectureTitle(segment.event?.title ?? t("Scheduled block"));
   const roomLabel = formatRoomLabel(segment.event?.location);
   return roomLabel ? `${title} • ${roomLabel}` : title;
 }
@@ -146,7 +152,8 @@ function buildDayTimeline(
   scheduleBlocks: LectureEvent[],
   referenceDate: Date,
   deadlineSuggestions: string[],
-  suggestionMutes: ScheduleSuggestionMute[]
+  suggestionMutes: ScheduleSuggestionMute[],
+  t: (text: string, vars?: Record<string, string | number>) => string
 ): DayTimelineSegment[] {
   const sorted = [...scheduleBlocks].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
   const firstStart = sorted.length > 0 ? new Date(sorted[0].startTime) : new Date(referenceDate);
@@ -171,7 +178,7 @@ function buildDayTimeline(
     const gapMinutes = minutesBetween(cursor, start);
     if (gapMinutes >= 25) {
       segments.push(
-        ...allocatePlannedBlocks(new Date(cursor), new Date(start), deadlineSuggestions, consumedDeadlineIndex)
+        ...allocatePlannedBlocks(new Date(cursor), new Date(start), deadlineSuggestions, consumedDeadlineIndex, t)
       );
     }
 
@@ -187,7 +194,7 @@ function buildDayTimeline(
   const trailingGap = minutesBetween(cursor, timelineEnd);
   if (trailingGap >= 25) {
     segments.push(
-      ...allocatePlannedBlocks(new Date(cursor), new Date(timelineEnd), deadlineSuggestions, consumedDeadlineIndex)
+      ...allocatePlannedBlocks(new Date(cursor), new Date(timelineEnd), deadlineSuggestions, consumedDeadlineIndex, t)
     );
   }
 
@@ -211,6 +218,8 @@ interface ScheduleViewProps {
 }
 
 export function ScheduleView({ focusLectureId }: ScheduleViewProps): JSX.Element {
+  const { locale, t } = useI18n();
+  const localeTag = locale === "no" ? "nb-NO" : "en-US";
   const [schedule, setSchedule] = useState<LectureEvent[]>([]);
   const [deadlines, setDeadlines] = useState<Deadline[]>([]);
   const [suggestionMutes, setSuggestionMutes] = useState<ScheduleSuggestionMute[]>([]);
@@ -281,10 +290,10 @@ export function ScheduleView({ focusLectureId }: ScheduleViewProps): JSX.Element
     const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
     const eventDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
-    if (eventDate.getTime() === today.getTime()) return "Today";
-    if (eventDate.getTime() === tomorrow.getTime()) return "Tomorrow";
+    if (eventDate.getTime() === today.getTime()) return t("Today");
+    if (eventDate.getTime() === tomorrow.getTime()) return t("Tomorrow");
     
-    return date.toLocaleDateString(undefined, { 
+    return date.toLocaleDateString(localeTag, { 
       weekday: "short", 
       month: "short", 
       day: "numeric" 
@@ -300,14 +309,14 @@ export function ScheduleView({ focusLectureId }: ScheduleViewProps): JSX.Element
   const getTimeUntilLabel = (isoString: string): string => {
     const minutesUntil = getMinutesUntil(isoString);
     
-    if (minutesUntil < 0) return "Started";
-    if (minutesUntil < 60) return `in ${minutesUntil}m`;
+    if (minutesUntil < 0) return t("Started");
+    if (minutesUntil < 60) return t("in {count}m", { count: minutesUntil });
     
     const hoursUntil = Math.floor(minutesUntil / 60);
-    if (hoursUntil < 24) return `in ${hoursUntil}h`;
+    if (hoursUntil < 24) return t("in {count}h", { count: hoursUntil });
     
     const daysUntil = Math.floor(hoursUntil / 24);
-    return `in ${daysUntil}d`;
+    return t("in {count}d", { count: daysUntil });
   };
 
   const sortedSchedule = [...schedule].sort((a, b) => 
@@ -328,7 +337,7 @@ export function ScheduleView({ focusLectureId }: ScheduleViewProps): JSX.Element
   // Only build gap-filler suggestions when there are real schedule events;
   // on a fresh account with no events, show the empty state instead
   const dayTimeline = todayBlocks.length > 0
-    ? buildDayTimeline(todayBlocks, today, deadlineSuggestions, suggestionMutes)
+    ? buildDayTimeline(todayBlocks, today, deadlineSuggestions, suggestionMutes, t)
     : [];
 
   return (
@@ -336,15 +345,19 @@ export function ScheduleView({ focusLectureId }: ScheduleViewProps): JSX.Element
       <div className="schedule-card-header">
         <div className="schedule-card-title-row">
           <span className="schedule-card-icon schedule-card-icon-svg"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/><path d="M12 6v6l4 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg></span>
-          <h2>Today&apos;s Schedule</h2>
+          <h2>{t("Today's Schedule")}</h2>
         </div>
         <div className="schedule-card-meta">
           {todayBlocks.length > 0 ? (
-            <span className="schedule-badge">{todayBlocks.length} session{todayBlocks.length === 1 ? "" : "s"}</span>
+            <span className="schedule-badge">
+              {todayBlocks.length === 1
+                ? t("{count} session", { count: todayBlocks.length })
+                : t("{count} sessions", { count: todayBlocks.length })}
+            </span>
           ) : (
-            <span className="schedule-badge schedule-badge-empty">Free day</span>
+            <span className="schedule-badge schedule-badge-empty">{t("Free day")}</span>
           )}
-          {!isOnline && <span className="schedule-badge schedule-badge-offline">Offline</span>}
+          {!isOnline && <span className="schedule-badge schedule-badge-offline">{t("Offline")}</span>}
         </div>
       </div>
 
@@ -364,16 +377,16 @@ export function ScheduleView({ focusLectureId }: ScheduleViewProps): JSX.Element
               <div className="timeline-item-content">
                 <div className="timeline-item-time-row">
                   <span className="timeline-time">
-                    {segment.start.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false })}
+                    {segment.start.toLocaleTimeString(localeTag, { hour: "2-digit", minute: "2-digit", hour12: false })}
                     {" – "}
-                    {segment.end.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false })}
+                    {segment.end.toLocaleTimeString(localeTag, { hour: "2-digit", minute: "2-digit", hour12: false })}
                   </span>
                   <span className="timeline-item-duration">
                     {formatDuration(minutesBetween(segment.start, segment.end))}
                   </span>
                 </div>
                 <p className="timeline-item-label">
-                  {formatDayTimelineLabel(segment)}
+                  {formatDayTimelineLabel(segment, t)}
                 </p>
               </div>
             </li>
@@ -382,8 +395,8 @@ export function ScheduleView({ focusLectureId }: ScheduleViewProps): JSX.Element
       ) : (
         <div className="schedule-empty-state">
           <span className="schedule-empty-icon">🌤️</span>
-          <p>No fixed sessions today</p>
-          <p className="schedule-empty-hint">Ask Gemini to build your day plan</p>
+          <p>{t("No fixed sessions today")}</p>
+          <p className="schedule-empty-hint">{t("Ask Gemini to build your day plan")}</p>
         </div>
       )}
 

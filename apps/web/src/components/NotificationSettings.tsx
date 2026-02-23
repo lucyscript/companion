@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getNotificationPreferences, updateNotificationPreferences } from "../lib/api";
+import { useI18n } from "../lib/i18n";
 import { NotificationPreferences } from "../types";
 
 const categoryLabels: Record<string, { label: string; emoji: string; description: string }> = {
@@ -63,6 +64,8 @@ function ToggleSwitch({
 }
 
 export function NotificationSettings(): JSX.Element {
+  const { locale, t } = useI18n();
+  const localeTag = locale === "no" ? "nb-NO" : "en-US";
   const [preferences, setPreferences] = useState<NotificationPreferences>(defaultPreferences);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -82,7 +85,7 @@ export function NotificationSettings(): JSX.Element {
     try {
       const updated = await updateNotificationPreferences(next);
       setPreferences(updated);
-      setMessage("Saved");
+      setMessage(t("Saved"));
       setTimeout(() => setMessage(""), 1500);
     } finally {
       setBusy(false);
@@ -90,9 +93,8 @@ export function NotificationSettings(): JSX.Element {
   };
 
   const formatHour = (h: number): string => {
-    const period = h >= 12 ? "PM" : "AM";
-    const display = h === 0 ? 12 : h > 12 ? h - 12 : h;
-    return `${display}:00 ${period}`;
+    const date = new Date(1970, 0, 1, h, 0, 0);
+    return date.toLocaleTimeString(localeTag, { hour: "numeric", minute: "2-digit", hour12: true });
   };
 
   return (
@@ -103,11 +105,14 @@ export function NotificationSettings(): JSX.Element {
       <div className="noti-settings-card">
         <div className="noti-settings-row">
           <div className="noti-settings-row-text">
-            <span className="noti-settings-label">🌙 Quiet Hours</span>
+            <span className="noti-settings-label">🌙 {t("Quiet Hours")}</span>
             <span className="noti-settings-desc">
               {preferences.quietHours.enabled
-                ? `Silent ${formatHour(preferences.quietHours.startHour)} – ${formatHour(preferences.quietHours.endHour)}`
-                : "Notifications can arrive anytime"}
+                ? t("Silent {start} – {end}", {
+                    start: formatHour(preferences.quietHours.startHour),
+                    end: formatHour(preferences.quietHours.endHour)
+                  })
+                : t("Notifications can arrive anytime")}
             </span>
           </div>
           <ToggleSwitch
@@ -123,7 +128,7 @@ export function NotificationSettings(): JSX.Element {
           <>
             <div className="noti-settings-time-row">
               <label className="noti-settings-time-label">
-                From
+                {t("From")}
                 <select
                   className="noti-settings-time-select"
                   value={preferences.quietHours.startHour}
@@ -143,7 +148,7 @@ export function NotificationSettings(): JSX.Element {
                 </select>
               </label>
               <label className="noti-settings-time-label">
-                Until
+                {t("Until")}
                 <select
                   className="noti-settings-time-select"
                   value={preferences.quietHours.endHour}
@@ -166,8 +171,8 @@ export function NotificationSettings(): JSX.Element {
 
             <div className="noti-settings-row noti-settings-sub-row">
               <div className="noti-settings-row-text">
-                <span className="noti-settings-label">🚨 Critical override</span>
-                <span className="noti-settings-desc">Allow critical alerts during quiet hours</span>
+                <span className="noti-settings-label">🚨 {t("Critical override")}</span>
+                <span className="noti-settings-desc">{t("Allow critical alerts during quiet hours")}</span>
               </div>
               <ToggleSwitch
                 checked={preferences.allowCriticalInQuietHours}
@@ -181,14 +186,14 @@ export function NotificationSettings(): JSX.Element {
 
       {/* Category Toggles */}
       <div className="noti-settings-card">
-        <p className="noti-settings-section-title">Sources</p>
+        <p className="noti-settings-section-title">{t("Sources")}</p>
         {categoryOrder.map((category) => {
           const info = categoryLabels[category] ?? { label: category, emoji: "🔔", description: "" };
           return (
             <div key={category} className="noti-settings-row">
               <div className="noti-settings-row-text">
-                <span className="noti-settings-label">{info.emoji} {info.label}</span>
-                <span className="noti-settings-desc">{info.description}</span>
+                <span className="noti-settings-label">{info.emoji} {t(info.label)}</span>
+                <span className="noti-settings-desc">{t(info.description)}</span>
               </div>
               <ToggleSwitch
                 checked={preferences.categoryToggles[category]}
