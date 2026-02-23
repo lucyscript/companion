@@ -690,7 +690,7 @@ export function ConnectorsView({ planInfo, onUpgrade }: ConnectorsViewProps): JS
                         {selectedMcpTemplate.authType === "oauth" ? (
                           <>
                             <button
-                              className="connector-connect-btn"
+                              className="connector-sync-btn"
                               onClick={() => void handleConnectMcpTemplate(selectedMcpTemplate)}
                               disabled={busy || selectedMcpTemplate.oauthEnabled === false}
                             >
@@ -698,7 +698,7 @@ export function ConnectorsView({ planInfo, onUpgrade }: ConnectorsViewProps): JS
                                 ? "Connecting..."
                                 : selectedMcpTemplate.oauthEnabled === false
                                   ? "OAuth unavailable on this server"
-                                  : `Connect with ${selectedMcpTemplate.provider}`}
+                                  : "Connect"}
                             </button>
                             <p className="connector-help-text">
                               {selectedMcpTemplate.oauthEnabled === false
@@ -719,11 +719,11 @@ export function ConnectorsView({ planInfo, onUpgrade }: ConnectorsViewProps): JS
                         </div>
                         <p className="connector-help-text">{selectedMcpTemplate.tokenHelp}</p>
                         <button
-                          className="connector-connect-btn"
+                          className="connector-sync-btn"
                           onClick={() => void handleConnectMcpTemplate(selectedMcpTemplate, inputValues.mcp_token)}
                           disabled={busy || !inputValues.mcp_token?.trim()}
                         >
-                          {busy ? "Connecting..." : "Connect with token"}
+                          {busy ? "Connecting..." : "Connect"}
                         </button>
                       </div>
                     )}
