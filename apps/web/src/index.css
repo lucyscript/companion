@@ -3276,7 +3276,7 @@ body.keyboard-open .chat-overlay-backdrop {
 
 body.chat-tab-active:not(.keyboard-open) .app-shell-chat-active .chat-input-container {
   bottom: 0;
-  padding-bottom: 8px;
+  padding: 8px 8px;
   background: var(--footer-glass-bg);
   backdrop-filter: blur(var(--footer-glass-blur));
   -webkit-backdrop-filter: blur(var(--footer-glass-blur));
