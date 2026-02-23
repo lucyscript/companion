@@ -2545,7 +2545,7 @@ button:disabled {
 .chat-overlay-backdrop {
   position: fixed;
   inset: 0 0 var(--tab-bar-safe-space) 0;
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.22);
   z-index: 101;
   animation: chat-overlay-fade-in 0.2s ease both;
   -webkit-tap-highlight-color: transparent;
@@ -2560,7 +2560,7 @@ button:disabled {
   position: fixed !important;
   left: 0;
   right: 0;
-  bottom: calc(var(--tab-bar-safe-space) + 1px);
+  bottom: var(--tab-bar-safe-space);
   top: auto;
   height: 50dvh;
   max-height: calc(100dvh - var(--tab-bar-safe-space) - 40px);
@@ -2572,8 +2572,8 @@ button:disabled {
   display: flex !important;
   flex-direction: column;
   background: var(--card);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
 }
 
 /* Header bar at top of overlay with close button */
@@ -2642,7 +2642,9 @@ button:disabled {
   border-radius: 0;
   flex-shrink: 0;
   padding: 6px 8px 8px;
-  background: transparent;
+  background: var(--card);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   border-top: none;
 }
 
@@ -2654,8 +2656,8 @@ body.keyboard-open .chat-overlay-panel {
   border-radius: 16px 16px 0 0;
   animation: none;
   background: var(--card);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
 }
 
 body.keyboard-open .chat-overlay-panel .chat-view {
@@ -2677,6 +2679,11 @@ body.keyboard-open .chat-overlay-panel .chat-input-container {
   padding: 4px 6px 4px;
   border-top: none;
   background: transparent;
+}
+
+body.chat-overlay-active .tab-bar {
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
 }
 
 body.keyboard-open .chat-overlay-panel .chat-messages {
@@ -5536,12 +5543,12 @@ body.keyboard-open .chat-overlay-panel .chat-messages {
   background: transparent;
 }
 
-/* Chat tab + schedule quick-chat: extend composer into keyboard gap for continuous backdrop. */
+/* Chat tab + quick-chat overlay: extend composer into keyboard gap for continuous backdrop. */
 body.keyboard-open.chat-tab-active .app-shell-chat-active .chat-input-container,
-body.keyboard-open.chat-overlay-active[data-active-tab="schedule"] .chat-overlay-panel .chat-input-container {
+body.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-input-container {
   bottom: 0;
   padding-bottom: calc(4px + var(--keyboard-gap));
-  background: transparent;
+  background: var(--card);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
 }
