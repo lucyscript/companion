@@ -202,8 +202,18 @@ html {
 }
 
 body.chat-tab-active {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  min-height: var(--app-viewport-height);
+  height: var(--app-viewport-height);
+  max-height: var(--app-viewport-height);
   overflow: hidden;
   overscroll-behavior: none;
+  background: var(--chat-mood-active-bg, var(--chat-mood-bg, var(--surface-soft)));
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
 }
 
 .app-shell {
@@ -5628,7 +5638,7 @@ body.keyboard-open.chat-tab-active .app-shell-chat-active .chat-messages {
 }
 
 body.keyboard-open.chat-tab-active {
-  background: transparent;
+  background: var(--chat-mood-active-bg, var(--chat-mood-bg, var(--surface-soft)));
 }
 
 /* Keyboard-up chat tab: keep one continuous mood backdrop behind composer and keyboard gap. */
@@ -5653,6 +5663,13 @@ body.keyboard-open .chat-input {
 
 body.keyboard-open.chat-tab-active .app-shell-chat-active .chat-input {
   border: 1px solid var(--accent-border);
+}
+
+body.chat-tab-active .app-shell-chat-active .tab-content-area,
+body.chat-tab-active .app-shell-chat-active .chat-tab,
+body.chat-tab-active .app-shell-chat-active .chat-view,
+body.chat-tab-active .app-shell-chat-active .chat-messages {
+  overscroll-behavior: none;
 }
 
 body.keyboard-open .pull-to-refresh-container {
