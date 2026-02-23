@@ -5588,25 +5588,12 @@ body.keyboard-open.chat-tab-active .app-shell-chat-active .chat-input-container 
   right: 0;
   bottom: 0;
   z-index: 6;
-  padding: 4px 6px 8px;
-  background: transparent;
+  padding: 4px 6px calc(var(--keyboard-gap) + 8px);
+  background: var(--chat-mood-active-bg, var(--chat-mood-bg, var(--surface-soft)));
   border: none;
   box-shadow: none;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
-  overflow: visible;
-}
-
-/* Extend mood backdrop through the keyboard-gap space below the composer. */
-body.keyboard-open.chat-tab-active .app-shell-chat-active .chat-input-container::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 100%;
-  height: max(96px, var(--keyboard-gap));
-  pointer-events: none;
-  background: var(--chat-mood-active-bg, var(--chat-mood-bg, var(--surface-soft)));
   transition: background 1.2s ease;
 }
 
