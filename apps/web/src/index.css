@@ -5583,6 +5583,8 @@ body.keyboard-open.chat-tab-active .app-shell-chat-active .chat-input-container 
   z-index: 6;
   padding: 4px 6px 8px;
   background: transparent;
+  border: none;
+  box-shadow: none;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
@@ -5595,8 +5597,21 @@ body.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-input-container
 /* Chat tab keyboard layout: keep messages clear of fixed composer. */
 body.keyboard-open.chat-tab-active .app-shell-chat-active .chat-messages {
   padding-bottom: 8px;
-  margin-bottom: 42px;
-  scroll-padding-bottom: 42px;
+  margin-bottom: 54px;
+  scroll-padding-bottom: 54px;
+}
+
+/* Keyboard-up chat tab should use the same dark "void" surface as the keyboard gap area. */
+body.keyboard-open.chat-tab-active {
+  background: #0b1118;
+}
+
+body.keyboard-open.chat-tab-active .app-shell-chat-active,
+body.keyboard-open.chat-tab-active .app-shell-chat-active .tab-content-area,
+body.keyboard-open.chat-tab-active .app-shell-chat-active .chat-tab,
+body.keyboard-open.chat-tab-active .app-shell-chat-active .chat-view,
+body.keyboard-open.chat-tab-active .app-shell-chat-active .chat-messages {
+  background: #0b1118 !important;
 }
 
 body.keyboard-open .chat-bubble {
