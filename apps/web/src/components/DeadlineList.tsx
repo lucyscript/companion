@@ -8,6 +8,9 @@ interface DeadlineListProps {
   focusDeadlineId?: string;
 }
 
+const INITIAL_DEADLINE_BATCH_SIZE = 6;
+const DEADLINE_BATCH_STEP = 6;
+
 function normalizeDueDateInput(dueDate: string): string {
   const trimmed = dueDate.trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
@@ -33,6 +36,7 @@ export function DeadlineList({ focusDeadlineId }: DeadlineListProps): JSX.Elemen
   const [isOnline, setIsOnline] = useState<boolean>(() => navigator.onLine);
   const [syncMessage, setSyncMessage] = useState("");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [visibleCount, setVisibleCount] = useState(INITIAL_DEADLINE_BATCH_SIZE);
 
   useEffect(() => {
     let disposed = false;
@@ -148,8 +152,20 @@ export function DeadlineList({ focusDeadlineId }: DeadlineListProps): JSX.Elemen
     if (a.completed !== b.completed) return a.completed ? 1 : -1;
     return dueTimestamp(a.dueDate) - dueTimestamp(b.dueDate);
   });
+  const visibleDeadlines = sortedDeadlines.slice(0, visibleCount);
+  const hasMoreDeadlines = sortedDeadlines.length > visibleCount;
 
   const activeCount = deadlines.filter((deadline) => !deadline.completed).length;
+
+  useEffect(() => {
+    if (!focusDeadlineId) {
+      return;
+    }
+    const focusedIndex = sortedDeadlines.findIndex((deadline) => deadline.id === focusDeadlineId);
+    if (focusedIndex >= 0 && focusedIndex >= visibleCount) {
+      setVisibleCount(focusedIndex + 1);
+    }
+  }, [focusDeadlineId, sortedDeadlines, visibleCount]);
 
   return (
     <section className="deadline-card">
@@ -178,8 +194,9 @@ export function DeadlineList({ focusDeadlineId }: DeadlineListProps): JSX.Elemen
             <span className="deadline-loading-dot" />
           </div>
         ) : sortedDeadlines.length > 0 ? (
-          <ul className="dl-list">
-            {sortedDeadlines.map((deadline) => {
+          <>
+            <ul className="dl-list">
+            {visibleDeadlines.map((deadline) => {
               const urgency = getUrgencyClass(deadline.dueDate);
               return (
                 <li
@@ -234,7 +251,33 @@ export function DeadlineList({ focusDeadlineId }: DeadlineListProps): JSX.Elemen
                 </li>
               );
             })}
-          </ul>
+            </ul>
+            {(hasMoreDeadlines || visibleCount > INITIAL_DEADLINE_BATCH_SIZE) && (
+              <div className="deadline-list-actions">
+                {hasMoreDeadlines ? (
+                  <button
+                    type="button"
+                    className="deadline-list-more-btn"
+                    onClick={() => setVisibleCount((count) => count + DEADLINE_BATCH_STEP)}
+                  >
+                    {t("Load more")}
+                  </button>
+                ) : null}
+                {visibleCount > INITIAL_DEADLINE_BATCH_SIZE ? (
+                  <button
+                    type="button"
+                    className="deadline-list-more-btn deadline-list-less-btn"
+                    onClick={() => setVisibleCount(INITIAL_DEADLINE_BATCH_SIZE)}
+                  >
+                    {t("Show less")}
+                  </button>
+                ) : null}
+                <p className="deadline-list-count">
+                  {t("Showing {shown} of {total}", { shown: Math.min(visibleCount, sortedDeadlines.length), total: sortedDeadlines.length })}
+                </p>
+              </div>
+            )}
+          </>
         ) : (
           <div className="deadline-empty-state">
             <span className="deadline-empty-icon">✅</span>
