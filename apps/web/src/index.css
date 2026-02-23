@@ -197,7 +197,7 @@ html {
 }
 
 body.chat-tab-active {
-  overflow: hidden;
+  overflow-x: hidden;
 }
 
 .app-shell {
