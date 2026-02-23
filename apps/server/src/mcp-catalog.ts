@@ -53,7 +53,18 @@ const MCP_SERVER_TEMPLATES: readonly McpServerTemplate[] = [
     tokenPlaceholder: "ntn_xxx",
     tokenHelp:
       "Create a Notion integration at notion.so/my-integrations, grant access to the pages or databases you want, then paste its token.",
-    suggestedToolAllowlist: []
+    // Keep this list small and deterministic for better tool routing.
+    // Include OpenAI alias names (`search`/`fetch`) as fallbacks where MCP clients expose them without the notion- prefix.
+    suggestedToolAllowlist: [
+      "notion-search",
+      "search",
+      "notion-fetch",
+      "fetch",
+      "notion-create-pages",
+      "notion-update-page",
+      "notion-query-data-sources",
+      "notion-query-database-view"
+    ]
   }
 ];
 
