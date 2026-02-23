@@ -3277,9 +3277,9 @@ body.keyboard-open .chat-overlay-backdrop {
 body.chat-tab-active:not(.keyboard-open) .app-shell-chat-active .chat-input-container {
   bottom: 4px;
   padding: 6px 8px;
-  background: rgb(9, 16, 25);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
+  background: var(--footer-glass-bg);
+  backdrop-filter: blur(var(--footer-glass-blur));
+  -webkit-backdrop-filter: blur(var(--footer-glass-blur));
 }
 
 body.chat-tab-active:not(.keyboard-open) .app-shell-chat-active .tab-content-area {
@@ -5567,9 +5567,9 @@ body.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-input-container
 body.keyboard-open.chat-tab-active .app-shell-chat-active .chat-input-container {
   bottom: 0;
   padding-bottom: 8px;
-  background: rgb(9, 16, 25);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
+  background: var(--footer-glass-bg);
+  backdrop-filter: blur(var(--footer-glass-blur));
+  -webkit-backdrop-filter: blur(var(--footer-glass-blur));
 }
 
 body.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-input-container {
@@ -5584,9 +5584,9 @@ body.keyboard-open.chat-tab-active .app-shell-chat-active::after {
   right: 0;
   bottom: 0;
   height: var(--keyboard-gap);
-  background: rgb(9, 16, 25);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
+  background: var(--footer-glass-bg);
+  backdrop-filter: blur(var(--footer-glass-blur));
+  -webkit-backdrop-filter: blur(var(--footer-glass-blur));
   pointer-events: none;
   z-index: 5;
 }
