@@ -2448,7 +2448,6 @@ button:disabled {
   background: var(--card);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border-top: 1px solid var(--border-soft);
   padding: 8px 0 max(8px, env(safe-area-inset-bottom));
   z-index: 100;
   box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.1);
@@ -3254,7 +3253,7 @@ body.keyboard-open .chat-overlay-backdrop {
   gap: 6px;
   padding: 6px 8px 6px;
   background: var(--card);
-  border-top: 1px solid var(--border-soft);
+  border-top: none;
   position: sticky;
   bottom: 4px;
   z-index: 4;
@@ -3380,7 +3379,7 @@ body.keyboard-open .chat-overlay-backdrop {
   max-height: 112px;
   padding: 9px 11px;
   background: var(--input-bg);
-  border: 1px solid var(--border-soft);
+  border: none;
   border-radius: 18px;
   color: var(--text);
   font-size: 0.94rem;
