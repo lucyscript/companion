@@ -5617,7 +5617,7 @@ body.keyboard-open.chat-tab-active {
 
 /* Keyboard-up chat tab: keep one continuous mood backdrop behind composer and keyboard gap. */
 body.keyboard-open.chat-tab-active .app-shell-chat-active {
-  background: var(--chat-mood-active-bg, var(--chat-mood-bg, var(--surface-soft)));
+  background: transparent;
 }
 
 body.keyboard-open.chat-tab-active .app-shell-chat-active .tab-content-area,
