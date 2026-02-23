@@ -224,6 +224,21 @@ body.chat-tab-active {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  position: relative;
+  z-index: 0;
+  isolation: isolate;
+}
+
+.app-shell-chat-active::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--chat-mood-active-bg, var(--chat-mood-bg, var(--surface-soft)));
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
 }
 
 .app-shell-chat-active .tab-content-area {
@@ -3294,7 +3309,7 @@ body.keyboard-open .chat-overlay-backdrop {
   z-index: 4;
 }
 
-body.chat-tab-active:not(.keyboard-open) .app-shell-chat-active .chat-input-container {
+body:not(.keyboard-open) .app-shell-chat-active .chat-input-container {
   position: fixed;
   left: 0;
   right: 0;
@@ -3303,18 +3318,17 @@ body.chat-tab-active:not(.keyboard-open) .app-shell-chat-active .chat-input-cont
   max-width: min(980px, 100vw);
   z-index: 101;
   padding: 6px 8px;
-  background: var(--footer-glass-bg);
-  backdrop-filter: blur(var(--footer-glass-blur));
-  -webkit-backdrop-filter: blur(var(--footer-glass-blur));
-  isolation: isolate;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   touch-action: pan-x;
 }
 
-body.chat-tab-active:not(.keyboard-open) .app-shell-chat-active .tab-content-area {
+body:not(.keyboard-open) .app-shell-chat-active .tab-content-area {
   padding-bottom: calc(var(--tab-bar-safe-space) + 1px);
 }
 
-body.chat-tab-active:not(.keyboard-open) .app-shell-chat-active .chat-messages {
+body:not(.keyboard-open) .app-shell-chat-active .chat-messages {
   padding-bottom: 8px;
   margin-bottom: 56px;
   scroll-padding-bottom: 56px;
@@ -5630,7 +5644,10 @@ body.keyboard-open.chat-tab-active .app-shell-chat-active .chat-messages {
 }
 
 body.keyboard-open.chat-tab-active {
-  background: var(--chat-mood-active-bg, var(--chat-mood-bg, var(--surface-soft)));
+  background: transparent;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
 }
 
 /* Keyboard-up chat tab: keep one continuous mood backdrop behind composer and keyboard gap. */

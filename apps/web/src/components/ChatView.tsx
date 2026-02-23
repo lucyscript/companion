@@ -384,6 +384,7 @@ export function ChatView({ mood, onMoodChange, onDataMutated }: ChatViewProps): 
   const nextPageRef = useRef(2);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
@@ -491,6 +492,68 @@ export function ChatView({ mood, onMoodChange, onDataMutated }: ChatViewProps): 
         scrollFrameRef.current = null;
       }
 
+    };
+  }, []);
+
+  useEffect(() => {
+    const composer = composerRef.current;
+    if (!composer) {
+      return;
+    }
+
+    let touchStartY: number | null = null;
+
+    const dismissKeyboardIfOpen = (): void => {
+      if (!document.body.classList.contains("keyboard-open")) {
+        return;
+      }
+      const active = document.activeElement;
+      if (active instanceof HTMLElement) {
+        active.blur();
+      }
+    };
+
+    const handleTouchStart = (event: TouchEvent): void => {
+      if (!document.body.classList.contains("keyboard-open")) {
+        touchStartY = null;
+        return;
+      }
+      touchStartY = event.touches[0]?.clientY ?? null;
+    };
+
+    const handleTouchMove = (event: TouchEvent): void => {
+      if (!document.body.classList.contains("keyboard-open") || touchStartY === null) {
+        return;
+      }
+      const nextY = event.touches[0]?.clientY ?? touchStartY;
+      if (nextY - touchStartY > 14) {
+        touchStartY = null;
+        dismissKeyboardIfOpen();
+      }
+    };
+
+    const handleTouchEnd = (): void => {
+      touchStartY = null;
+    };
+
+    const handleWheel = (event: WheelEvent): void => {
+      if (event.deltaY > 6) {
+        dismissKeyboardIfOpen();
+      }
+    };
+
+    composer.addEventListener("touchstart", handleTouchStart, { passive: true });
+    composer.addEventListener("touchmove", handleTouchMove, { passive: true });
+    composer.addEventListener("touchend", handleTouchEnd, { passive: true });
+    composer.addEventListener("touchcancel", handleTouchEnd, { passive: true });
+    composer.addEventListener("wheel", handleWheel, { passive: true });
+
+    return () => {
+      composer.removeEventListener("touchstart", handleTouchStart);
+      composer.removeEventListener("touchmove", handleTouchMove);
+      composer.removeEventListener("touchend", handleTouchEnd);
+      composer.removeEventListener("touchcancel", handleTouchEnd);
+      composer.removeEventListener("wheel", handleWheel);
     };
   }, []);
 
@@ -992,7 +1055,7 @@ export function ChatView({ mood, onMoodChange, onDataMutated }: ChatViewProps): 
 
       {error && <div className="chat-error">{error}</div>}
 
-      <div className="chat-input-container">
+      <div className="chat-input-container" ref={composerRef}>
         {pendingAttachments.length > 0 && (
           <div className="chat-pending-attachments">
             {pendingAttachments.map((attachment) => (

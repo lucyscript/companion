@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ChatFab } from "./components/ChatFab";
 import { ChatTab } from "./components/ChatTab";
 import { ConsentGate } from "./components/ConsentGate";
@@ -399,7 +399,7 @@ export default function App(): JSX.Element {
     setSettingsSection(next.section);
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const isChatActive = activeTab === "chat";
     document.body.classList.toggle("chat-tab-active", isChatActive);
     document.body.dataset.activeTab = activeTab;
