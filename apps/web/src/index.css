@@ -2544,9 +2544,9 @@ button:disabled {
 
 .chat-overlay-backdrop {
   position: fixed;
-  inset: 0 0 var(--tab-bar-safe-space) 0;
-  background: rgba(0, 0, 0, 0.22);
-  z-index: 101;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.16);
+  z-index: 99;
   animation: chat-overlay-fade-in 0.2s ease both;
   -webkit-tap-highlight-color: transparent;
 }
@@ -2560,7 +2560,7 @@ button:disabled {
   position: fixed !important;
   left: 0;
   right: 0;
-  bottom: var(--tab-bar-safe-space);
+  bottom: calc(var(--tab-bar-safe-space) - 1px);
   top: auto;
   height: 50dvh;
   max-height: calc(100dvh - var(--tab-bar-safe-space) - 40px);
@@ -2572,8 +2572,8 @@ button:disabled {
   display: flex !important;
   flex-direction: column;
   background: var(--card);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 /* Header bar at top of overlay with close button */
@@ -2643,8 +2643,8 @@ button:disabled {
   flex-shrink: 0;
   padding: 6px 8px 8px;
   background: var(--card);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   border-top: none;
 }
 
@@ -2656,8 +2656,8 @@ body.keyboard-open .chat-overlay-panel {
   border-radius: 16px 16px 0 0;
   animation: none;
   background: var(--card);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 body.keyboard-open .chat-overlay-panel .chat-view {
@@ -2682,8 +2682,8 @@ body.keyboard-open .chat-overlay-panel .chat-input-container {
 }
 
 body.chat-overlay-active .tab-bar {
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 body.keyboard-open .chat-overlay-panel .chat-messages {
@@ -5547,10 +5547,10 @@ body.keyboard-open .chat-overlay-panel .chat-messages {
 body.keyboard-open.chat-tab-active .app-shell-chat-active .chat-input-container,
 body.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-input-container {
   bottom: 0;
-  padding-bottom: calc(4px + var(--keyboard-gap));
+  padding-bottom: calc(8px + var(--keyboard-gap));
   background: var(--card);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 body.keyboard-open .chat-bubble {
