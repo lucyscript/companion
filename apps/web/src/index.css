@@ -5585,23 +5585,6 @@ body.keyboard-open.chat-tab-active .app-shell-chat-active .chat-input-container 
   background: transparent;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
-  overflow: visible;
-}
-
-body.keyboard-open.chat-tab-active .app-shell-chat-active .chat-input-container::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: -12px;
-  height: 12px;
-  pointer-events: none;
-  background: linear-gradient(
-    to top,
-    rgba(7, 14, 20, 0.22) 0%,
-    rgba(7, 14, 20, 0.08) 56%,
-    rgba(7, 14, 20, 0) 100%
-  );
 }
 
 body.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-input-container {
@@ -5612,8 +5595,8 @@ body.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-input-container
 /* Chat tab keyboard layout: keep messages clear of fixed composer. */
 body.keyboard-open.chat-tab-active .app-shell-chat-active .chat-messages {
   padding-bottom: 8px;
-  margin-bottom: 28px;
-  scroll-padding-bottom: 28px;
+  margin-bottom: 42px;
+  scroll-padding-bottom: 42px;
 }
 
 body.keyboard-open .chat-bubble {
