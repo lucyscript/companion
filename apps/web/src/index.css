@@ -5565,7 +5565,7 @@ body.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-input-container
 }
 
 body.keyboard-open.chat-tab-active .app-shell-chat-active .chat-input-container {
-  bottom: var(--keyboard-gap);
+  bottom: 0;
   padding-bottom: 8px;
   background: var(--footer-glass-bg);
   backdrop-filter: blur(var(--footer-glass-blur));
@@ -5575,6 +5575,11 @@ body.keyboard-open.chat-tab-active .app-shell-chat-active .chat-input-container 
 body.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-input-container {
   bottom: 0;
   padding-bottom: calc(var(--keyboard-gap) + 8px);
+}
+
+/* Chat tab keyboard layout should not depend on inferred keyboard gap. */
+body.keyboard-open.chat-tab-active .app-shell-chat-active .chat-messages {
+  padding-bottom: 88px;
 }
 
 body.keyboard-open .chat-bubble {
