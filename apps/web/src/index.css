@@ -3291,6 +3291,17 @@ body.chat-tab-active:not(.keyboard-open) .app-shell-chat-active .chat-input-cont
   isolation: isolate;
 }
 
+body.chat-tab-active:not(.keyboard-open) .app-shell-chat-active .chat-input-container::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 12px;
+  pointer-events: none;
+  background: linear-gradient(to bottom, var(--footer-glass-bg), rgba(0, 0, 0, 0));
+}
+
 body.chat-tab-active:not(.keyboard-open) .app-shell-chat-active .tab-content-area {
   padding-bottom: 0;
 }
