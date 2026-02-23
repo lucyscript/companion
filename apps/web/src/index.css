@@ -2572,8 +2572,8 @@ button:disabled {
   display: flex !important;
   flex-direction: column;
   background: var(--card);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
 }
 
 /* Header bar at top of overlay with close button */
@@ -2643,8 +2643,8 @@ button:disabled {
   flex-shrink: 0;
   padding: 6px 8px 8px;
   background: var(--card);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border-top: none;
 }
 
@@ -2656,8 +2656,8 @@ body.keyboard-open .chat-overlay-panel {
   border-radius: 16px 16px 0 0;
   animation: none;
   background: var(--card);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
 }
 
 body.keyboard-open .chat-overlay-panel .chat-view {
@@ -2678,12 +2678,14 @@ body.keyboard-open .chat-overlay-panel .chat-input-container {
   z-index: 6;
   padding: 4px 6px 4px;
   border-top: none;
-  background: transparent;
+  background: var(--card);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
 }
 
 body.chat-overlay-active .tab-bar {
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
 }
 
 body.keyboard-open .chat-overlay-panel .chat-messages {
@@ -5507,8 +5509,8 @@ body.keyboard-open .chat-view {
   max-height: var(--app-viewport-height);
   border-radius: 0;
   background: transparent;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   z-index: 1;
 }
 
@@ -5525,7 +5527,9 @@ body.keyboard-open .chat-input-container {
   z-index: 6;
   padding: 4px 6px 4px;
   border-top: none;
-  background: transparent;
+  background: var(--card);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
 }
 
 body.keyboard-open .chat-messages {
@@ -5533,9 +5537,11 @@ body.keyboard-open .chat-messages {
   background: transparent;
 }
 
-/* Keep overlay keyboard surfaces transparent in overlay mode. */
+/* Keep overlay keyboard surfaces on the same glass treatment as footer/composer. */
 body.keyboard-open .chat-overlay-panel .chat-input-container {
-  background: transparent;
+  background: var(--card);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border-top: none;
 }
 
@@ -5546,11 +5552,11 @@ body.keyboard-open .chat-overlay-panel .chat-messages {
 /* Chat tab + quick-chat overlay: extend composer into keyboard gap for continuous backdrop. */
 body.keyboard-open.chat-tab-active .app-shell-chat-active .chat-input-container,
 body.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-input-container {
-  bottom: var(--keyboard-gap);
-  padding-bottom: 8px;
+  bottom: 0;
+  padding-bottom: calc(var(--keyboard-gap) + 8px);
   background: var(--card);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
 }
 
 body.keyboard-open .chat-bubble {
