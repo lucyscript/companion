@@ -2456,6 +2456,14 @@ button:disabled {
   transition: transform 0.22s ease, opacity 0.22s ease, visibility 0.22s ease;
 }
 
+/* iOS can occasionally flatten backdrop-filter in chat-tab mode; force the same glass pipeline. */
+body.chat-tab-active .tab-bar {
+  background: var(--footer-glass-bg);
+  backdrop-filter: blur(var(--footer-glass-blur));
+  -webkit-backdrop-filter: blur(var(--footer-glass-blur));
+  isolation: isolate;
+}
+
 .tab-item {
   display: flex;
   flex-direction: column;
@@ -3280,6 +3288,7 @@ body.chat-tab-active:not(.keyboard-open) .app-shell-chat-active .chat-input-cont
   background: var(--footer-glass-bg);
   backdrop-filter: blur(var(--footer-glass-blur));
   -webkit-backdrop-filter: blur(var(--footer-glass-blur));
+  isolation: isolate;
 }
 
 body.chat-tab-active:not(.keyboard-open) .app-shell-chat-active .tab-content-area {
