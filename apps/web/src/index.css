@@ -2534,7 +2534,7 @@ body:not(.chat-tab-active):not(.keyboard-open) .app-shell {
   height: var(--app-viewport-height);
   min-height: var(--app-viewport-height);
   overflow: hidden;
-  padding-bottom: var(--tab-bar-safe-space);
+  padding: 0 0 var(--tab-bar-safe-space) 0;
 }
 
 body:not(.chat-tab-active):not(.keyboard-open) .tab-content-area {
@@ -2543,7 +2543,11 @@ body:not(.chat-tab-active):not(.keyboard-open) .tab-content-area {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  padding-bottom: 8px;
+  padding:
+    max(20px, calc(20px + env(safe-area-inset-top)))
+    max(20px, calc(20px + env(safe-area-inset-right)))
+    8px
+    max(20px, calc(20px + env(safe-area-inset-left)));
   -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 calc(100% - 24px), transparent 100%);
   mask-image: linear-gradient(to bottom, #000 0%, #000 calc(100% - 24px), transparent 100%);
 }
