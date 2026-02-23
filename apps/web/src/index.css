@@ -5595,8 +5595,10 @@ body.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-input-container
 /* Chat tab keyboard layout: keep messages clear of fixed composer. */
 body.keyboard-open.chat-tab-active .app-shell-chat-active .chat-messages {
   padding-bottom: 8px;
-  margin-bottom: 96px;
-  scroll-padding-bottom: 96px;
+  margin-bottom: 56px;
+  scroll-padding-bottom: 56px;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 calc(100% - 14px), transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 calc(100% - 14px), transparent 100%);
 }
 
 body.keyboard-open .chat-bubble {
