@@ -56,11 +56,17 @@ const schema = z.object({
   GEMINI_USE_LIVE_API: z
     .preprocess((value) => parseBooleanEnv(value), z.boolean())
     .default(true),
-  GEMINI_LIVE_MODEL: z.string().default("gemini-2.5-flash"),
+  GEMINI_LIVE_MODEL: z.string().default("gemini-3-flash-preview"),
+  GEMINI_THINKING_LEVEL: z
+    .preprocess(
+      (value) => (typeof value === "string" ? value.trim().toUpperCase() : value),
+      z.enum(["MINIMAL", "LOW", "MEDIUM", "HIGH"])
+    )
+    .default("MEDIUM"),
   GEMINI_GROWTH_IMAGE_MODEL: z.string().default("nano-banana-pro"),
   GEMINI_LIVE_ENDPOINT: z.string().url().optional(),
   GEMINI_VERTEX_PROJECT_ID: z.string().optional(),
-  GEMINI_VERTEX_LOCATION: z.string().default("us-central1"),
+  GEMINI_VERTEX_LOCATION: z.string().default("global"),
   GOOGLE_SERVICE_ACCOUNT_JSON: z.string().optional(),
   GEMINI_LIVE_TIMEOUT_MS: z.coerce.number().int().min(3000).max(120000).default(60000),
   GROWTH_DAILY_SUMMARY_MIN_REFRESH_MINUTES: z.coerce.number().int().min(30).max(24 * 24).default(180),

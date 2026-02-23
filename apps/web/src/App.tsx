@@ -418,6 +418,27 @@ export default function App(): JSX.Element {
   }, [chatOverlayOpen]);
 
   useEffect(() => {
+    if (!chatOverlayOpen || activeTab === "chat") {
+      return;
+    }
+
+    const scrollOverlayMessagesToBottom = (): void => {
+      const panel = document.querySelector(".chat-overlay-panel");
+      const messages = panel?.querySelector(".chat-messages");
+      if (!(messages instanceof HTMLElement)) {
+        return;
+      }
+      messages.scrollTo({ top: messages.scrollHeight, behavior: "auto" });
+    };
+
+    requestAnimationFrame(scrollOverlayMessagesToBottom);
+    const timer = window.setTimeout(scrollOverlayMessagesToBottom, 140);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [chatOverlayOpen, activeTab]);
+
+  useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }

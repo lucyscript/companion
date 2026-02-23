@@ -66,11 +66,13 @@ describe("config", () => {
     it("should default Gemini Live API settings", async () => {
       delete process.env.GEMINI_USE_LIVE_API;
       delete process.env.GEMINI_LIVE_MODEL;
+      delete process.env.GEMINI_THINKING_LEVEL;
       delete process.env.GEMINI_VERTEX_LOCATION;
       const { config } = await import("./config.js");
       expect(config.GEMINI_USE_LIVE_API).toBe(true);
-      expect(config.GEMINI_LIVE_MODEL).toBe("gemini-2.5-flash");
-      expect(config.GEMINI_VERTEX_LOCATION).toBe("us-central1");
+      expect(config.GEMINI_LIVE_MODEL).toBe("gemini-3-flash-preview");
+      expect(config.GEMINI_THINKING_LEVEL).toBe("MEDIUM");
+      expect(config.GEMINI_VERTEX_LOCATION).toBe("global");
     });
 
     it("should default AUTH_REQUIRED to false outside production", async () => {
@@ -117,6 +119,7 @@ describe("config", () => {
     it("should parse Gemini Live API env vars", async () => {
       process.env.GEMINI_USE_LIVE_API = "false";
       process.env.GEMINI_LIVE_MODEL = "models/custom-live";
+      process.env.GEMINI_THINKING_LEVEL = "high";
       process.env.GEMINI_VERTEX_PROJECT_ID = "vertex-project";
       process.env.GEMINI_VERTEX_LOCATION = "europe-north1";
       process.env.GEMINI_LIVE_TIMEOUT_MS = "30000";
@@ -125,6 +128,7 @@ describe("config", () => {
 
       expect(config.GEMINI_USE_LIVE_API).toBe(false);
       expect(config.GEMINI_LIVE_MODEL).toBe("models/custom-live");
+      expect(config.GEMINI_THINKING_LEVEL).toBe("HIGH");
       expect(config.GEMINI_VERTEX_PROJECT_ID).toBe("vertex-project");
       expect(config.GEMINI_VERTEX_LOCATION).toBe("europe-north1");
       expect(config.GEMINI_LIVE_TIMEOUT_MS).toBe(30000);

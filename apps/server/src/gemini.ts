@@ -125,6 +125,37 @@ export class GeminiClient {
     return true;
   }
 
+  private isGemini3Model(modelName: string): boolean {
+    return /(^|\/)gemini-3/i.test(modelName.trim());
+  }
+
+  private resolveVertexLocationForModel(modelName: string, locationOverride?: string): string {
+    const override = locationOverride?.trim();
+    if (override && override.length > 0) {
+      return override;
+    }
+    const configured = config.GEMINI_VERTEX_LOCATION.trim();
+    if (this.isGemini3Model(modelName)) {
+      return "global";
+    }
+    return configured;
+  }
+
+  private buildThinkingGenerationConfig(modelName: string): Record<string, unknown> | undefined {
+    if (!this.isGemini3Model(modelName)) {
+      return undefined;
+    }
+    const thinkingLevel = config.GEMINI_THINKING_LEVEL;
+    if (!thinkingLevel || thinkingLevel.trim().length === 0) {
+      return undefined;
+    }
+    return {
+      thinking_config: {
+        thinking_level: thinkingLevel
+      }
+    };
+  }
+
   private extractStatusCode(error: unknown): number | undefined {
     if (typeof error === "object" && error !== null) {
       const maybeError = error as { status?: unknown; statusCode?: unknown; code?: unknown };
@@ -150,9 +181,8 @@ export class GeminiClient {
 
   private buildVertexModelNotFoundMessage(errorBody: string, statusText: string): string {
     const base = `Gemini API error (404): ${errorBody || statusText}`;
-    const model = this.liveModelName.trim().toLowerCase();
-    const location = config.GEMINI_VERTEX_LOCATION.trim().toLowerCase();
-    if (model.startsWith("gemini-3") && location !== "global") {
+    const location = this.resolveVertexLocationForModel(this.liveModelName).toLowerCase();
+    if (this.isGemini3Model(this.liveModelName) && location !== "global") {
       return `${base}. Gemini 3 preview models on Vertex require GEMINI_VERTEX_LOCATION=global.`;
     }
     return base;
@@ -177,7 +207,7 @@ export class GeminiClient {
         "GEMINI_VERTEX_PROJECT_ID is required for Vertex Live API when GEMINI_LIVE_MODEL is not a full model resource path."
       );
     }
-    const location = config.GEMINI_VERTEX_LOCATION.trim();
+    const location = this.resolveVertexLocationForModel(trimmed);
     return `projects/${projectId}/locations/${location}/publishers/google/models/${trimmed}`;
   }
 
@@ -197,7 +227,7 @@ export class GeminiClient {
       );
     }
 
-    const location = locationOverride?.trim() || config.GEMINI_VERTEX_LOCATION.trim();
+    const location = this.resolveVertexLocationForModel(trimmed, locationOverride);
     return `projects/${projectId}/locations/${location}/publishers/google/models/${trimmed}`;
   }
 
@@ -213,7 +243,7 @@ export class GeminiClient {
     if (config.GEMINI_LIVE_ENDPOINT) {
       return config.GEMINI_LIVE_ENDPOINT;
     }
-    const location = config.GEMINI_VERTEX_LOCATION.trim();
+    const location = this.resolveVertexLocationForModel(this.liveModelName);
     const host = this.resolveVertexApiHost(location);
     return `wss://${host}/ws/google.cloud.aiplatform.v1.LlmBidiService/BidiGenerateContent`;
   }
@@ -429,6 +459,10 @@ export class GeminiClient {
     const body: Record<string, unknown> = {
       contents
     };
+    const thinkingGenerationConfig = this.buildThinkingGenerationConfig(modelName);
+    if (thinkingGenerationConfig) {
+      body.generation_config = thinkingGenerationConfig;
+    }
     if (request.systemInstruction && request.systemInstruction.trim().length > 0) {
       body.system_instruction = {
         parts: [{ text: request.systemInstruction }]
@@ -683,6 +717,10 @@ export class GeminiClient {
     const body: Record<string, unknown> = {
       contents
     };
+    const thinkingGenerationConfig = this.buildThinkingGenerationConfig(modelName);
+    if (thinkingGenerationConfig) {
+      body.generation_config = thinkingGenerationConfig;
+    }
 
     if (request.systemInstruction && request.systemInstruction.trim().length > 0) {
       body.system_instruction = {
@@ -1188,6 +1226,7 @@ export class GeminiClient {
     const responseModalities = nativeAudioModel ? ["AUDIO"] : ["TEXT"];
     const liveUrl = this.resolveVertexLiveEndpoint();
     const modelName = this.normalizeVertexLiveModelName();
+    const thinkingGenerationConfig = this.buildThinkingGenerationConfig(modelName);
     const wsHeaders: Record<string, string> = {
       Authorization: `Bearer ${await this.getVertexAccessToken()}`
     };
@@ -1296,7 +1335,8 @@ export class GeminiClient {
         setup: {
           model: modelName,
           generation_config: {
-            response_modalities: responseModalities
+            response_modalities: responseModalities,
+            ...(thinkingGenerationConfig ?? {})
           },
           ...(nativeAudioModel ? { output_audio_transcription: {} } : {}),
           ...(request.systemInstruction && request.systemInstruction.trim().length > 0

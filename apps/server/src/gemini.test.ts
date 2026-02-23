@@ -398,7 +398,7 @@ describe("GeminiClient", () => {
       expect(error.name).toBe("RateLimitError");
     });
 
-    it("adds a global-location hint for Gemini 3 preview model 404s", () => {
+    it("does not add global-location hint when Gemini 3 is auto-routed to global", () => {
       const client = new GeminiClient("test-api-key");
       const asInternals = client as unknown as {
         liveModelName: string;
@@ -407,7 +407,7 @@ describe("GeminiClient", () => {
 
       asInternals.liveModelName = "gemini-3-flash-preview";
       const message = asInternals.buildVertexModelNotFoundMessage("model not found", "NOT_FOUND");
-      expect(message).toContain("GEMINI_VERTEX_LOCATION=global");
+      expect(message).not.toContain("GEMINI_VERTEX_LOCATION=global");
     });
   });
 });
