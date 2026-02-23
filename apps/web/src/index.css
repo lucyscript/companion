@@ -5523,16 +5523,19 @@ body.keyboard-open .chat-overlay-panel .chat-input-container {
   border-top: none;
 }
 
-/* In chat tab + schedule quick-chat overlay, avoid double keyboard offset. */
-body.keyboard-open.chat-tab-active .app-shell-chat-active .chat-input-container,
-body.keyboard-open.chat-overlay-active[data-active-tab="schedule"] .chat-overlay-panel .chat-input-container {
-  bottom: 0;
-  padding-bottom: 4px;
-}
-
-body.keyboard-open.chat-tab-active .app-shell-chat-active .chat-messages,
-body.keyboard-open.chat-overlay-active[data-active-tab="schedule"] .chat-overlay-panel .chat-messages {
-  padding-bottom: 72px;
+/* Fill keyboard gap only for full chat tab and schedule quick-chat overlay. */
+body.keyboard-open.chat-tab-active .app-shell-chat-active .chat-input-container::after,
+body.keyboard-open.chat-overlay-active[data-active-tab="schedule"] .chat-overlay-panel .chat-input-container::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: var(--keyboard-gap);
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(7, 14, 20, 0.08) 0%, rgba(7, 14, 20, 0.36) 100%);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 body.keyboard-open .chat-overlay-panel .chat-messages {
