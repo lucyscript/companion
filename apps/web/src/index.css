@@ -3285,7 +3285,7 @@ body.keyboard-open .chat-overlay-backdrop {
 body.chat-tab-active:not(.keyboard-open) .app-shell-chat-active .chat-input-container {
   position: relative;
   bottom: auto;
-  margin-bottom: calc(var(--tab-bar-safe-space) + 1px);
+  margin-bottom: calc(var(--tab-bar-safe-space) + 3px);
   padding: 6px 8px;
   background: var(--footer-glass-bg);
   backdrop-filter: blur(var(--footer-glass-blur));
@@ -5594,7 +5594,9 @@ body.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-input-container
 
 /* Chat tab keyboard layout: keep messages clear of fixed composer. */
 body.keyboard-open.chat-tab-active .app-shell-chat-active .chat-messages {
-  padding-bottom: 96px;
+  padding-bottom: 8px;
+  margin-bottom: 96px;
+  scroll-padding-bottom: 96px;
 }
 
 body.keyboard-open .chat-bubble {
