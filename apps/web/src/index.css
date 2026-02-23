@@ -4,6 +4,8 @@
   --app-viewport-offset-top: 0px;
   --keyboard-gap: 0px;
   --tab-bar-safe-space: max(62px, calc(54px + env(safe-area-inset-bottom)));
+  --footer-glass-bg: var(--card);
+  --footer-glass-blur: 20px;
   --bg: radial-gradient(circle at top right, #1f5a76 0%, #0f1f2f 35%, #091019 100%);
   --card: rgba(255, 255, 255, 0.08);
   --card-border: rgba(255, 255, 255, 0.2);
@@ -2445,9 +2447,9 @@ button:disabled {
   display: flex;
   justify-content: space-around;
   align-items: center;
-  background: var(--card);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: var(--footer-glass-bg);
+  backdrop-filter: blur(var(--footer-glass-blur));
+  -webkit-backdrop-filter: blur(var(--footer-glass-blur));
   padding: 8px 0 max(8px, env(safe-area-inset-bottom));
   z-index: 100;
   box-shadow: none;
@@ -3273,9 +3275,11 @@ body.keyboard-open .chat-overlay-backdrop {
 }
 
 body.chat-tab-active:not(.keyboard-open) .app-shell-chat-active .chat-input-container {
-  background: var(--card);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  bottom: 0;
+  padding-bottom: 8px;
+  background: var(--footer-glass-bg);
+  backdrop-filter: blur(var(--footer-glass-blur));
+  -webkit-backdrop-filter: blur(var(--footer-glass-blur));
 }
 
 .chat-input-row {
@@ -5527,9 +5531,9 @@ body.keyboard-open .chat-input-container {
   z-index: 6;
   padding: 4px 6px 4px;
   border-top: none;
-  background: var(--card);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: var(--footer-glass-bg);
+  backdrop-filter: blur(var(--footer-glass-blur));
+  -webkit-backdrop-filter: blur(var(--footer-glass-blur));
 }
 
 body.keyboard-open .chat-messages {
@@ -5552,11 +5556,28 @@ body.keyboard-open .chat-overlay-panel .chat-messages {
 /* Chat tab + quick-chat overlay: extend composer into keyboard gap for continuous backdrop. */
 body.keyboard-open.chat-tab-active .app-shell-chat-active .chat-input-container,
 body.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-input-container {
+  background: var(--footer-glass-bg);
+  backdrop-filter: blur(var(--footer-glass-blur));
+  -webkit-backdrop-filter: blur(var(--footer-glass-blur));
+}
+
+body.keyboard-open.chat-tab-active .app-shell-chat-active .chat-input-container {
+  bottom: var(--keyboard-gap);
+  padding-bottom: 8px;
+}
+
+body.keyboard-open.chat-tab-active .app-shell-chat-active::after {
+  content: "";
+  position: fixed;
+  left: 0;
+  right: 0;
   bottom: 0;
-  padding-bottom: calc(var(--keyboard-gap) + 8px);
-  background: var(--card);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  height: var(--keyboard-gap);
+  background: var(--footer-glass-bg);
+  backdrop-filter: blur(var(--footer-glass-blur));
+  -webkit-backdrop-filter: blur(var(--footer-glass-blur));
+  pointer-events: none;
+  z-index: 5;
 }
 
 body.keyboard-open .chat-bubble {
