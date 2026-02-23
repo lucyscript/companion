@@ -5588,13 +5588,12 @@ body.keyboard-open.chat-tab-active .app-shell-chat-active .chat-input-container 
   right: 0;
   bottom: 0;
   z-index: 6;
-  padding: 4px 6px calc(var(--keyboard-gap) + 8px);
-  background: var(--chat-mood-active-bg, var(--chat-mood-bg, var(--surface-soft)));
+  padding: 4px 6px 8px;
+  background: transparent;
   border: none;
   box-shadow: none;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
-  transition: background 1.2s ease;
 }
 
 body.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-input-container {
@@ -5617,6 +5616,19 @@ body.keyboard-open.chat-tab-active {
 
 /* Keyboard-up chat tab: keep one continuous mood backdrop behind composer and keyboard gap. */
 body.keyboard-open.chat-tab-active .app-shell-chat-active {
+  background: var(--chat-mood-active-bg, var(--chat-mood-bg, var(--surface-soft)));
+}
+
+/* Fill keyboard-gap region with mood tint without changing composer box height. */
+body.keyboard-open.chat-tab-active::after {
+  content: "";
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--keyboard-gap);
+  pointer-events: none;
+  z-index: 5;
   background: var(--chat-mood-active-bg, var(--chat-mood-bg, var(--surface-soft)));
 }
 
