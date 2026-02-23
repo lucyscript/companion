@@ -38,6 +38,7 @@
   --chat-overlay-panel-bg: linear-gradient(180deg, rgba(7, 14, 20, 0.72) 0%, rgba(7, 14, 20, 0.52) 100%);
   --chat-overlay-header-bg: rgba(7, 14, 20, 0.36);
   --chat-view-surface: rgba(7, 14, 20, 0.26);
+  --chat-mood-active-bg: var(--surface-soft);
 }
 
 :root[data-color-theme="ocean-gold"] {
@@ -5605,7 +5606,7 @@ body.keyboard-open.chat-tab-active .app-shell-chat-active .chat-input-container:
   top: 100%;
   height: max(96px, var(--keyboard-gap));
   pointer-events: none;
-  background: var(--chat-mood-bg, var(--surface-soft));
+  background: var(--chat-mood-active-bg, var(--chat-mood-bg, var(--surface-soft)));
   transition: background 1.2s ease;
 }
 
@@ -5623,9 +5624,13 @@ body.keyboard-open.chat-tab-active .app-shell-chat-active .chat-messages {
   mask-image: linear-gradient(to bottom, #000 0%, #000 calc(100% - 12px), transparent 100%);
 }
 
+body.keyboard-open.chat-tab-active {
+  background: var(--chat-mood-active-bg, var(--chat-mood-bg, var(--surface-soft)));
+}
+
 /* Keyboard-up chat tab: keep one continuous mood backdrop behind composer and keyboard gap. */
 body.keyboard-open.chat-tab-active .app-shell-chat-active {
-  background: var(--chat-mood-bg, var(--surface-soft));
+  background: var(--chat-mood-active-bg, var(--chat-mood-bg, var(--surface-soft)));
 }
 
 body.keyboard-open.chat-tab-active .app-shell-chat-active .tab-content-area,

@@ -85,6 +85,15 @@ const HABITS_MUTATION_TOOLS = new Set([
   "deleteGoal"
 ]);
 
+const CHAT_MOOD_BACKGROUNDS: Record<ChatMood, string> = {
+  neutral: "var(--surface-soft)",
+  encouraging: "linear-gradient(160deg, rgba(125, 211, 168, 0.18) 0%, rgba(125, 211, 168, 0.06) 50%, var(--surface-soft) 85%)",
+  focused: "linear-gradient(160deg, rgba(100, 160, 240, 0.18) 0%, rgba(100, 160, 240, 0.06) 50%, var(--surface-soft) 85%)",
+  celebratory: "linear-gradient(160deg, rgba(246, 195, 127, 0.22) 0%, rgba(125, 211, 168, 0.10) 50%, var(--surface-soft) 100%)",
+  empathetic: "linear-gradient(160deg, rgba(180, 140, 220, 0.18) 0%, rgba(180, 140, 220, 0.06) 50%, var(--surface-soft) 85%)",
+  urgent: "linear-gradient(160deg, rgba(255, 138, 128, 0.18) 0%, rgba(255, 138, 128, 0.06) 50%, var(--surface-soft) 85%)"
+};
+
 function parseApiErrorMessage(error: unknown, fallback: string): string {
   if (!(error instanceof Error)) {
     return fallback;
@@ -231,6 +240,10 @@ export default function App(): JSX.Element {
 
     applyTheme(effectiveTheme);
   }, [planInfo, themePreference]);
+
+  useEffect(() => {
+    document.documentElement.style.setProperty("--chat-mood-active-bg", CHAT_MOOD_BACKGROUNDS[chatMood]);
+  }, [chatMood]);
 
   // Set up background sync listeners
   useEffect(() => {
