@@ -43,9 +43,9 @@
   --chat-overlay-panel-bg: linear-gradient(180deg, rgba(7, 14, 20, 0.58) 0%, rgba(7, 14, 20, 0.4) 100%);
   --chat-overlay-header-bg: rgba(7, 14, 20, 0.24);
   --chat-view-surface: rgba(7, 14, 20, 0.26);
-  --chat-overlay-keyboard-scrim: rgba(8, 18, 30, 0.52);
-  --chat-overlay-keyboard-blur: 10px;
-  --chat-overlay-keyboard-saturate: 112%;
+  --chat-overlay-keyboard-scrim: rgba(6, 14, 24, 0.68);
+  --chat-overlay-keyboard-blur: 14px;
+  --chat-overlay-keyboard-saturate: 104%;
   --chat-mood-active-bg: var(--surface-soft);
 }
 
@@ -2903,6 +2903,10 @@ body:not(.chat-tab-active):not(.keyboard-open) .tab-content-area {
   max-height: none;
 }
 
+.chat-overlay-panel-docked .chat-overlay-header {
+  display: none;
+}
+
 /* Header bar at top of overlay with close button */
 .chat-overlay-header {
   flex-shrink: 0;
@@ -2942,6 +2946,33 @@ body:not(.chat-tab-active):not(.keyboard-open) .tab-content-area {
 .chat-overlay-close-btn:active {
   background: var(--surface);
   color: var(--text);
+}
+
+.chat-overlay-docked-close-btn {
+  position: fixed;
+  top: calc(env(safe-area-inset-top) + 8px);
+  right: max(10px, calc(10px + env(safe-area-inset-right)));
+  z-index: 140;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid var(--border-soft);
+  background: rgba(7, 14, 20, 0.48);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(12px) saturate(104%);
+  -webkit-backdrop-filter: blur(12px) saturate(104%);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.24);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.chat-overlay-docked-close-btn:active {
+  transform: scale(0.92);
+  background: rgba(7, 14, 20, 0.58);
 }
 
 .chat-overlay-panel .chat-tab {
@@ -3016,8 +3047,13 @@ body.ios-touch.keyboard-open.chat-overlay-docked .chat-overlay-panel-docked {
   height: auto;
   transform: none !important;
   background: var(--chat-overlay-keyboard-scrim);
-  backdrop-filter: blur(calc(var(--chat-overlay-keyboard-blur) + 2px)) saturate(var(--chat-overlay-keyboard-saturate));
-  -webkit-backdrop-filter: blur(calc(var(--chat-overlay-keyboard-blur) + 2px)) saturate(var(--chat-overlay-keyboard-saturate));
+  backdrop-filter: blur(var(--chat-overlay-keyboard-blur)) saturate(var(--chat-overlay-keyboard-saturate));
+  -webkit-backdrop-filter: blur(var(--chat-overlay-keyboard-blur)) saturate(var(--chat-overlay-keyboard-saturate));
+}
+
+body.ios-touch.keyboard-open.chat-overlay-docked .chat-overlay-docked-close-btn {
+  top: calc(var(--visual-viewport-offset-top) + env(safe-area-inset-top) + 8px);
+  background: rgba(7, 14, 20, 0.62);
 }
 
 body.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-view {
