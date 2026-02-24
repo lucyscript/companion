@@ -912,10 +912,6 @@ export default function App(): JSX.Element {
   }
 
   const handleOverlayPanelFocus = (): void => {
-    if (isOverlayDocked) {
-      return;
-    }
-
     // When the input inside the overlay gets focus, scroll messages to bottom
     // so the composer remains visible during iOS keyboard animation.
     const scrollOverlayMessages = (): void => {

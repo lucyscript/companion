@@ -2730,20 +2730,25 @@ button:disabled {
   transition: transform 0.22s ease, opacity 0.22s ease, visibility 0.22s ease;
 }
 
-/* Non-chat tabs: keep content above footer and fade it out before it reaches the footer area. */
-body:not(.chat-tab-active):not(.keyboard-open) {
+/* Non-chat tabs: keep content above footer and fade it out before it reaches the footer area.
+   Reuse the same locked-shell layout while docked quick-chat is active so iOS
+   keyboard focus does not push the root page layer. */
+body:not(.chat-tab-active):not(.keyboard-open),
+body.chat-overlay-docked {
   overflow: hidden;
   overscroll-behavior: none;
 }
 
-body:not(.chat-tab-active):not(.keyboard-open) .app-shell {
+body:not(.chat-tab-active):not(.keyboard-open) .app-shell,
+body.chat-overlay-docked .app-shell {
   height: var(--app-viewport-height);
   min-height: var(--app-viewport-height);
   overflow: hidden;
   padding: 0 0 var(--tab-bar-safe-space) 0;
 }
 
-body:not(.chat-tab-active):not(.keyboard-open) .tab-content-area {
+body:not(.chat-tab-active):not(.keyboard-open) .tab-content-area,
+body.chat-overlay-docked .tab-content-area {
   height: 100%;
   min-height: 0;
   overflow-y: auto;
@@ -3144,6 +3149,20 @@ body.chat-overlay-active:not(.keyboard-open) .chat-overlay-panel .chat-messages 
   mask-image: linear-gradient(to bottom, #000 0%, #000 calc(100% - 20px), transparent 100%);
 }
 
+/* Docked chat behaves like iOS Messages: keep the viewport fixed and move only
+   message content/composer relationship, not the root page layer. */
+body.chat-overlay-docked .chat-overlay-panel-docked .chat-messages {
+  margin-bottom: 0 !important;
+  padding-bottom: 56px;
+  scroll-padding-bottom: 56px;
+}
+
+body.keyboard-open.chat-overlay-docked .chat-overlay-panel-docked .chat-messages {
+  margin-bottom: 0 !important;
+  padding-bottom: 72px;
+  scroll-padding-bottom: 72px;
+}
+
 /* Blur all background content when overlay keyboard is open */
 body.keyboard-open.chat-overlay-active .tab-content-area {
   filter: none;
@@ -3152,11 +3171,6 @@ body.keyboard-open.chat-overlay-active .tab-content-area {
 
 body.keyboard-open.chat-overlay-docked .tab-content-area {
   pointer-events: none;
-}
-
-body.chat-overlay-docked .tab-content-area {
-  overflow: hidden !important;
-  overscroll-behavior: none;
 }
 
 /* iOS keyboard accessory chrome can reveal underlying page content through a
