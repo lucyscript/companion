@@ -2970,6 +2970,12 @@ body.keyboard-open.chat-overlay-active .chat-overlay-panel {
   -webkit-backdrop-filter: none;
 }
 
+/* iOS PWA can shift fixed overlays upward when keyboard opens; pull the entire
+   overlay panel down by the measured keyboard gap so composer aligns to keyboard. */
+body.ios-touch.keyboard-open.chat-overlay-active .chat-overlay-panel {
+  bottom: calc(-1 * var(--keyboard-gap));
+}
+
 body.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-view {
   background: transparent;
   backdrop-filter: none;
