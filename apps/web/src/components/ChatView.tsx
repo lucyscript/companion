@@ -557,6 +557,35 @@ export function ChatView({ mood, onMoodChange, onDataMutated }: ChatViewProps): 
     };
   }, []);
 
+  useEffect(() => {
+    const composer = composerRef.current;
+    if (!composer) {
+      return;
+    }
+
+    const handleFocusIn = (): void => {
+      document.body.classList.add("chat-input-focused");
+    };
+
+    const handleFocusOut = (): void => {
+      window.setTimeout(() => {
+        const active = document.activeElement;
+        if (!(active instanceof HTMLElement) || !composer.contains(active)) {
+          document.body.classList.remove("chat-input-focused");
+        }
+      }, 0);
+    };
+
+    composer.addEventListener("focusin", handleFocusIn);
+    composer.addEventListener("focusout", handleFocusOut);
+
+    return () => {
+      composer.removeEventListener("focusin", handleFocusIn);
+      composer.removeEventListener("focusout", handleFocusOut);
+      document.body.classList.remove("chat-input-focused");
+    };
+  }, []);
+
   const startListening = (): void => {
     if (!recognitionCtor) {
       setError("Voice input is not supported in this browser.");

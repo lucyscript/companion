@@ -2952,6 +2952,7 @@ body:not(.chat-tab-active):not(.keyboard-open) .tab-content-area {
 
 /* Keep quick-chat as a bottom sheet when keyboard is open. */
 body.keyboard-open .chat-overlay-panel,
+body.chat-overlay-active.chat-input-focused .chat-overlay-panel,
 body.chat-overlay-active .chat-overlay-panel:focus-within {
   bottom: 0;
   height: min(56dvh, calc(100dvh - 6px));
@@ -2964,6 +2965,7 @@ body.chat-overlay-active .chat-overlay-panel:focus-within {
 }
 
 body.keyboard-open .chat-overlay-panel .chat-view,
+body.chat-overlay-active.chat-input-focused .chat-overlay-panel .chat-view,
 body.chat-overlay-active .chat-overlay-panel:focus-within .chat-view {
   background: transparent;
   backdrop-filter: none;
@@ -2971,11 +2973,13 @@ body.chat-overlay-active .chat-overlay-panel:focus-within .chat-view {
 }
 
 body.keyboard-open .chat-overlay-header,
+body.chat-overlay-active.chat-input-focused .chat-overlay-panel .chat-overlay-header,
 body.chat-overlay-active .chat-overlay-panel:focus-within .chat-overlay-header {
   display: none;
 }
 
 body.keyboard-open .chat-overlay-panel .chat-input-container,
+body.chat-overlay-active.chat-input-focused .chat-overlay-panel .chat-input-container,
 body.chat-overlay-active .chat-overlay-panel:focus-within .chat-input-container {
   position: sticky;
   left: auto;
@@ -2995,6 +2999,7 @@ body.chat-overlay-active .tab-bar {
 }
 
 body.keyboard-open .chat-overlay-panel .chat-messages,
+body.chat-overlay-active.chat-input-focused .chat-overlay-panel .chat-messages,
 body.chat-overlay-active .chat-overlay-panel:focus-within .chat-messages {
   padding-bottom: 8px;
   margin-bottom: 0;
@@ -3010,6 +3015,7 @@ body.keyboard-open.chat-overlay-active .tab-bar {
 }
 
 /* Fallback for iOS states where keyboard-open class lags/misses during overlay input focus. */
+body.chat-overlay-active.chat-input-focused .tab-bar,
 body.chat-overlay-active .chat-overlay-panel:focus-within ~ .tab-bar {
   transform: translateY(130%);
   opacity: 0;
