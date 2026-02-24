@@ -2974,12 +2974,6 @@ body.keyboard-open.chat-overlay-active .chat-overlay-panel {
    overlay panel down by the measured keyboard gap so composer aligns to keyboard. */
 body.ios-touch.keyboard-open.chat-overlay-active .chat-overlay-panel {
   bottom: calc(-1 * var(--keyboard-gap));
-  /* Keyboard-up quick chat on iOS: force matte surfaces so chat/composer
-     no longer look like glass even when theme tokens are semi-transparent. */
-  --card-bg: rgba(8, 18, 30, 0.94);
-  --card: rgba(8, 18, 30, 0.94);
-  --surface: rgba(8, 18, 30, 0.92);
-  --input-bg: rgba(4, 10, 18, 0.94);
 }
 
 body.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-view {
@@ -3065,9 +3059,8 @@ body.keyboard-open.chat-overlay-active .chat-overlay-backdrop {
 /* iOS PWA keyboard can shift fixed overlays upward; extend backdrop into the
    reported keyboard gap so blur remains continuous behind the lifted composer. */
 body.ios-touch.keyboard-open.chat-overlay-active .chat-overlay-backdrop {
-  /* iOS keyboard-up quick chat: remove remaining glass layer so chat body and
-     composer surfaces stay fully transparent. */
-  background: transparent;
+  /* Apply tint only at backdrop level so chat/composer stay untinted. */
+  background: rgba(8, 18, 30, 0.52);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   bottom: calc(-1 * var(--keyboard-gap));
