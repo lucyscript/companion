@@ -2909,7 +2909,7 @@ body.chat-overlay-docked .tab-content-area {
 }
 
 .chat-overlay-panel-docked .chat-messages {
-  justify-content: flex-end;
+  justify-content: flex-start;
 }
 
 .chat-overlay-panel-docked .chat-overlay-header {
@@ -3161,6 +3161,13 @@ body.keyboard-open.chat-overlay-docked .chat-overlay-panel-docked .chat-messages
   margin-bottom: 0 !important;
   padding-bottom: 72px;
   scroll-padding-bottom: 72px;
+}
+
+/* iOS-style bottom anchoring: keep conversation parked near the composer when
+   content is shorter than the viewport, without moving the root page layer. */
+body.chat-overlay-docked .chat-overlay-panel-docked .chat-messages > .chat-bubble:first-of-type,
+body.chat-overlay-docked .chat-overlay-panel-docked .chat-messages > .chat-welcome:first-child {
+  margin-top: auto;
 }
 
 /* Blur all background content when overlay keyboard is open */
