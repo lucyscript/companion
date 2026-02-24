@@ -2954,14 +2954,16 @@ body:not(.chat-tab-active):not(.keyboard-open) .tab-content-area {
 body.keyboard-open .chat-overlay-panel,
 body.chat-overlay-active.chat-input-focused .chat-overlay-panel,
 body.chat-overlay-active .chat-overlay-panel:focus-within {
-  inset: 0;
-  height: 100dvh;
-  max-height: 100dvh;
-  border-radius: 0;
-  border: none;
-  box-shadow: none;
+  inset: auto 0 0 0;
+  height: min(56dvh, calc(100dvh - 6px));
+  max-height: calc(100dvh - 6px);
+  border-radius: 16px 16px 0 0;
+  border: 1px solid var(--card-border);
+  border-bottom: none;
+  box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.45);
   animation: none;
-  background: transparent;
+  transform: none;
+  background: var(--chat-overlay-panel-bg);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
@@ -2986,9 +2988,9 @@ body.chat-overlay-active .chat-overlay-panel:focus-within .chat-input-container 
   position: fixed;
   left: 0;
   right: 0;
-  bottom: 0;
+  bottom: 0 !important;
   z-index: 6;
-  padding: 4px 6px 8px;
+  padding: 4px 6px 0;
   border-top: none;
   background: transparent;
   backdrop-filter: none;
