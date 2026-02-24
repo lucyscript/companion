@@ -3043,6 +3043,12 @@ body.keyboard-open.chat-overlay-active .chat-overlay-backdrop {
   animation: none;
 }
 
+/* iOS PWA keyboard can shift fixed overlays upward; extend backdrop into the
+   reported keyboard gap so blur remains continuous behind the lifted composer. */
+body.ios-touch.keyboard-open.chat-overlay-active .chat-overlay-backdrop {
+  bottom: calc(-1 * var(--keyboard-gap));
+}
+
 @keyframes chat-overlay-slide-up {
   from { transform: translateY(100%); opacity: 0.5; }
   to { transform: translateY(0); opacity: 1; }
