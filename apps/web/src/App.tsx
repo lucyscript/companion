@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ChatFab } from "./components/ChatFab";
 import { ChatTab } from "./components/ChatTab";
 import { ConsentGate } from "./components/ConsentGate";
@@ -930,6 +931,28 @@ export default function App(): JSX.Element {
     setTimeout(scrollOverlayMessages, 400);
   };
 
+  const dockedOverlayPortal = isOverlayDocked && typeof document !== "undefined"
+    ? createPortal(
+        <>
+          <div className="chat-overlay-panel chat-overlay-panel-docked" onFocus={handleOverlayPanelFocus}>
+            <ChatTab mood={chatMood} onMoodChange={handleMoodChange} onDataMutated={handleDataMutated} />
+          </div>
+          <button
+            type="button"
+            className="chat-overlay-docked-close-btn"
+            onClick={closeChatOverlay}
+            aria-label={t("Close chat overlay")}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </>,
+        document.body
+      )
+    : null;
+
   return (
     <main className={`app-shell chat-mood-${chatMood} ${isChatTab ? "app-shell-chat-active" : ""}`}>
       <InstallPrompt />
@@ -987,11 +1010,7 @@ export default function App(): JSX.Element {
           </div>
 
           {/* Chat overlay — docked viewport mode on iOS touch */}
-          {isOverlayDocked && (
-            <div className="chat-overlay-panel chat-overlay-panel-docked" onFocus={handleOverlayPanelFocus}>
-              <ChatTab mood={chatMood} onMoodChange={handleMoodChange} onDataMutated={handleDataMutated} />
-            </div>
-          )}
+          {dockedOverlayPortal}
 
           {/* Chat overlay — floating bottom sheet on non-chat tabs */}
           {chatOverlayOpen && !isChatTab && !isOverlayDocked && (
@@ -1018,20 +1037,6 @@ export default function App(): JSX.Element {
                 <ChatTab mood={chatMood} onMoodChange={handleMoodChange} onDataMutated={handleDataMutated} />
               </div>
             </>
-          )}
-
-          {isOverlayDocked && (
-            <button
-              type="button"
-              className="chat-overlay-docked-close-btn"
-              onClick={closeChatOverlay}
-              aria-label={t("Close chat overlay")}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
           )}
 
           {/* Floating chat button — visible on non-chat tabs when overlay is closed */}
