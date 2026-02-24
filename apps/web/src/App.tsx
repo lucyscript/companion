@@ -290,6 +290,9 @@ export default function App(): JSX.Element {
       const effectiveAppViewportHeight = mobileChatInputFocused ? baselineViewportHeight : viewportHeight;
       root.style.setProperty("--app-viewport-height", `${effectiveAppViewportHeight}px`);
       root.style.setProperty("--app-viewport-offset-top", `${viewportOffsetTop}px`);
+      // Keep raw visual viewport metrics for keyboard-aware overlays.
+      root.style.setProperty("--visual-viewport-height", `${viewportHeight}px`);
+      root.style.setProperty("--visual-viewport-offset-top", `${viewportOffsetTop}px`);
 
       const keyboardGap = Math.max(0, Math.round(window.innerHeight - viewportHeight - viewportOffsetTop));
       const viewportDrop = Math.max(0, baselineViewportHeight - viewportHeight);
@@ -336,6 +339,8 @@ export default function App(): JSX.Element {
       window.visualViewport?.removeEventListener("scroll", updateViewportVars);
       root.style.removeProperty("--app-viewport-height");
       root.style.removeProperty("--app-viewport-offset-top");
+      root.style.removeProperty("--visual-viewport-height");
+      root.style.removeProperty("--visual-viewport-offset-top");
       root.style.removeProperty("--keyboard-gap");
       document.body.classList.remove("keyboard-open");
       document.body.classList.remove("ios-touch");
