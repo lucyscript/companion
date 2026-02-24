@@ -2988,9 +2988,9 @@ body.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-input-container
   touch-action: pan-x;
 }
 
-/* iOS accessory strip sits above the keyboard; drop the composer by its height. */
+/* iOS accessory strip sits above the keyboard; lift composer above it. */
 body.ios-touch.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-input-container {
-  bottom: -44px !important;
+  bottom: 44px !important;
 }
 
 body.chat-overlay-active .tab-bar {
