@@ -143,7 +143,6 @@ export default function App(): JSX.Element {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [upgradeFeatureLabel, setUpgradeFeatureLabel] = useState<string | undefined>(undefined);
   const [chatOverlayOpen, setChatOverlayOpen] = useState(false);
-  const [isIosTouchDevice, setIsIosTouchDevice] = useState(false);
   const seenCriticalNotifications = useRef<Set<string>>(new Set());
   const { planInfo, hasFeature } = usePlan(authState === "ready");
 
@@ -260,7 +259,6 @@ export default function App(): JSX.Element {
     const isIOS =
       /iPad|iPhone|iPod/i.test(navigator.userAgent) ||
       (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-    setIsIosTouchDevice(isIOS);
     document.body.classList.toggle("ios-touch", isIOS);
 
     const hasEditableFocus = (): boolean => {
@@ -420,13 +418,6 @@ export default function App(): JSX.Element {
       document.body.classList.remove("chat-overlay-active");
     };
   }, [chatOverlayOpen]);
-
-  useEffect(() => {
-    if (!isIosTouchDevice || !chatOverlayOpen) {
-      return;
-    }
-    setChatOverlayOpen(false);
-  }, [isIosTouchDevice, chatOverlayOpen]);
 
   useLayoutEffect(() => {
     const tabContent = document.querySelector(".tab-content-area");
@@ -757,15 +748,6 @@ export default function App(): JSX.Element {
     }
   };
 
-  const handleChatFabPress = useCallback((): void => {
-    if (isIosTouchDevice) {
-      closeChatOverlay();
-      setActiveTab("chat");
-      return;
-    }
-    setChatOverlayOpen(true);
-  }, [closeChatOverlay, isIosTouchDevice]);
-
   const openUpgradeModal = useCallback((featureLabel?: string) => {
     setUpgradeFeatureLabel(featureLabel);
     setShowUpgradeModal(true);
@@ -911,8 +893,8 @@ export default function App(): JSX.Element {
             )}
           </div>
 
-          {/* Chat overlay — floating bottom sheet on non-chat tabs (non-iOS). */}
-          {chatOverlayOpen && !isChatTab && !isIosTouchDevice && (
+          {/* Chat overlay — floating bottom sheet on non-chat tabs */}
+          {chatOverlayOpen && !isChatTab && (
             <>
               <div className="chat-overlay-backdrop" onClick={closeChatOverlay} />
               <div
@@ -955,7 +937,7 @@ export default function App(): JSX.Element {
           {/* Floating chat button — visible on non-chat tabs when overlay is closed */}
           <ChatFab
             visible={!isChatTab && !chatOverlayOpen}
-            onClick={handleChatFabPress}
+            onClick={() => setChatOverlayOpen(true)}
           />
 
           {/* Bottom tab bar */}
