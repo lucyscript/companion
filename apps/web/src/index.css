@@ -2988,9 +2988,11 @@ body.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-input-container
   touch-action: pan-x;
 }
 
-/* iOS accessory strip sits above the keyboard; lift composer above it. */
+/* iOS accessory strip sits above the keyboard; reserve that space inside
+   the composer so blur stays continuous down to the keyboard edge. */
 body.ios-touch.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-input-container {
-  bottom: 44px !important;
+  bottom: 0 !important;
+  padding-bottom: calc(8px + 44px);
 }
 
 body.chat-overlay-active .tab-bar {
