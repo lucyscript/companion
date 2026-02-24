@@ -3051,9 +3051,11 @@ body.ios-touch.keyboard-open.chat-overlay-active .chat-overlay-panel:not(.chat-o
 }
 
 body.ios-touch.keyboard-open.chat-overlay-docked .chat-overlay-panel-docked {
-  top: 0;
-  bottom: 0;
-  height: auto;
+  /* Match the visual viewport so iOS does not scroll the page layer when the
+     composer focuses near the bottom (iMessage-style keyboard mechanics). */
+  top: var(--visual-viewport-offset-top);
+  bottom: auto;
+  height: var(--visual-viewport-height);
   transform: none !important;
   background: transparent;
   backdrop-filter: none;
