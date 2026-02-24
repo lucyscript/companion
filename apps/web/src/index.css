@@ -5,7 +5,7 @@
   --visual-viewport-height: 100dvh;
   --visual-viewport-offset-top: 0px;
   --keyboard-gap: 0px;
-  --overlay-composer-offset: 0px;
+  --ios-keyboard-accessory-fill: 52px;
   --tab-bar-safe-space: max(62px, calc(54px + env(safe-area-inset-bottom)));
   --footer-glass-bg: var(--card);
   --footer-glass-blur: 20px;
@@ -2974,6 +2974,7 @@ body.keyboard-open.chat-overlay-active .chat-overlay-panel {
   box-shadow: none;
   animation: none;
   transform: none;
+  overflow: visible;
   background: transparent;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
@@ -3017,9 +3018,22 @@ body.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-input-container
 /* iOS keyboard-up: keep composer flush with keyboard edge to avoid a visible
    floating strip between composer and utility bar. */
 body.ios-touch.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-input-container {
-  bottom: var(--overlay-composer-offset) !important;
+  bottom: 0 !important;
   padding-bottom: 4px;
   background: transparent;
+}
+
+body.ios-touch.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-input-container::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: var(--ios-keyboard-accessory-fill);
+  pointer-events: none;
+  background: var(--chat-overlay-keyboard-scrim);
+  backdrop-filter: blur(var(--chat-overlay-keyboard-blur)) saturate(var(--chat-overlay-keyboard-saturate));
+  -webkit-backdrop-filter: blur(var(--chat-overlay-keyboard-blur)) saturate(var(--chat-overlay-keyboard-saturate));
 }
 
 body.chat-overlay-active .tab-bar {
