@@ -2966,8 +2966,8 @@ body.keyboard-open.chat-overlay-active .chat-overlay-panel {
   animation: none;
   transform: none;
   background: var(--chat-overlay-panel-bg);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
+  backdrop-filter: blur(var(--chat-overlay-keyboard-blur)) saturate(var(--chat-overlay-keyboard-saturate));
+  -webkit-backdrop-filter: blur(var(--chat-overlay-keyboard-blur)) saturate(var(--chat-overlay-keyboard-saturate));
 }
 
 body.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-view {
@@ -2984,7 +2984,7 @@ body.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-input-container
   bottom: 0 !important;
   padding: 4px 6px 8px;
   border-top: none;
-  background: rgba(10, 19, 30, 0.3);
+  background: transparent;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   touch-action: pan-x;
@@ -3048,8 +3048,8 @@ body.keyboard-open.chat-overlay-active .chat-overlay-backdrop {
       rgba(10, 19, 30, 0.34) 0%,
       rgba(10, 19, 30, 0.28) 100%
     );
-  backdrop-filter: blur(var(--chat-overlay-keyboard-blur)) saturate(var(--chat-overlay-keyboard-saturate));
-  -webkit-backdrop-filter: blur(var(--chat-overlay-keyboard-blur)) saturate(var(--chat-overlay-keyboard-saturate));
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   pointer-events: none;
   animation: none;
 }
