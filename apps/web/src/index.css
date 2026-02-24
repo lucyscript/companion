@@ -2952,9 +2952,9 @@ body:not(.chat-tab-active):not(.keyboard-open) .tab-content-area {
 
 /* Keep quick-chat as a bottom sheet when keyboard is open. */
 body.keyboard-open .chat-overlay-panel {
-  bottom: 0;
-  height: min(56dvh, calc(100dvh - 6px));
-  max-height: calc(100dvh - 6px);
+  bottom: var(--keyboard-gap);
+  height: min(56dvh, calc(100dvh - var(--keyboard-gap) - 6px));
+  max-height: calc(100dvh - var(--keyboard-gap) - 6px);
   border-radius: 16px 16px 0 0;
   animation: none;
   background: var(--chat-overlay-panel-bg);
@@ -2973,9 +2973,9 @@ body.keyboard-open .chat-overlay-header {
 }
 
 body.keyboard-open .chat-overlay-panel .chat-input-container {
-  position: fixed;
-  left: 0;
-  right: 0;
+  position: sticky;
+  left: auto;
+  right: auto;
   bottom: 0;
   z-index: 6;
   padding: 6px 8px 8px;
@@ -2991,9 +2991,9 @@ body.chat-overlay-active .tab-bar {
 }
 
 body.keyboard-open .chat-overlay-panel .chat-messages {
-  padding-bottom: 76px;
+  padding-bottom: 8px;
   margin-bottom: 0;
-  scroll-padding-bottom: 76px;
+  scroll-padding-bottom: 12px;
   background: transparent;
 }
 
