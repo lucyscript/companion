@@ -2988,7 +2988,7 @@ body.chat-overlay-active .chat-overlay-panel:focus-within .chat-input-container 
   position: fixed;
   left: 0;
   right: 0;
-  bottom: var(--overlay-composer-lift, 0px) !important;
+  bottom: 0 !important;
   z-index: 6;
   padding: 4px 6px 0;
   border-top: none;
@@ -2996,6 +2996,14 @@ body.chat-overlay-active .chat-overlay-panel:focus-within .chat-input-container 
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   touch-action: pan-x;
+}
+
+/* iOS PWA/Safari keyboard accessory strip (prev/next/done) sits above the keyboard.
+   Keep quick overlay composer above that strip consistently across tabs. */
+body.ios-touch.keyboard-open .chat-overlay-panel .chat-input-container,
+body.ios-touch.chat-overlay-active.chat-input-focused .chat-overlay-panel .chat-input-container,
+body.ios-touch.chat-overlay-active .chat-overlay-panel:focus-within .chat-input-container {
+  bottom: 44px !important;
 }
 
 body.chat-overlay-active .tab-bar {
