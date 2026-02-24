@@ -426,6 +426,45 @@ export default function App(): JSX.Element {
     };
   }, [chatOverlayOpen]);
 
+  useLayoutEffect(() => {
+    if (!chatOverlayOpen || activeTab === "chat") {
+      return;
+    }
+
+    const body = document.body;
+    const root = document.documentElement;
+    const scrollY = window.scrollY;
+
+    const previousBodyPosition = body.style.position;
+    const previousBodyTop = body.style.top;
+    const previousBodyLeft = body.style.left;
+    const previousBodyRight = body.style.right;
+    const previousBodyWidth = body.style.width;
+    const previousBodyOverflow = body.style.overflow;
+    const previousRootOverflow = root.style.overflow;
+
+    // iOS can scroll the layout viewport when an input is focused inside a
+    // fixed overlay. Lock root scrolling to keep overlay geometry stable.
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.left = "0";
+    body.style.right = "0";
+    body.style.width = "100%";
+    body.style.overflow = "hidden";
+    root.style.overflow = "hidden";
+
+    return () => {
+      body.style.position = previousBodyPosition;
+      body.style.top = previousBodyTop;
+      body.style.left = previousBodyLeft;
+      body.style.right = previousBodyRight;
+      body.style.width = previousBodyWidth;
+      body.style.overflow = previousBodyOverflow;
+      root.style.overflow = previousRootOverflow;
+      window.scrollTo({ top: scrollY, behavior: "auto" });
+    };
+  }, [activeTab, chatOverlayOpen]);
+
   useEffect(() => {
     if (!chatOverlayOpen) {
       overlayLaunchSourceTabRef.current = null;

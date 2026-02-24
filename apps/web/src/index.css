@@ -223,6 +223,11 @@ body.chat-tab-active {
   overscroll-behavior: none;
 }
 
+body.chat-overlay-active {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 .app-shell {
   max-width: 980px;
   margin: 0 auto;
@@ -2980,12 +2985,12 @@ body.keyboard-open.chat-overlay-active .chat-overlay-panel {
   --chat-mood-bg: transparent;
 }
 
-/* iOS keyboard behavior is tied to visual viewport geometry; pin overlay frame
-   to the measured visual viewport instead of offset hacks against layout viewport. */
+/* iOS keyboard behavior splits visual/layout viewport. Keep overlay extended to
+   layout bottom and place composer using measured keyboard gap. */
 body.ios-touch.keyboard-open.chat-overlay-active .chat-overlay-panel {
   top: var(--visual-viewport-offset-top);
-  height: var(--visual-viewport-height);
-  bottom: auto;
+  bottom: 0;
+  height: auto;
 }
 
 body.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-view {
@@ -3011,7 +3016,7 @@ body.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-input-container
 /* iOS keyboard-up: keep composer flush with keyboard edge to avoid a visible
    floating strip between composer and utility bar. */
 body.ios-touch.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-input-container {
-  bottom: 0 !important;
+  bottom: var(--keyboard-gap) !important;
   padding-bottom: 4px;
   background: transparent;
 }
@@ -3070,8 +3075,8 @@ body.keyboard-open.chat-overlay-active .chat-overlay-backdrop {
 
 body.ios-touch.keyboard-open.chat-overlay-active .chat-overlay-backdrop {
   top: var(--visual-viewport-offset-top);
-  height: var(--visual-viewport-height);
-  bottom: auto;
+  bottom: 0;
+  height: auto;
 }
 
 body.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-bubble-assistant .chat-bubble-content,
