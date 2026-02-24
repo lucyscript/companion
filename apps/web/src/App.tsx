@@ -418,6 +418,34 @@ export default function App(): JSX.Element {
   }, [chatOverlayOpen]);
 
   useEffect(() => {
+    const tabContent = document.querySelector(".tab-content-area");
+    const tabBar = document.querySelector(".tab-bar");
+    if (!(tabContent instanceof HTMLElement) || !(tabBar instanceof HTMLElement)) {
+      return;
+    }
+
+    const shouldIsolateOverlay = chatOverlayOpen && activeTab !== "chat";
+    if (shouldIsolateOverlay) {
+      tabContent.setAttribute("inert", "");
+      tabContent.setAttribute("aria-hidden", "true");
+      tabBar.setAttribute("inert", "");
+      tabBar.setAttribute("aria-hidden", "true");
+    } else {
+      tabContent.removeAttribute("inert");
+      tabContent.removeAttribute("aria-hidden");
+      tabBar.removeAttribute("inert");
+      tabBar.removeAttribute("aria-hidden");
+    }
+
+    return () => {
+      tabContent.removeAttribute("inert");
+      tabContent.removeAttribute("aria-hidden");
+      tabBar.removeAttribute("inert");
+      tabBar.removeAttribute("aria-hidden");
+    };
+  }, [chatOverlayOpen, activeTab]);
+
+  useEffect(() => {
     if (!chatOverlayOpen || activeTab === "chat") {
       return;
     }
