@@ -10,6 +10,7 @@
   --footer-glass-blur: 20px;
   --bg: radial-gradient(circle at top right, #1f5a76 0%, #0f1f2f 35%, #091019 100%);
   --bg-solid: #091019;
+  --bg-keyboard: #0c1824;
   --card: rgba(255, 255, 255, 0.08);
   --card-bg: linear-gradient(148deg, rgba(24, 53, 78, 0.86), rgba(8, 24, 38, 0.9));
   --card-border: rgba(255, 255, 255, 0.2);
@@ -56,6 +57,7 @@
 :root[data-color-theme="ocean-gold"] {
   --bg: radial-gradient(circle at top right, #1f5a76 0%, #0f1f2f 35%, #091019 100%);
   --bg-solid: #091019;
+  --bg-keyboard: #0c1824;
   --card: rgba(255, 255, 255, 0.08);
   --card-bg: linear-gradient(148deg, rgba(24, 53, 78, 0.86), rgba(8, 24, 38, 0.9));
   --card-border: rgba(255, 255, 255, 0.2);
@@ -94,6 +96,7 @@
 :root[data-color-theme="emerald-dusk"] {
   --bg: radial-gradient(circle at top right, #165954 0%, #0e2227 40%, #081015 100%);
   --bg-solid: #081015;
+  --bg-keyboard: #0b191e;
   --card: rgba(232, 249, 245, 0.08);
   --card-bg: linear-gradient(148deg, rgba(20, 64, 58, 0.86), rgba(8, 32, 30, 0.9));
   --card-border: rgba(190, 237, 223, 0.22);
@@ -132,6 +135,7 @@
 :root[data-color-theme="sunset-indigo"] {
   --bg: radial-gradient(circle at top right, #4a2f67 0%, #181025 42%, #0c0b14 100%);
   --bg-solid: #0c0b14;
+  --bg-keyboard: #12101d;
   --card: rgba(244, 234, 255, 0.08);
   --card-bg: linear-gradient(148deg, rgba(49, 36, 78, 0.86), rgba(20, 14, 32, 0.9));
   --card-border: rgba(225, 198, 255, 0.24);
@@ -171,6 +175,7 @@
   color-scheme: light;
   --bg: radial-gradient(circle at top right, #e2ecff 0%, #f7f9fd 45%, #ffffff 100%);
   --bg-solid: #ffffff;
+  --bg-keyboard: #f0f4fc;
   --card: rgba(255, 255, 255, 0.9);
   --card-bg: linear-gradient(150deg, rgba(255, 255, 255, 0.98), rgba(239, 246, 255, 0.94));
   --card-border: rgba(15, 23, 42, 0.12);
@@ -237,12 +242,16 @@ html {
   min-height: 100vh;
 }
 
-/* Keyboard-up: switch from fixed → scroll so the gradient sizes to the
-   html element (min-height: 100vh = full layout viewport) instead of the
-   visual viewport (which shrinks when the keyboard opens on iOS).
-   background-size stays 100% 100% from the base rule — no color shift. */
+/* Keyboard-up: the html radial gradient darkens from top-right to bottom-left.
+   With any attachment mode, the lower screen (void) shows a darker gradient
+   portion than the upper screen (chat), creating a visible tint mismatch
+   through the glass panels. Fix: flatten the gradient to a uniform base by
+   switching background-image to just the mood tint over a solid mid-tone.
+   The panel's backdrop-filter still provides visual depth; the gradient
+   returns instantly when the keyboard closes. */
 html:has(body.keyboard-open) {
-  background-attachment: scroll;
+  background-image: var(--chat-mood-active-bg, none);
+  background-color: var(--bg-keyboard, var(--bg-solid, #091019));
 }
 
 body.chat-tab-active {
