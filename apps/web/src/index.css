@@ -3384,6 +3384,11 @@ body.chat-overlay-docked .chat-overlay-backdrop {
   overflow: hidden;
   position: relative;
   transition: background 1.2s ease;
+  opacity: 0;
+}
+
+.chat-view--ready {
+  opacity: 1;
 }
 
 /* Chat tab: html provides the mood bg; make chat-view transparent

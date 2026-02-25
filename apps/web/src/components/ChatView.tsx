@@ -918,7 +918,7 @@ export function ChatView({ mood, onMoodChange, onDataMutated }: ChatViewProps): 
   }, [mood]);
 
   return (
-    <div className="chat-view">
+    <div className={`chat-view${historyLoaded ? " chat-view--ready" : ""}`}>
       <MoodBurst mood={burstMood} />
       <div className="chat-messages" ref={messagesContainerRef}>
         {hasMore && (
