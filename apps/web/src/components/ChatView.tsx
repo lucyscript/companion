@@ -150,6 +150,17 @@ function citationTypeLabel(type: ChatCitation["type"]): string {
   }
 }
 
+/** Deduplicate citations by type+label, keeping first occurrence */
+function deduplicateCitations(citations: ChatCitation[]): ChatCitation[] {
+  const seen = new Set<string>();
+  return citations.filter((c) => {
+    const key = `${c.type}::${formatCitationChipLabel(c)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function renderInlineMarkdown(text: string): ReactNode[] {
   const nodes: ReactNode[] = [];
   const tokenPattern = /(\*\*[^*\n]+?\*\*|\*[^*\n]+?\*)/g;
@@ -818,6 +829,9 @@ export function ChatView({ mood, onMoodChange, onDataMutated }: ChatViewProps): 
       );
       if (response.executedTools?.length) {
         onDataMutated?.(response.executedTools);
+      } else {
+        // Fire with empty array so plan usage counter refreshes even without tool calls
+        onDataMutated?.([]);
       }
     } catch (err) {
       const errorMessage =
@@ -1010,7 +1024,7 @@ export function ChatView({ mood, onMoodChange, onDataMutated }: ChatViewProps): 
         {messages.map((msg) => {
           const attachments = msg.metadata?.attachments ?? [];
           const hasAttachments = attachments.length > 0;
-          const citations = msg.metadata?.citations ?? [];
+          const citations = deduplicateCitations(msg.metadata?.citations ?? []);
           const pendingActions = msg.metadata?.pendingActions ?? [];
 
           return (

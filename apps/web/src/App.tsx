@@ -148,7 +148,7 @@ export default function App(): JSX.Element {
   const overlayLaunchSourceTabRef = useRef<TabId | null>(null);
   const overlayLaunchGuardUntilRef = useRef(0);
   const seenCriticalNotifications = useRef<Set<string>>(new Set());
-  const { planInfo, hasFeature } = usePlan(authState === "ready");
+  const { planInfo, hasFeature, refresh: refreshPlan } = usePlan(authState === "ready");
   const isChatTab = activeTab === "chat";
   const isOverlayDocked = chatOverlayOpen && !isChatTab && isIosTouchDevice;
 
@@ -853,7 +853,9 @@ export default function App(): JSX.Element {
     if (tools.some((tool) => HABITS_MUTATION_TOOLS.has(tool))) {
       setHabitsRevision((r) => r + 1);
     }
-  }, []);
+    // Refresh plan info after every AI response so the daily usage counter stays current
+    refreshPlan();
+  }, [refreshPlan]);
 
   const handleLogout = async (): Promise<void> => {
     setAuthSubmitting(true);
