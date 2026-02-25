@@ -46,6 +46,10 @@
   --chat-overlay-keyboard-blur: 14px;
   --chat-overlay-keyboard-saturate: 104%;
   --chat-mood-active-bg: var(--surface-soft);
+  /* Solid equivalent of --chat-overlay-keyboard-scrim composited over
+     the dark body background (#091019). Used for html/body to fill any
+     void between the overlay panel and the iOS keyboard/utility bar. */
+  --ios-keyboard-void-fill: #070F18;
 }
 
 :root[data-color-theme="ocean-gold"] {
@@ -216,6 +220,18 @@ html {
   background-repeat: no-repeat;
   background-size: 100% 100%;
   transition: background 1.2s ease;
+}
+
+/* When the iOS keyboard is up with the chat overlay, fill any void between the
+   panel bottom and the keyboard/utility bar with a solid colour that matches
+   the overlay scrim appearance. `:has()` targets html from body classes. */
+html:has(body.ios-touch.keyboard-open.chat-overlay-active) {
+  background: var(--ios-keyboard-void-fill, #070F18) !important;
+  transition: none !important;
+}
+
+body.ios-touch.keyboard-open.chat-overlay-active {
+  background: var(--ios-keyboard-void-fill, #070F18) !important;
 }
 
 body.chat-tab-active {

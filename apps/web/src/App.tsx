@@ -317,6 +317,16 @@ export default function App(): JSX.Element {
       root.style.setProperty("--keyboard-gap", `${effectiveKeyboardGap}px`);
 
       document.body.classList.toggle("keyboard-open", keyboardOpen);
+
+      // iOS PWA: when keyboard is open with chat overlay, paint html/body bg
+      // to match the overlay scrim. Eliminates the black void between the
+      // panel bottom and the iOS keyboard/utility bar.
+      if (keyboardOpen && isIOS && chatOverlayActive) {
+        const voidFill = getComputedStyle(root).getPropertyValue("--ios-keyboard-void-fill").trim() || "#070F18";
+        root.style.setProperty("background", voidFill, "important");
+      } else {
+        root.style.removeProperty("background");
+      }
     };
 
     const handleFocusEvent = (): void => {
@@ -348,6 +358,7 @@ export default function App(): JSX.Element {
       root.style.removeProperty("--visual-viewport-height");
       root.style.removeProperty("--visual-viewport-offset-top");
       root.style.removeProperty("--keyboard-gap");
+      root.style.removeProperty("background");
       document.body.classList.remove("keyboard-open");
       document.body.classList.remove("ios-touch");
       setIsIosTouchDevice(false);
@@ -692,6 +703,8 @@ export default function App(): JSX.Element {
     document.body.classList.remove("chat-input-focused");
     document.body.classList.remove("keyboard-open");
     document.documentElement.style.setProperty("--keyboard-gap", "0px");
+    // Clear void-fill background override
+    document.documentElement.style.removeProperty("background");
 
     const tabContent = document.querySelector(".tab-content-area");
     const tabBar = document.querySelector(".tab-bar");
