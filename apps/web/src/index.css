@@ -215,16 +215,26 @@ body {
 }
 
 html {
-  background: var(--chat-mood-active-bg, #091019);
+  /* Layer mood tint over the base gradient so the mood colour is always
+     visible -- including in the iOS keyboard void area. The mood values are
+     semi-transparent, so they need --bg underneath to look correct. */
+  background:
+    var(--chat-mood-active-bg, transparent),
+    var(--bg, #091019);
   background-attachment: fixed;
   background-repeat: no-repeat;
   background-size: 100% 100%;
   transition: background 1.2s ease;
 }
 
-/* When the iOS keyboard is up with the chat overlay, fill any void between the
-   panel bottom and the keyboard/utility bar with a solid colour that matches
-   the overlay scrim appearance. `:has()` targets html from body classes. */
+/* iOS keyboard void fill — paint html/body so the area behind the keyboard
+   (between visual viewport bottom and actual keyboard top) matches the UI.
+
+   For the chat tab: html already layers mood-tint + --bg, so the void
+   naturally shows the correct mood background. No override needed.
+
+   For the chat overlay: override to solid scrim colour so the gap blends
+   with the translucent overlay panel. */
 html:has(body.ios-touch.keyboard-open.chat-overlay-active) {
   background: var(--ios-keyboard-void-fill, #070F18) !important;
   transition: none !important;

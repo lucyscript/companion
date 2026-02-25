@@ -318,9 +318,9 @@ export default function App(): JSX.Element {
 
       document.body.classList.toggle("keyboard-open", keyboardOpen);
 
-      // iOS PWA: when keyboard is open with chat overlay, paint html/body bg
-      // to match the overlay scrim. Eliminates the black void between the
-      // panel bottom and the iOS keyboard/utility bar.
+      // iOS PWA: paint html bg so the area behind the keyboard matches the UI.
+      // For chat overlays, override to solid scrim; for chat tab, html default
+      // (mood-tint + --bg) already handles it.
       if (keyboardOpen && isIOS && chatOverlayActive) {
         const voidFill = getComputedStyle(root).getPropertyValue("--ios-keyboard-void-fill").trim() || "#070F18";
         root.style.setProperty("background", voidFill, "important");
