@@ -3084,7 +3084,7 @@ body.keyboard-open .chat-overlay-docked-close-btn {
   height: 100%;
   max-height: 100%;
   border-radius: 0;
-  background: transparent;
+  background: transparent !important;
 }
 
 .chat-overlay-panel .chat-messages {
@@ -3173,7 +3173,7 @@ body.ios-touch.keyboard-open.chat-overlay-docked .chat-overlay-docked-close-btn 
    Bubbles and surfaces keep their normal appearance for consistency. */
 
 body.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-view {
-  background: transparent;
+  background: transparent !important;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
@@ -6166,7 +6166,7 @@ body.keyboard-open .chat-view {
 
 /* Override: overlay chat-view stays transparent even with keyboard open */
 body.keyboard-open .chat-overlay-panel .chat-view {
-  background: transparent;
+  background: transparent !important;
 }
 
 body.keyboard-open .chat-overlay-panel .chat-messages {
@@ -9199,13 +9199,13 @@ label small.muted {
 .chat-bubble-assistant .chat-bubble-content {
   background: rgba(255, 255, 255, 0.06);
   border-color: var(--card-border);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
 .chat-bubble-user .chat-bubble-content {
   background: linear-gradient(145deg, rgba(246, 195, 127, 0.36), rgba(223, 166, 78, 0.3));
   border-color: rgba(246, 195, 127, 0.5);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
