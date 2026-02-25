@@ -109,6 +109,40 @@ function formatCitationChipLabel(citation: ChatCitation): string {
   return label.length > 56 ? `${label.slice(0, 56)}...` : label;
 }
 
+function citationIcon(type: ChatCitation["type"]): string {
+  switch (type) {
+    case "schedule": return "📅";
+    case "deadline": return "🎯";
+    case "habit": return "💪";
+    case "goal": return "⭐";
+    case "nutrition-meal":
+    case "nutrition-custom-food": return "🍽️";
+    case "email": return "✉️";
+    case "withings-weight": return "⚖️";
+    case "withings-sleep": return "😴";
+    case "github-course-doc": return "📂";
+    case "web-search": return "🔍";
+    default: return "📎";
+  }
+}
+
+function citationTypeLabel(type: ChatCitation["type"]): string {
+  switch (type) {
+    case "schedule": return "Schedule";
+    case "deadline": return "Deadline";
+    case "habit": return "Habit";
+    case "goal": return "Goal";
+    case "nutrition-meal":
+    case "nutrition-custom-food": return "Food";
+    case "email": return "Email";
+    case "withings-weight": return "Weight";
+    case "withings-sleep": return "Sleep";
+    case "github-course-doc": return "Course";
+    case "web-search": return "Web";
+    default: return "Source";
+  }
+}
+
 function renderInlineMarkdown(text: string): ReactNode[] {
   const nodes: ReactNode[] = [];
   const tokenPattern = /(\*\*[^*\n]+?\*\*|\*[^*\n]+?\*)/g;
@@ -996,57 +1030,79 @@ export function ChatView({ mood, onMoodChange, onDataMutated }: ChatViewProps): 
               </div>
               {msg.role === "assistant" && !msg.streaming && citations.length > 0 && (
                 <div className="chat-citation-list" role="list" aria-label="Message citations">
-                  {citations.length === 1 ? (
-                    <button
-                      key={`${citations[0]!.type}-${citations[0]!.id}`}
-                      type="button"
-                      className="chat-citation-chip"
-                      onClick={() => handleCitationClick(citations[0]!)}
-                      title={citations[0]!.label}
-                    >
-                      {formatCitationChipLabel(citations[0]!)}
-                    </button>
+                  <span className="chat-citation-label">Sources</span>
+                  {citations.length <= 3 ? (
+                    citations.map((citation) => (
+                      <button
+                        key={`${citation.type}-${citation.id}`}
+                        type="button"
+                        className={`chat-citation-chip chat-citation-type-${citation.type}`}
+                        onClick={() => handleCitationClick(citation)}
+                        title={citation.label}
+                      >
+                        <span className="chat-citation-icon" aria-hidden="true">{citationIcon(citation.type)}</span>
+                        <span className="chat-citation-text">
+                          <span className="chat-citation-type">{citationTypeLabel(citation.type)}</span>
+                          <span className="chat-citation-name">{formatCitationChipLabel(citation)}</span>
+                        </span>
+                      </button>
+                    ))
                   ) : (
                     <div className="chat-citation-stack">
                       {!expandedCitationMessageIds.has(msg.id) && (
-                        <button
-                          type="button"
-                          className="chat-citation-stack-chip"
-                          onClick={() => toggleCitationStack(msg.id)}
-                          title={citations.map((citation) => citation.label).join("\n")}
-                          aria-expanded={false}
-                          aria-label={`Show ${citations.length} citations`}
-                        >
-                          <span className="chat-citation-stack-layer chat-citation-stack-layer-back" aria-hidden="true" />
-                          <span className="chat-citation-stack-layer chat-citation-stack-layer-mid" aria-hidden="true" />
-                          <span className="chat-citation-stack-layer chat-citation-stack-layer-front">
-                            {formatCitationChipLabel(citations[0]!)}
-                          </span>
-                          <span className="chat-citation-stack-count">+{citations.length - 1}</span>
-                        </button>
-                      )}
-                      {expandedCitationMessageIds.has(msg.id) && (
-                        <div className="chat-citation-stack-menu" role="list" aria-label="Expanded citations">
-                          {citations.map((citation) => (
+                        <>
+                          {citations.slice(0, 2).map((citation) => (
                             <button
                               key={`${citation.type}-${citation.id}`}
                               type="button"
-                              className="chat-citation-chip"
+                              className={`chat-citation-chip chat-citation-type-${citation.type}`}
                               onClick={() => handleCitationClick(citation)}
                               title={citation.label}
                             >
-                              {formatCitationChipLabel(citation)}
+                              <span className="chat-citation-icon" aria-hidden="true">{citationIcon(citation.type)}</span>
+                              <span className="chat-citation-text">
+                                <span className="chat-citation-type">{citationTypeLabel(citation.type)}</span>
+                                <span className="chat-citation-name">{formatCitationChipLabel(citation)}</span>
+                              </span>
                             </button>
                           ))}
                           <button
                             type="button"
-                            className="chat-citation-chip chat-citation-collapse"
+                            className="chat-citation-more"
                             onClick={() => toggleCitationStack(msg.id)}
-                            aria-label="Collapse citations"
+                            aria-expanded={false}
+                            aria-label={`Show ${citations.length - 2} more citations`}
                           >
-                            Collapse
+                            +{citations.length - 2} more
                           </button>
-                        </div>
+                        </>
+                      )}
+                      {expandedCitationMessageIds.has(msg.id) && (
+                        <>
+                          {citations.map((citation) => (
+                            <button
+                              key={`${citation.type}-${citation.id}`}
+                              type="button"
+                              className={`chat-citation-chip chat-citation-type-${citation.type}`}
+                              onClick={() => handleCitationClick(citation)}
+                              title={citation.label}
+                            >
+                              <span className="chat-citation-icon" aria-hidden="true">{citationIcon(citation.type)}</span>
+                              <span className="chat-citation-text">
+                                <span className="chat-citation-type">{citationTypeLabel(citation.type)}</span>
+                                <span className="chat-citation-name">{formatCitationChipLabel(citation)}</span>
+                              </span>
+                            </button>
+                          ))}
+                          <button
+                            type="button"
+                            className="chat-citation-more"
+                            onClick={() => toggleCitationStack(msg.id)}
+                            aria-label="Show fewer citations"
+                          >
+                            Show less
+                          </button>
+                        </>
                       )}
                     </div>
                   )}
