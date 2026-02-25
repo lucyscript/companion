@@ -12,15 +12,6 @@ interface DayTimelineSegment {
   suggestion?: string;
 }
 
-interface DayTrackEventSegment {
-  id: string;
-  startPercent: number;
-  widthPercent: number;
-}
-
-const DAY_TOTAL_MINUTES = 24 * 60;
-const DAY_TRACK_TICKS = [0, 6, 12, 18, 24];
-
 function isSameLocalDate(left: Date, right: Date): boolean {
   return (
     left.getFullYear() === right.getFullYear() &&
@@ -49,20 +40,6 @@ function dayOffsetFromToday(targetDate: Date): number {
   const today = startOfDay(new Date());
   const target = startOfDay(targetDate);
   return Math.round((target.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
-}
-
-function minuteOfDay(value: Date): number {
-  return value.getHours() * 60 + value.getMinutes();
-}
-
-function toDayTrackPosition(start: Date, end: Date): { startPercent: number; widthPercent: number } {
-  const startMinutes = Math.max(0, Math.min(DAY_TOTAL_MINUTES, minuteOfDay(start)));
-  const rawEnd = Math.max(startMinutes + 5, Math.min(DAY_TOTAL_MINUTES, minuteOfDay(end)));
-  const endMinutes = rawEnd <= startMinutes ? Math.min(DAY_TOTAL_MINUTES, startMinutes + 30) : rawEnd;
-  return {
-    startPercent: (startMinutes / DAY_TOTAL_MINUTES) * 100,
-    widthPercent: Math.max(1.2, ((endMinutes - startMinutes) / DAY_TOTAL_MINUTES) * 100)
-  };
 }
 
 function formatDuration(minutes: number): string {
@@ -416,22 +393,7 @@ export function ScheduleView({ focusLectureId }: ScheduleViewProps): JSX.Element
     day: "numeric"
   });
   const now = new Date();
-  const nowPercent = Math.max(0, Math.min(100, (minuteOfDay(now) / DAY_TOTAL_MINUTES) * 100));
   const nowLabel = now.toLocaleTimeString(localeTag, { hour: "2-digit", minute: "2-digit", hour12: false });
-  const nowNearDayTrackEdge = nowPercent > 88;
-  const dayTrackSegments: DayTrackEventSegment[] = dayBlocks.map((block, index) => {
-    const startDate = new Date(block.startTime);
-    const endDate = new Date(startDate.getTime() + block.durationMinutes * 60000);
-    const startMinutes = Math.max(0, Math.min(DAY_TOTAL_MINUTES, minuteOfDay(startDate)));
-    const endMinutes = Math.max(startMinutes + 5, Math.min(DAY_TOTAL_MINUTES, minuteOfDay(endDate)));
-    const startPercent = (startMinutes / DAY_TOTAL_MINUTES) * 100;
-    const widthPercent = Math.max(1, ((endMinutes - startMinutes) / DAY_TOTAL_MINUTES) * 100);
-    return {
-      id: `${block.id}-${index}`,
-      startPercent,
-      widthPercent
-    };
-  });
 
   const navigateDay = (delta: number): void => {
     if (delta === 0) {
@@ -565,51 +527,6 @@ export function ScheduleView({ focusLectureId }: ScheduleViewProps): JSX.Element
           dayTransitionDirection ? `schedule-day-surface-${dayTransitionDirection}` : ""
         }`}
       >
-        {/* Day overview track */}
-        <div className="schedule-day-track-wrap">
-          <div className="schedule-day-track">
-            {isReferenceToday && (
-              <span
-                className="schedule-day-track-progress"
-                style={{ width: `${nowPercent}%` }}
-                aria-hidden="true"
-              />
-            )}
-            {DAY_TRACK_TICKS.map((tickHour) => (
-              <span
-                key={`tick-${tickHour}`}
-                className="schedule-day-track-tick"
-                style={{ left: `${(tickHour / 24) * 100}%` }}
-                aria-hidden="true"
-              />
-            ))}
-            {dayTrackSegments.map((segment) => (
-              <span
-                key={segment.id}
-                className="schedule-day-track-event"
-                style={{ left: `${segment.startPercent}%`, width: `${segment.widthPercent}%` }}
-                aria-hidden="true"
-              />
-            ))}
-            {isReferenceToday && (
-              <span
-                className={`schedule-day-track-now${nowNearDayTrackEdge ? " schedule-day-track-now-edge" : ""}`}
-                style={{ left: `${nowPercent}%` }}
-              >
-                <span className="schedule-day-track-now-line" />
-                <span className="schedule-day-track-now-label">{nowLabel}</span>
-              </span>
-            )}
-          </div>
-          <div className="schedule-day-track-hours">
-            {DAY_TRACK_TICKS.map((tickHour) => (
-              <span key={`hour-${tickHour}`} className="schedule-day-track-hour">
-                {tickHour === 24 ? "24:00" : `${String(tickHour).padStart(2, "0")}:00`}
-              </span>
-            ))}
-          </div>
-        </div>
-
         {/* Timeline */}
         {loading ? (
           <div className="schedule-loading">
