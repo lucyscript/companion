@@ -3676,11 +3676,51 @@ body.chat-tab-active .chat-view {
   50% { opacity: 0; }
 }
 
-/* ── Citation chips (redesigned) ── */
+/* ── Citation chips (collapsed toggle) ── */
 .chat-citation-list {
   display: grid;
   gap: 6px;
-  margin-top: 10px;
+  margin-top: 8px;
+}
+
+.chat-citation-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 20px;
+  padding: 4px 10px 4px 8px;
+  font-size: 0.68rem;
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+  width: fit-content;
+}
+
+.chat-citation-toggle:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text);
+}
+
+.chat-citation-toggle-icon {
+  font-size: 0.72rem;
+}
+
+.chat-citation-toggle-text {
+  font-weight: 500;
+}
+
+.chat-citation-toggle-chevron {
+  font-size: 0.8rem;
+  transition: transform 0.2s ease;
+  transform: rotate(0deg);
+  line-height: 1;
+}
+
+.chat-citation-toggle-chevron--open {
+  transform: rotate(90deg);
 }
 
 .chat-citation-label {
@@ -3764,25 +3804,6 @@ body.chat-tab-active .chat-view {
 .chat-citation-stack {
   display: grid;
   gap: 6px;
-}
-
-.chat-citation-more {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px dashed rgba(255, 255, 255, 0.12);
-  background: transparent;
-  border-radius: 10px;
-  padding: 6px 10px;
-  font-size: 0.68rem;
-  color: var(--muted);
-  cursor: pointer;
-  transition: border-color 0.15s ease, color 0.15s ease;
-}
-
-.chat-citation-more:hover {
-  border-color: rgba(255, 255, 255, 0.25);
-  color: var(--text);
 }
 
 .chat-pending-action-list {

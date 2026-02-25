@@ -1030,80 +1030,39 @@ export function ChatView({ mood, onMoodChange, onDataMutated }: ChatViewProps): 
               </div>
               {msg.role === "assistant" && !msg.streaming && citations.length > 0 && (
                 <div className="chat-citation-list" role="list" aria-label="Message citations">
-                  <span className="chat-citation-label">Sources</span>
-                  {citations.length <= 3 ? (
-                    citations.map((citation) => (
-                      <button
-                        key={`${citation.type}-${citation.id}`}
-                        type="button"
-                        className={`chat-citation-chip chat-citation-type-${citation.type}`}
-                        onClick={() => handleCitationClick(citation)}
-                        title={citation.label}
-                      >
-                        <span className="chat-citation-icon" aria-hidden="true">{citationIcon(citation.type)}</span>
-                        <span className="chat-citation-text">
-                          <span className="chat-citation-type">{citationTypeLabel(citation.type)}</span>
-                          <span className="chat-citation-name">{formatCitationChipLabel(citation)}</span>
-                        </span>
-                      </button>
-                    ))
-                  ) : (
+                  <button
+                    type="button"
+                    className="chat-citation-toggle"
+                    onClick={() => toggleCitationStack(msg.id)}
+                    aria-expanded={expandedCitationMessageIds.has(msg.id)}
+                  >
+                    <span className="chat-citation-toggle-icon" aria-hidden="true">📎</span>
+                    <span className="chat-citation-toggle-text">
+                      {citations.length === 1
+                        ? `1 source`
+                        : `${citations.length} sources`}
+                    </span>
+                    <span className={`chat-citation-toggle-chevron${expandedCitationMessageIds.has(msg.id) ? " chat-citation-toggle-chevron--open" : ""}`}>
+                      ›
+                    </span>
+                  </button>
+                  {expandedCitationMessageIds.has(msg.id) && (
                     <div className="chat-citation-stack">
-                      {!expandedCitationMessageIds.has(msg.id) && (
-                        <>
-                          {citations.slice(0, 2).map((citation) => (
-                            <button
-                              key={`${citation.type}-${citation.id}`}
-                              type="button"
-                              className={`chat-citation-chip chat-citation-type-${citation.type}`}
-                              onClick={() => handleCitationClick(citation)}
-                              title={citation.label}
-                            >
-                              <span className="chat-citation-icon" aria-hidden="true">{citationIcon(citation.type)}</span>
-                              <span className="chat-citation-text">
-                                <span className="chat-citation-type">{citationTypeLabel(citation.type)}</span>
-                                <span className="chat-citation-name">{formatCitationChipLabel(citation)}</span>
-                              </span>
-                            </button>
-                          ))}
-                          <button
-                            type="button"
-                            className="chat-citation-more"
-                            onClick={() => toggleCitationStack(msg.id)}
-                            aria-expanded={false}
-                            aria-label={`Show ${citations.length - 2} more citations`}
-                          >
-                            +{citations.length - 2} more
-                          </button>
-                        </>
-                      )}
-                      {expandedCitationMessageIds.has(msg.id) && (
-                        <>
-                          {citations.map((citation) => (
-                            <button
-                              key={`${citation.type}-${citation.id}`}
-                              type="button"
-                              className={`chat-citation-chip chat-citation-type-${citation.type}`}
-                              onClick={() => handleCitationClick(citation)}
-                              title={citation.label}
-                            >
-                              <span className="chat-citation-icon" aria-hidden="true">{citationIcon(citation.type)}</span>
-                              <span className="chat-citation-text">
-                                <span className="chat-citation-type">{citationTypeLabel(citation.type)}</span>
-                                <span className="chat-citation-name">{formatCitationChipLabel(citation)}</span>
-                              </span>
-                            </button>
-                          ))}
-                          <button
-                            type="button"
-                            className="chat-citation-more"
-                            onClick={() => toggleCitationStack(msg.id)}
-                            aria-label="Show fewer citations"
-                          >
-                            Show less
-                          </button>
-                        </>
-                      )}
+                      {citations.map((citation) => (
+                        <button
+                          key={`${citation.type}-${citation.id}`}
+                          type="button"
+                          className={`chat-citation-chip chat-citation-type-${citation.type}`}
+                          onClick={() => handleCitationClick(citation)}
+                          title={citation.label}
+                        >
+                          <span className="chat-citation-icon" aria-hidden="true">{citationIcon(citation.type)}</span>
+                          <span className="chat-citation-text">
+                            <span className="chat-citation-type">{citationTypeLabel(citation.type)}</span>
+                            <span className="chat-citation-name">{formatCitationChipLabel(citation)}</span>
+                          </span>
+                        </button>
+                      ))}
                     </div>
                   )}
                 </div>
