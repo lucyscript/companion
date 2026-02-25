@@ -237,15 +237,10 @@ html {
   min-height: 100vh;
 }
 
-/* Keyboard-up: switch from fixed to scroll so the gradient extends past the
-   shrunken viewport into the keyboard void area, AND stretch the gradient
-   vertically so the dark endpoint is pushed well below the visible region.
-   This keeps chat-area and void portions of the gradient nearly identical. */
-html:has(body.keyboard-open) {
-  background-attachment: scroll;
-  background-size: 100% 300%;
-  background-position: top;
-}
+/* Keyboard-up: keep the gradient identical to keyboard-down.
+   On iOS PWA the layout viewport doesn't shrink when the keyboard opens,
+   so background-attachment:fixed still covers the full screen including
+   the void area between composer and keyboard. No changes needed. */
 
 body.chat-tab-active {
   overflow: hidden;
@@ -3063,7 +3058,9 @@ body.keyboard-open .chat-overlay-panel-docked {
   touch-action: pan-x;
 }
 
-/* Quick-chat keyboard-up: keep full-frame layout, composer is a flex child. */
+/* Quick-chat keyboard-up: keep full-frame layout, composer is a flex child.
+   KEEP the same visual treatment (panel-bg + blur) as keyboard-down for
+   consistency — the html gradient behind is also unchanged. */
 body.keyboard-open.chat-overlay-active .chat-overlay-panel:not(.chat-overlay-panel-docked) {
   inset: 0;
   height: auto;
@@ -3073,16 +3070,7 @@ body.keyboard-open.chat-overlay-active .chat-overlay-panel:not(.chat-overlay-pan
   box-shadow: none;
   animation: none;
   transform: none;
-  background: transparent;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  /* Single-source visual treatment: tint/blur comes only from backdrop layer. */
-  --card-bg: transparent;
-  --card: transparent;
-  --surface: transparent;
-  --surface-soft: transparent;
-  --input-bg: transparent;
-  --chat-mood-bg: transparent;
+  /* Keep keyboard-down visual: panel-bg + blur (inherited from base rule) */
 }
 
 /* iOS keyboard: extend panel to layout viewport bottom so the scrim fills
@@ -3093,8 +3081,7 @@ body.ios-touch.keyboard-open.chat-overlay-active .chat-overlay-panel:not(.chat-o
   bottom: 0;
   height: auto;
   transform: none;
-  /* Override transparent from generic keyboard rule — scrim fills the gap */
-  background: var(--chat-overlay-keyboard-scrim);
+  /* Keep keyboard-down panel-bg — html gradient behind is unchanged too */
 }
 
 /* Constrain chat content to visual viewport so composer sits above keyboard.
@@ -3107,14 +3094,12 @@ body.ios-touch.keyboard-open.chat-overlay-active .chat-overlay-panel:not(.chat-o
 }
 
 body.ios-touch.keyboard-open.chat-overlay-docked .chat-overlay-panel-docked {
-  /* Extend to layout bottom; scrim fills the gap below visual viewport */
+  /* Extend to layout bottom; panel-bg + blur matches keyboard-down */
   top: var(--visual-viewport-offset-top);
   bottom: 0;
   height: auto;
   transform: none !important;
-  background: var(--chat-overlay-keyboard-scrim);
-  backdrop-filter: blur(var(--chat-overlay-keyboard-blur)) saturate(var(--chat-overlay-keyboard-saturate));
-  -webkit-backdrop-filter: blur(var(--chat-overlay-keyboard-blur)) saturate(var(--chat-overlay-keyboard-saturate));
+  /* Keep keyboard-down visual: panel-bg + blur inherited from base rule */
 }
 
 body.ios-touch.keyboard-open.chat-overlay-docked .chat-overlay-panel-docked .chat-tab {
@@ -3130,29 +3115,8 @@ body.ios-touch.keyboard-open.chat-overlay-docked .chat-overlay-docked-close-btn 
   -webkit-backdrop-filter: none;
 }
 
-/* Docked + keyboard-open uses preprocessed base-layer blur; keep chat surfaces
-   flat to avoid a second glass pass and blur-intensity seams. */
-body.ios-touch.keyboard-open.chat-overlay-docked .chat-overlay-panel-docked .chat-input-container,
-body.ios-touch.keyboard-open.chat-overlay-docked .chat-overlay-panel-docked .chat-input,
-body.ios-touch.keyboard-open.chat-overlay-docked .chat-overlay-panel-docked .chat-attach-button,
-body.ios-touch.keyboard-open.chat-overlay-docked .chat-overlay-panel-docked .chat-voice-button,
-body.ios-touch.keyboard-open.chat-overlay-docked .chat-overlay-panel-docked .chat-bubble-content,
-body.ios-touch.keyboard-open.chat-overlay-docked .chat-overlay-panel-docked .chat-citation-chip,
-body.ios-touch.keyboard-open.chat-overlay-docked .chat-overlay-panel-docked .chat-pending-action-card {
-  background: transparent !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  box-shadow: none !important;
-}
-
-body.ios-touch.keyboard-open.chat-overlay-docked .chat-overlay-panel-docked .chat-bubble-user .chat-bubble-content {
-  color: var(--text) !important;
-}
-
-body.ios-touch.keyboard-open.chat-overlay-docked .chat-overlay-panel-docked .chat-messages {
-  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 calc(100% - 24px), transparent 100%);
-  mask-image: linear-gradient(to bottom, #000 0%, #000 calc(100% - 24px), transparent 100%);
-}
+/* Docked + keyboard-open: panel keeps its keyboard-down bg + blur.
+   Bubbles and surfaces keep their normal appearance for consistency. */
 
 body.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-view {
   background: transparent;
@@ -3175,15 +3139,11 @@ body.keyboard-open.chat-overlay-docked .chat-overlay-panel-docked .chat-input-co
 body.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-input-container {
   padding: 4px 6px 4px;
   border-top: none;
-  background: transparent;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
   touch-action: pan-x;
 }
 
 body.ios-touch.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-input-container {
   padding-bottom: 2px;
-  background: transparent;
 }
 
 /* Footer sits above overlay — overlay's backdrop-filter covers footer area seamlessly */
@@ -3282,9 +3242,7 @@ body.ios-touch.keyboard-open.chat-overlay-active .tab-content-area {
 
 body.keyboard-open.chat-overlay-active .chat-overlay-backdrop {
   display: block;
-  background: var(--chat-overlay-keyboard-scrim);
-  backdrop-filter: blur(var(--chat-overlay-keyboard-blur)) saturate(var(--chat-overlay-keyboard-saturate));
-  -webkit-backdrop-filter: blur(var(--chat-overlay-keyboard-blur)) saturate(var(--chat-overlay-keyboard-saturate));
+  /* Keep keyboard-down backdrop appearance: same subtle overlay */
   pointer-events: none;
   animation: none;
 }
@@ -3299,26 +3257,8 @@ body.chat-overlay-docked .chat-overlay-backdrop {
   display: none !important;
 }
 
-body.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-bubble-assistant .chat-bubble-content,
-body.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-bubble-user .chat-bubble-content,
-body.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-citation-chip,
-body.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-pending-action-card {
-  background: transparent !important;
-  border-color: var(--border-soft);
-  color: var(--text);
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  box-shadow: none !important;
-}
-
-body.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-input,
-body.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-attach-button,
-body.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-voice-button {
-  background: transparent;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  box-shadow: none;
-}
+/* Keyboard-up overlay: keep bubble and input styling from keyboard-down.
+   Panel provides the glass layer; bubbles retain their normal appearance. */
 
 @keyframes chat-overlay-slide-up {
   from { transform: translateY(100%); opacity: 0.5; }
