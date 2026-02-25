@@ -3099,10 +3099,9 @@ body.keyboard-open .chat-overlay-docked-close-btn {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  /* Fade messages at top edge of the half-sheet only;
-     bottom fades right above the composer for readability */
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 32px, #000 100%);
-  mask-image: linear-gradient(to bottom, transparent 0%, #000 32px, #000 100%);
+  /* Fade messages at top and bottom edges — bottom fades above the composer */
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 32px, #000 calc(100% - 32px), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 32px, #000 calc(100% - 32px), transparent 100%);
 }
 
 /* KEY FIX: composer is a normal flex child in overlay, not position:absolute.
@@ -3242,8 +3241,8 @@ body.ios-touch.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-messa
 body.chat-overlay-active:not(.keyboard-open) .chat-overlay-panel .chat-messages {
   margin-bottom: 0;
   scroll-padding-bottom: 8px;
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 32px, #000 100%);
-  mask-image: linear-gradient(to bottom, transparent 0%, #000 32px, #000 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 32px, #000 calc(100% - 32px), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 32px, #000 calc(100% - 32px), transparent 100%);
 }
 
 /* Docked chat: same flex-based layout, no margin-bottom needed. */
