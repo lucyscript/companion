@@ -215,20 +215,19 @@ body {
 }
 
 html {
-  /* Layer mood tint over the base gradient so the mood colour is always
-     visible -- including in the iOS keyboard void area. The mood values are
-     semi-transparent, so they need --bg underneath to look correct. */
-  background:
-    var(--chat-mood-active-bg, transparent),
-    var(--bg, #091019);
+  /* Solid fallback covers everything including the iOS keyboard void area
+     (which sits outside the viewport bounds where gradients can't reach). */
+  background-color: #091019;
+  /* Layer mood tint over the base gradient. Semi-transparent mood values
+     composite over --bg, which composites over the solid fallback. */
+  background-image:
+    var(--chat-mood-active-bg, none),
+    var(--bg, none);
   background-attachment: fixed;
   background-repeat: no-repeat;
   background-size: 100% 100%;
   transition: background 1.2s ease;
 }
-
-/* iOS keyboard void: html already layers mood-tint + --bg, so the void
-   naturally shows the correct mood background. No solid override needed. */
 
 body.chat-tab-active {
   overflow: hidden;
@@ -3172,9 +3171,19 @@ body.ios-touch.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-input
   background: transparent;
 }
 
-/* Footer stays visible when overlay is open — overlay sits above it */
+/* Footer stays visible when overlay is open — tinted to match overlay scrim */
 body.chat-overlay-active .tab-bar {
   pointer-events: auto;
+  background: var(--chat-overlay-panel-bg);
+  backdrop-filter: blur(8px) saturate(108%);
+  -webkit-backdrop-filter: blur(8px) saturate(108%);
+}
+
+/* Keyboard up: footer is hidden anyway, clear the overlay tint */
+body.chat-overlay-active.keyboard-open .tab-bar {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 /* Overlay messages: since composer is now a flex child (not absolute),
