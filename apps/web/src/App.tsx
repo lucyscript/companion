@@ -545,6 +545,13 @@ export default function App(): JSX.Element {
         if (element.hasAttribute("data-overlay-global-focus-lock")) {
           return;
         }
+        // Skip elements already managed by lockFocusableTree to avoid
+        // double-locking — the global unlock would otherwise see the
+        // disabled state set by the tree lock as the "previous" state
+        // and restore disabled=true when the overlay closes.
+        if (element.hasAttribute("data-overlay-focus-lock")) {
+          return;
+        }
         element.setAttribute("data-overlay-global-focus-lock", "1");
 
         const previousTabIndex = element.getAttribute("tabindex");
