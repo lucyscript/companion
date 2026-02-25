@@ -9,6 +9,7 @@
   --footer-glass-bg: var(--card);
   --footer-glass-blur: 20px;
   --bg: radial-gradient(circle at top right, #1f5a76 0%, #0f1f2f 35%, #091019 100%);
+  --bg-solid: #091019;
   --card: rgba(255, 255, 255, 0.08);
   --card-bg: linear-gradient(148deg, rgba(24, 53, 78, 0.86), rgba(8, 24, 38, 0.9));
   --card-border: rgba(255, 255, 255, 0.2);
@@ -54,6 +55,7 @@
 
 :root[data-color-theme="ocean-gold"] {
   --bg: radial-gradient(circle at top right, #1f5a76 0%, #0f1f2f 35%, #091019 100%);
+  --bg-solid: #091019;
   --card: rgba(255, 255, 255, 0.08);
   --card-bg: linear-gradient(148deg, rgba(24, 53, 78, 0.86), rgba(8, 24, 38, 0.9));
   --card-border: rgba(255, 255, 255, 0.2);
@@ -91,6 +93,7 @@
 
 :root[data-color-theme="emerald-dusk"] {
   --bg: radial-gradient(circle at top right, #165954 0%, #0e2227 40%, #081015 100%);
+  --bg-solid: #081015;
   --card: rgba(232, 249, 245, 0.08);
   --card-bg: linear-gradient(148deg, rgba(20, 64, 58, 0.86), rgba(8, 32, 30, 0.9));
   --card-border: rgba(190, 237, 223, 0.22);
@@ -128,6 +131,7 @@
 
 :root[data-color-theme="sunset-indigo"] {
   --bg: radial-gradient(circle at top right, #4a2f67 0%, #181025 42%, #0c0b14 100%);
+  --bg-solid: #0c0b14;
   --card: rgba(244, 234, 255, 0.08);
   --card-bg: linear-gradient(148deg, rgba(49, 36, 78, 0.86), rgba(20, 14, 32, 0.9));
   --card-border: rgba(225, 198, 255, 0.24);
@@ -166,6 +170,7 @@
 :root[data-theme="light"] {
   color-scheme: light;
   --bg: radial-gradient(circle at top right, #e2ecff 0%, #f7f9fd 45%, #ffffff 100%);
+  --bg-solid: #ffffff;
   --card: rgba(255, 255, 255, 0.9);
   --card-bg: linear-gradient(150deg, rgba(255, 255, 255, 0.98), rgba(239, 246, 255, 0.94));
   --card-border: rgba(15, 23, 42, 0.12);
@@ -185,6 +190,7 @@
   :root:not([data-theme]) {
     color-scheme: light;
     --bg: radial-gradient(circle at top right, #e2ecff 0%, #f7f9fd 45%, #ffffff 100%);
+    --bg-solid: #ffffff;
     --card: rgba(255, 255, 255, 0.9);
     --card-bg: linear-gradient(150deg, rgba(255, 255, 255, 0.98), rgba(239, 246, 255, 0.94));
     --card-border: rgba(15, 23, 42, 0.12);
@@ -216,8 +222,9 @@ body {
 
 html {
   /* Solid fallback covers everything including the iOS keyboard void area
-     (which sits outside the viewport bounds where gradients can't reach). */
-  background-color: #091019;
+     (which sits outside the viewport bounds where gradients can't reach).
+     Each theme defines --bg-solid to match its gradient's darkest endpoint. */
+  background-color: var(--bg-solid, #091019);
   /* Layer mood tint over the base gradient. Semi-transparent mood values
      composite over --bg, which composites over the solid fallback. */
   background-image:
@@ -2883,42 +2890,39 @@ body.chat-overlay-docked .tab-content-area {
   left: 0;
   right: 0;
   top: 0;
-  bottom: var(--tab-bar-safe-space);
+  bottom: 0;
   height: auto;
   max-height: none;
   z-index: 102;
-  border-radius: 0 0 18px 18px;
+  border-radius: 0;
   border: none;
   box-shadow: none;
   animation: chat-overlay-fade-in 0.2s ease both;
   overflow: hidden;
   display: flex !important;
   flex-direction: column;
+  padding-bottom: var(--tab-bar-safe-space);
   background: var(--chat-overlay-panel-bg);
   backdrop-filter: blur(8px) saturate(108%);
   -webkit-backdrop-filter: blur(8px) saturate(108%);
 }
 
-/* Keyboard open: overlay extends to bottom (footer is hidden by keyboard-open rule) */
+/* Keyboard open: no footer, remove padding */
 body.keyboard-open .chat-overlay-panel {
-  bottom: 0;
-  border-radius: 0;
+  padding-bottom: 0;
 }
 
 .chat-overlay-panel-docked {
   position: fixed !important;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: var(--tab-bar-safe-space);
+  inset: 0;
   z-index: 103;
-  border-radius: 0 0 18px 18px;
+  border-radius: 0;
+  padding-bottom: var(--tab-bar-safe-space);
   animation: none;
 }
 
 body.keyboard-open .chat-overlay-panel-docked {
-  bottom: 0;
-  border-radius: 0;
+  padding-bottom: 0;
 }
 
 .chat-overlay-panel-docked .chat-tab {
@@ -3039,7 +3043,7 @@ body.keyboard-open .chat-overlay-panel-docked {
   position: relative;
   border-radius: 0;
   flex-shrink: 0;
-  padding: 6px 8px max(6px, env(safe-area-inset-bottom));
+  padding: 6px 8px 4px;
   z-index: 6;
   background: transparent;
   backdrop-filter: none;
@@ -3171,19 +3175,18 @@ body.ios-touch.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-input
   background: transparent;
 }
 
-/* Footer stays visible when overlay is open — tinted to match overlay scrim */
+/* Footer sits above overlay — overlay's backdrop-filter covers footer area seamlessly */
 body.chat-overlay-active .tab-bar {
+  z-index: 104;
   pointer-events: auto;
-  background: var(--chat-overlay-panel-bg);
-  backdrop-filter: blur(8px) saturate(108%);
-  -webkit-backdrop-filter: blur(8px) saturate(108%);
-}
-
-/* Keyboard up: footer is hidden anyway, clear the overlay tint */
-body.chat-overlay-active.keyboard-open .tab-bar {
   background: transparent;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
+}
+
+/* Keyboard up: footer is hidden anyway */
+body.chat-overlay-active.keyboard-open .tab-bar {
+  z-index: 100;
 }
 
 /* Overlay messages: since composer is now a flex child (not absolute),
