@@ -625,6 +625,7 @@ button:disabled {
   gap: 14px;
   width: 100%;
   max-width: 100%;
+  min-width: 0;
   box-sizing: border-box;
 }
 
@@ -721,6 +722,7 @@ button:disabled {
 .schedule-day-surface {
   display: grid;
   gap: 14px;
+  min-width: 0;
 }
 
 .schedule-day-surface-left {
@@ -775,6 +777,7 @@ button:disabled {
   flex-direction: column;
   gap: 0;
   position: relative;
+  min-width: 0;
 }
 
 /* Connector column (dot + stem) */
@@ -1056,6 +1059,7 @@ button:disabled {
   padding: 16px;
   display: grid;
   gap: 14px;
+  min-width: 0;
 }
 
 .deadline-card-header {
@@ -4706,12 +4710,15 @@ body:not(.keyboard-open) .app-shell-chat-active .chat-messages {
   touch-action: pan-y;
   width: 100%;
   max-width: 100%;
+  min-width: 0;
   margin: 0;
+  overflow: hidden;
 }
 
 .schedule-grid {
   display: grid;
   gap: 16px;
+  min-width: 0;
 }
 
 @media (min-width: 768px) {
