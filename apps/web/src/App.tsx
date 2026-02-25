@@ -948,42 +948,53 @@ export default function App(): JSX.Element {
               {isChatTab && <ChatTab mood={chatMood} onMoodChange={handleMoodChange} onDataMutated={handleDataMutated} />}
             </div>
             {activeTab === "schedule" && (
-              isTabLocked("schedule")
-                ? <LockedFeatureOverlay featureName={t("Schedule")} onUpgradeClick={() => openUpgradeModal(t("Schedule"))} />
-                : <ScheduleTab
-                    scheduleKey={`schedule-${scheduleRevision}`}
-                    focusDeadlineId={focusDeadlineId ?? undefined}
-                    focusLectureId={focusLectureId ?? undefined}
-                  />
+              <div key="schedule" className="tab-panel tab-panel-active">
+                {isTabLocked("schedule")
+                  ? <LockedFeatureOverlay featureName={t("Schedule")} onUpgradeClick={() => openUpgradeModal(t("Schedule"))} />
+                  : <ScheduleTab
+                      scheduleKey={`schedule-${scheduleRevision}`}
+                      focusDeadlineId={focusDeadlineId ?? undefined}
+                      focusLectureId={focusLectureId ?? undefined}
+                    />
+                }
+              </div>
             )}
             {activeTab === "nutrition" && (
-              isTabLocked("nutrition")
-                ? <LockedFeatureOverlay featureName={t("Food")} onUpgradeClick={() => openUpgradeModal(t("Food"))} />
-                : <NutritionView key={`nutrition-${nutritionRevision}`} />
+              <div key="nutrition" className="tab-panel tab-panel-active">
+                {isTabLocked("nutrition")
+                  ? <LockedFeatureOverlay featureName={t("Food")} onUpgradeClick={() => openUpgradeModal(t("Food"))} />
+                  : <NutritionView key={`nutrition-${nutritionRevision}`} />
+                }
+              </div>
             )}
             {activeTab === "habits" && (
-              isTabLocked("habits")
-                ? <LockedFeatureOverlay featureName={t("Growth")} onUpgradeClick={() => openUpgradeModal(t("Growth"))} />
-                : <div key={`habits-${habitsRevision}`} className="habits-tab-container habits-analytics-stack">
-                    <HabitsGoalsView />
-                    <AnalyticsDashboard />
-                  </div>
+              <div key="habits" className="tab-panel tab-panel-active">
+                {isTabLocked("habits")
+                  ? <LockedFeatureOverlay featureName={t("Growth")} onUpgradeClick={() => openUpgradeModal(t("Growth"))} />
+                  : <div key={`habits-${habitsRevision}`} className="habits-tab-container habits-analytics-stack">
+                      <HabitsGoalsView />
+                      <AnalyticsDashboard />
+                    </div>
+                }
+              </div>
             )}
             {activeTab === "settings" && (
-              <SettingsView
-                planInfo={planInfo}
-                onUpgrade={() => openUpgradeModal()}
-                themePreference={themePreference}
-                themesLocked={!planInfo || planInfo.plan === "free"}
-                onThemeChange={handleThemeChange}
-                userEmail={authUserEmail}
-                authRequired={authRequired}
-                onSignOut={() => void handleLogout()}
-                signingOut={authSubmitting}
-                pushState={pushState}
-                onEnablePush={() => void handleEnablePush()}
-                pushMessage={pushMessage}
-              />
+              <div key="settings" className="tab-panel tab-panel-active">
+                <SettingsView
+                  planInfo={planInfo}
+                  onUpgrade={() => openUpgradeModal()}
+                  themePreference={themePreference}
+                  themesLocked={!planInfo || planInfo.plan === "free"}
+                  onThemeChange={handleThemeChange}
+                  userEmail={authUserEmail}
+                  authRequired={authRequired}
+                  onSignOut={() => void handleLogout()}
+                  signingOut={authSubmitting}
+                  pushState={pushState}
+                  onEnablePush={() => void handleEnablePush()}
+                  pushMessage={pushMessage}
+                />
+              </div>
             )}
 
           </div>

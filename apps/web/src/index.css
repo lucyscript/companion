@@ -6175,12 +6175,18 @@ body:not(.keyboard-open) .app-shell-chat-active .chat-messages {
 
 .tab-panel {
   min-height: 0;
-  animation: tab-fade-in 0.2s ease;
+  animation: tab-fade-in 0.28s ease-out;
 }
 
 @keyframes tab-fade-in {
-  from { opacity: 0; transform: translateY(6px); }
+  from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab-panel {
+    animation: none;
+  }
 }
 
 .tab-panel-active {
