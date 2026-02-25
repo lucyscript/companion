@@ -456,19 +456,24 @@ export function ChatView({ mood, onMoodChange, onDataMutated }: ChatViewProps): 
     const loadHistory = async (): Promise<void> => {
       try {
         const response = await getChatHistory(1, 50);
-        pendingInitialScrollRef.current = true;
-        setMessages(response.history.messages);
+        const msgs = response.history.messages;
         setHasMore(response.history.hasMore);
         nextPageRef.current = 2;
-        // Restore mood from most recent assistant message
-        const lastAssistant = [...response.history.messages].reverse().find((m) => m.role === "assistant");
-        if (lastAssistant?.metadata?.mood) {
-          onMoodChange(lastAssistant.metadata.mood);
+        if (msgs.length > 0) {
+          pendingInitialScrollRef.current = true;
+          setMessages(msgs);
+          // Restore mood from most recent assistant message
+          const lastAssistant = [...msgs].reverse().find((m) => m.role === "assistant");
+          if (lastAssistant?.metadata?.mood) {
+            onMoodChange(lastAssistant.metadata.mood);
+          }
+        } else {
+          // No messages — show welcome screen immediately
+          setHistoryLoaded(true);
         }
       } catch (err) {
         setError("Failed to load chat history");
         console.error(err);
-      } finally {
         setHistoryLoaded(true);
       }
     };
@@ -482,7 +487,15 @@ export function ChatView({ mood, onMoodChange, onDataMutated }: ChatViewProps): 
     }
 
     pendingInitialScrollRef.current = false;
-    scheduleScrollToBottom("auto");
+    // Scroll to bottom first, then reveal the view on the next frame
+    // so the user never sees the unscrolled layout.
+    const container = messagesContainerRef.current;
+    if (container) {
+      container.scrollTop = container.scrollHeight;
+    }
+    requestAnimationFrame(() => {
+      setHistoryLoaded(true);
+    });
   }, [messages.length]);
 
   useEffect(() => {
