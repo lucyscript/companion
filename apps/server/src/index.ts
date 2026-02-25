@@ -2720,7 +2720,7 @@ const nutritionPlanSettingsUpdateSchema = z
 
 const pushSubscriptionSchema = z.object({
   endpoint: z.string().url(),
-  expirationTime: z.number().nullable(),
+  expirationTime: z.number().nullable().optional().default(null),
   keys: z.object({
     p256dh: z.string().min(1),
     auth: z.string().min(1)
