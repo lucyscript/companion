@@ -63,21 +63,33 @@ export function HabitsGoalsView(): JSX.Element {
   }, []);
 
   const handleHabitCheckIn = async (habit: Habit): Promise<void> => {
+    const nextCompleted = !habit.todayCompleted;
+    // Optimistic UI: update immediately so the checkmark appears on tap
+    setHabits((prev) => prev.map((h) => (h.id === habit.id ? { ...h, todayCompleted: nextCompleted } : h)));
+    hapticSuccess();
     setBusy({ type: "habit", id: habit.id });
-    const result = await toggleHabitCheckIn(habit.id, !habit.todayCompleted);
+    const result = await toggleHabitCheckIn(habit.id, nextCompleted);
     if (result.item) {
       setHabits((prev) => prev.map((h) => (h.id === habit.id ? result.item! : h)));
-      hapticSuccess();
+    } else {
+      // Revert on failure
+      setHabits((prev) => prev.map((h) => (h.id === habit.id ? { ...h, todayCompleted: !nextCompleted } : h)));
     }
     setBusy(null);
   };
 
   const handleGoalCheckIn = async (goal: Goal): Promise<void> => {
+    const nextCompleted = !goal.todayCompleted;
+    // Optimistic UI: update immediately so the checkmark appears on tap
+    setGoals((prev) => prev.map((g) => (g.id === goal.id ? { ...g, todayCompleted: nextCompleted } : g)));
+    hapticSuccess();
     setBusy({ type: "goal", id: goal.id });
-    const result = await toggleGoalCheckIn(goal.id, !goal.todayCompleted);
+    const result = await toggleGoalCheckIn(goal.id, nextCompleted);
     if (result.item) {
       setGoals((prev) => prev.map((g) => (g.id === goal.id ? result.item! : g)));
-      hapticSuccess();
+    } else {
+      // Revert on failure
+      setGoals((prev) => prev.map((g) => (g.id === goal.id ? { ...g, todayCompleted: !nextCompleted } : g)));
     }
     setBusy(null);
   };
