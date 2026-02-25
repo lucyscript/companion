@@ -58,7 +58,8 @@ function formatLectureTitle(value: string): string {
     .replace(/\s*\n+\s*/g, " / ")
     .replace(/\s+/g, " ")
     .replace(/\s*\/\s*/g, " / ")
-    .replace(/^\/+\s*|\s*\/+$/g, "")
+    .trim()
+    .replace(/^[\/\s]+|[\/\s]+$/g, "")
     .trim();
 }
 
@@ -119,7 +120,7 @@ function buildDayTimeline(
     const end = new Date(start.getTime() + lecture.durationMinutes * 60000);
 
     const gapMinutes = minutesBetween(cursor, start);
-    if (gapMinutes >= 15) {
+    if (gapMinutes >= 30) {
       segments.push({
         type: "free",
         start: new Date(cursor),
@@ -137,7 +138,7 @@ function buildDayTimeline(
   });
 
   const trailingGap = minutesBetween(cursor, timelineEnd);
-  if (trailingGap >= 15) {
+  if (trailingGap >= 30) {
     segments.push({
       type: "free",
       start: new Date(cursor),

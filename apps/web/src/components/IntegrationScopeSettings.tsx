@@ -129,7 +129,9 @@ export function IntegrationScopeSettings(): JSX.Element {
                         onChange={() => toggleCanvasCourse(course.id)}
                       />
                       {" "}
-                      {course.course_code} - {course.name}
+                      {course.name.startsWith(course.course_code)
+                        ? course.name
+                        : `${course.course_code} — ${course.name}`}
                     </label>
                   </li>
                 ))}

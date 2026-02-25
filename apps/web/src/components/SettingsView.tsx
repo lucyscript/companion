@@ -104,7 +104,9 @@ export function SettingsView({
           <div className="plan-info-card">
             <div className="plan-info-row">
               <span className={`plan-badge plan-badge-${planInfo.plan}`}>{planInfo.badge}</span>
-              <span className="plan-info-name">{planInfo.planName}</span>
+              {planInfo.planName !== planInfo.badge && (
+                <span className="plan-info-name">{planInfo.planName}</span>
+              )}
               {planInfo.isTrial && planInfo.trialEndsAt && (
                 <span className="plan-trial-badge">
                   {t("Trial · ends {date}", { date: new Date(planInfo.trialEndsAt).toLocaleDateString(localeTag) })}
