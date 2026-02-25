@@ -62,22 +62,22 @@ export const PLAN_TIERS: Record<PlanId, PlanTier> = {
   plus: {
     id: "plus",
     name: "Plus",
-    description: "Unlock all features, more chat, and app integrations.",
+    description: "Food tracking, AI tools, custom themes, and more chat.",
     priceMonthlyNok: 49,
-    dailyChatLimit: 100,
+    dailyChatLimit: 75,
     features: new Set<FeatureId>([
-      "chat", "schedule", "nutrition", "habits",
-      "connectors", "gemini_tools", "chat_history", "analytics", "custom_moods"
+      "chat", "schedule", "nutrition",
+      "connectors", "gemini_tools", "chat_history", "custom_moods"
     ]),
-    connectors: ["canvas", "mcp", "withings", "tp_schedule"] as ConnectorService[],
-    maxChatHistory: 0, // unlimited
+    connectors: ["canvas", "mcp", "tp_schedule"] as ConnectorService[],
+    maxChatHistory: 500,
     trialDays: 7,
     badge: "Plus"
   },
   pro: {
     id: "pro",
     name: "Pro",
-    description: "Unlimited everything — power users and early supporters.",
+    description: "Growth analytics, health tracking, and unlimited everything.",
     priceMonthlyNok: 99,
     dailyChatLimit: 0, // unlimited
     features: new Set<FeatureId>([

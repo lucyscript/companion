@@ -604,6 +604,8 @@ export interface PlanTierSummary {
   dailyChatLimit: number;
   features: FeatureId[];
   connectors: ConnectorService[];
+  /** Max stored chat history messages (0 = unlimited) */
+  maxChatHistory: number;
   trialDays: number;
   badge: string;
 }

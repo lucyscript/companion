@@ -1451,6 +1451,7 @@ app.get("/api/plan/tiers", (_req, res) => {
     dailyChatLimit: t.dailyChatLimit,
     features: [...t.features],
     connectors: t.connectors,
+    maxChatHistory: t.maxChatHistory,
     trialDays: t.trialDays,
     badge: t.badge
   }));
