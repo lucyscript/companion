@@ -9,8 +9,7 @@
   --footer-glass-bg: var(--card);
   --footer-glass-blur: 20px;
   --bg: radial-gradient(circle at top right, #1f5a76 0%, #0f1f2f 35%, #091019 100%);
-  --bg-solid: #091019;
-  --bg-keyboard: #0c1824;
+  --bg-solid: #0c1824;
   --card: rgba(255, 255, 255, 0.08);
   --card-bg: linear-gradient(148deg, rgba(24, 53, 78, 0.86), rgba(8, 24, 38, 0.9));
   --card-border: rgba(255, 255, 255, 0.2);
@@ -42,7 +41,6 @@
   --danger-surface-strong: rgba(255, 138, 128, 0.12);
   --chat-overlay-backdrop: rgba(0, 0, 0, 0.24);
   --chat-overlay-panel-bg: linear-gradient(180deg, rgba(7, 14, 20, 0.58) 0%, rgba(7, 14, 20, 0.4) 100%);
-  --chat-overlay-panel-bg-flat: rgba(7, 14, 20, 0.49);
   --chat-overlay-header-bg: rgba(7, 14, 20, 0.24);
   --chat-view-surface: rgba(7, 14, 20, 0.26);
   --chat-overlay-keyboard-scrim: rgba(6, 14, 24, 0.68);
@@ -57,8 +55,7 @@
 
 :root[data-color-theme="ocean-gold"] {
   --bg: radial-gradient(circle at top right, #1f5a76 0%, #0f1f2f 35%, #091019 100%);
-  --bg-solid: #091019;
-  --bg-keyboard: #0c1824;
+  --bg-solid: #0c1824;
   --card: rgba(255, 255, 255, 0.08);
   --card-bg: linear-gradient(148deg, rgba(24, 53, 78, 0.86), rgba(8, 24, 38, 0.9));
   --card-border: rgba(255, 255, 255, 0.2);
@@ -90,15 +87,13 @@
   --danger-surface-strong: rgba(255, 138, 128, 0.12);
   --chat-overlay-backdrop: rgba(0, 0, 0, 0.24);
   --chat-overlay-panel-bg: linear-gradient(180deg, rgba(7, 14, 20, 0.58) 0%, rgba(7, 14, 20, 0.4) 100%);
-  --chat-overlay-panel-bg-flat: rgba(7, 14, 20, 0.49);
   --chat-overlay-header-bg: rgba(7, 14, 20, 0.24);
   --chat-view-surface: rgba(7, 14, 20, 0.26);
 }
 
 :root[data-color-theme="emerald-dusk"] {
   --bg: radial-gradient(circle at top right, #165954 0%, #0e2227 40%, #081015 100%);
-  --bg-solid: #081015;
-  --bg-keyboard: #0b191e;
+  --bg-solid: #0b191e;
   --card: rgba(232, 249, 245, 0.08);
   --card-bg: linear-gradient(148deg, rgba(20, 64, 58, 0.86), rgba(8, 32, 30, 0.9));
   --card-border: rgba(190, 237, 223, 0.22);
@@ -130,15 +125,13 @@
   --danger-surface-strong: rgba(255, 167, 153, 0.16);
   --chat-overlay-backdrop: rgba(0, 0, 0, 0.26);
   --chat-overlay-panel-bg: linear-gradient(180deg, rgba(8, 23, 21, 0.62) 0%, rgba(8, 23, 21, 0.46) 100%);
-  --chat-overlay-panel-bg-flat: rgba(8, 23, 21, 0.54);
   --chat-overlay-header-bg: rgba(8, 23, 21, 0.28);
   --chat-view-surface: rgba(8, 23, 21, 0.3);
 }
 
 :root[data-color-theme="sunset-indigo"] {
   --bg: radial-gradient(circle at top right, #4a2f67 0%, #181025 42%, #0c0b14 100%);
-  --bg-solid: #0c0b14;
-  --bg-keyboard: #12101d;
+  --bg-solid: #12101d;
   --card: rgba(244, 234, 255, 0.08);
   --card-bg: linear-gradient(148deg, rgba(49, 36, 78, 0.86), rgba(20, 14, 32, 0.9));
   --card-border: rgba(225, 198, 255, 0.24);
@@ -170,7 +163,6 @@
   --danger-surface-strong: rgba(255, 157, 178, 0.16);
   --chat-overlay-backdrop: rgba(6, 4, 10, 0.32);
   --chat-overlay-panel-bg: linear-gradient(180deg, rgba(22, 13, 34, 0.66) 0%, rgba(22, 13, 34, 0.5) 100%);
-  --chat-overlay-panel-bg-flat: rgba(22, 13, 34, 0.58);
   --chat-overlay-header-bg: rgba(22, 13, 34, 0.32);
   --chat-view-surface: rgba(22, 13, 34, 0.32);
 }
@@ -178,8 +170,7 @@
 :root[data-theme="light"] {
   color-scheme: light;
   --bg: radial-gradient(circle at top right, #e2ecff 0%, #f7f9fd 45%, #ffffff 100%);
-  --bg-solid: #ffffff;
-  --bg-keyboard: #f0f4fc;
+  --bg-solid: #f0f4fc;
   --card: rgba(255, 255, 255, 0.9);
   --card-bg: linear-gradient(150deg, rgba(255, 255, 255, 0.98), rgba(239, 246, 255, 0.94));
   --card-border: rgba(15, 23, 42, 0.12);
@@ -199,7 +190,7 @@
   :root:not([data-theme]) {
     color-scheme: light;
     --bg: radial-gradient(circle at top right, #e2ecff 0%, #f7f9fd 45%, #ffffff 100%);
-    --bg-solid: #ffffff;
+    --bg-solid: #f0f4fc;
     --card: rgba(255, 255, 255, 0.9);
     --card-bg: linear-gradient(150deg, rgba(255, 255, 255, 0.98), rgba(239, 246, 255, 0.94));
     --card-border: rgba(15, 23, 42, 0.12);
@@ -230,10 +221,11 @@ body {
 }
 
 html {
-  /* Solid fallback covers everything including the iOS keyboard void area
-     (which sits outside the viewport bounds where gradients can't reach).
-     Each theme defines --bg-solid to match its gradient's darkest endpoint. */
-  background-color: var(--bg-solid, #091019);
+  /* Solid fallback covers everything including the iOS keyboard void area.
+     --bg-solid is set to a mid-tone that works for both the gradient fallback
+     and the keyboard-open flat fill, so there is zero colour jump when the
+     keyboard-open class is toggled by JS. */
+  background-color: var(--bg-solid, #0c1824);
   /* Layer mood tint over the base gradient. Semi-transparent mood values
      composite over --bg, which composites over the solid fallback. */
   background-image:
@@ -246,13 +238,14 @@ html {
   min-height: 100vh;
 }
 
-/* Keyboard-open: drop ALL gradients so the html has a flat bg-keyboard color.
-   The overlay panel is made fully opaque with the same bg-keyboard, so the
-   html background is invisible while the panel is up.  This prevents any
-   rendering artefacts if the panel is slow to paint on low-end devices. */
+/* Keyboard-open: drop ALL gradients so the html has a flat bg-solid colour.
+   The overlay panel is made fully opaque with the same bg-solid, so the
+   html background is invisible while the panel is up.  Because bg-solid is
+   ALREADY the background-color in the base rule, there is zero colour jump
+   when the keyboard-open class is added — the void looks correct from the
+   very first frame. */
 html:has(body.keyboard-open) {
   background-image: none !important;
-  background-color: var(--bg-keyboard, var(--bg-solid, #091019));
   transition: none;
 }
 
@@ -2927,18 +2920,13 @@ body.chat-overlay-docked .tab-content-area {
   -webkit-backdrop-filter: blur(8px) saturate(108%);
 }
 
-/* Keyboard open: drop the glass effect and use an opaque bg-keyboard fill.
-   In Safari browser the void gap is tiny (URL bar fills it) so glass works.
-   In standalone PWA the void is larger and the semi-transparent panel +
-   backdrop-filter over the flat bg-keyboard produces a slightly different
-   tint than the raw bg-keyboard html background, creating a visible band.
-   Since the html bg is already a flat solid (no gradient, no mood tint) when
-   the keyboard is open, blur/saturate do nothing useful.  Making the panel
-   fully opaque with bg-keyboard ensures the chat area and the void are
-   pixel-identical — the same seamless look Safari gets for free. */
+/* Keyboard open: drop the glass effect and use an opaque bg-solid fill.
+   Since bg-solid now equals the keyboard mid-tone, the panel and the html
+   background-color are the same from the very first frame — no transition
+   needed, no colour jump possible. */
 body.keyboard-open .chat-overlay-panel {
   padding-bottom: 0;
-  background: var(--bg-keyboard, var(--bg-solid, #091019));
+  background: var(--bg-solid, #0c1824);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   transition: none;
@@ -2955,7 +2943,7 @@ body.keyboard-open .chat-overlay-panel {
 
 body.keyboard-open .chat-overlay-panel-docked {
   padding-bottom: 0;
-  background: var(--bg-keyboard, var(--bg-solid, #091019));
+  background: var(--bg-solid, #0c1824);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   transition: none;
