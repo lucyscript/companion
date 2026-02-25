@@ -4039,6 +4039,13 @@ body.chat-tab-active .chat-view {
   z-index: 4;
 }
 
+/* Hide composer until chat-view is ready to prevent position snap on load.
+   The composer starts sticky then becomes fixed; without this gate the user
+   sees it in the wrong spot for one frame. */
+.app-shell-chat-active .chat-view:not(.chat-view--ready) .chat-input-container {
+  visibility: hidden;
+}
+
 body:not(.keyboard-open) .app-shell-chat-active .chat-input-container {
   position: fixed;
   left: 0;
