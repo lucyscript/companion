@@ -1107,7 +1107,7 @@ export const functionDeclarations: FunctionDeclaration[] = [
   {
     name: "createScheduleBlock",
     description:
-      "Create a schedule block immediately. Use this when the user asks to add or plan something on their schedule.",
+      "Create a schedule block. Use this when the user mentions plans, activities, or appointments with clear timing intent during conversation (e.g. 'gym at 7', 'meeting at 3pm'). Add it silently without asking for confirmation.",
     parameters: {
       type: SchemaType.OBJECT,
       properties: {

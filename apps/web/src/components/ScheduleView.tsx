@@ -1,15 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { TouchEvent } from "react";
-import { getDeadlines, getSchedule, getScheduleSuggestionMutes } from "../lib/api";
+import { getSchedule } from "../lib/api";
 import { useI18n } from "../lib/i18n";
-import { Deadline, LectureEvent, ScheduleSuggestionMute } from "../types";
+import { LectureEvent } from "../types";
 
 interface DayTimelineSegment {
-  type: "event" | "planned";
+  type: "event" | "free";
   start: Date;
   end: Date;
   event?: LectureEvent;
-  suggestion?: string;
 }
 
 function isSameLocalDate(left: Date, right: Date): boolean {
@@ -83,83 +82,12 @@ function formatRoomLabel(location: string | undefined): string | null {
   return segment.replace(/\s*-\s*/g, "-");
 }
 
-function suggestGapActivity(
-  gapStart: Date,
-  gapDurationMinutes: number,
-  deadlineSuggestions: string[],
-  consumedDeadlineIndex: { value: number },
-  t: (text: string, vars?: Record<string, string | number>) => string
-): string {
-  const hour = gapStart.getHours();
-
-  if (hour < 9) {
-    return t("Morning routine (gym, breakfast, planning)");
-  }
-
-  if (consumedDeadlineIndex.value < deadlineSuggestions.length) {
-    const suggestion = deadlineSuggestions[consumedDeadlineIndex.value]!;
-    consumedDeadlineIndex.value += 1;
-    return suggestion;
-  }
-
-  if (gapDurationMinutes >= 90) {
-    return t("Focus block for assignments or revision");
-  }
-
-  return t("Buffer, review notes, or take a short reset");
-}
-
-function allocatePlannedBlocks(
-  start: Date,
-  end: Date,
-  deadlineSuggestions: string[],
-  consumedDeadlineIndex: { value: number },
-  t: (text: string, vars?: Record<string, string | number>) => string
-): DayTimelineSegment[] {
-  const segments: DayTimelineSegment[] = [];
-  let cursor = new Date(start);
-  let remaining = minutesBetween(cursor, end);
-
-  while (remaining >= 25) {
-    let blockMinutes: number;
-    if (remaining >= 210) {
-      blockMinutes = 90;
-    } else if (remaining >= 140) {
-      blockMinutes = 75;
-    } else if (remaining >= 95) {
-      blockMinutes = 60;
-    } else if (remaining >= 70) {
-      blockMinutes = 45;
-    } else {
-      blockMinutes = remaining;
-    }
-
-    const leftover = remaining - blockMinutes;
-    if (leftover > 0 && leftover < 25) {
-      blockMinutes = remaining;
-    }
-
-    const blockEnd = new Date(cursor.getTime() + blockMinutes * 60000);
-    segments.push({
-      type: "planned",
-      start: new Date(cursor),
-      end: blockEnd,
-      suggestion: suggestGapActivity(new Date(cursor), blockMinutes, deadlineSuggestions, consumedDeadlineIndex, t)
-    });
-
-    cursor = blockEnd;
-    remaining = minutesBetween(cursor, end);
-  }
-
-  return segments;
-}
-
 function formatDayTimelineLabel(
   segment: DayTimelineSegment,
   t: (text: string, vars?: Record<string, string | number>) => string
 ): string {
-  if (segment.type !== "event") {
-    return segment.suggestion ?? t("Focus block");
+  if (segment.type === "free") {
+    return t("Free");
   }
 
   const title = formatLectureTitle(segment.event?.title ?? t("Scheduled block"));
@@ -169,10 +97,7 @@ function formatDayTimelineLabel(
 
 function buildDayTimeline(
   scheduleBlocks: LectureEvent[],
-  referenceDate: Date,
-  deadlineSuggestions: string[],
-  suggestionMutes: ScheduleSuggestionMute[],
-  t: (text: string, vars?: Record<string, string | number>) => string
+  referenceDate: Date
 ): DayTimelineSegment[] {
   const sorted = [...scheduleBlocks].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
   const firstStart = sorted.length > 0 ? new Date(sorted[0].startTime) : new Date(referenceDate);
@@ -188,17 +113,18 @@ function buildDayTimeline(
 
   const segments: DayTimelineSegment[] = [];
   let cursor = timelineStart;
-  const consumedDeadlineIndex = { value: 0 };
 
   sorted.forEach((lecture) => {
     const start = new Date(lecture.startTime);
     const end = new Date(start.getTime() + lecture.durationMinutes * 60000);
 
     const gapMinutes = minutesBetween(cursor, start);
-    if (gapMinutes >= 25) {
-      segments.push(
-        ...allocatePlannedBlocks(new Date(cursor), new Date(start), deadlineSuggestions, consumedDeadlineIndex, t)
-      );
+    if (gapMinutes >= 15) {
+      segments.push({
+        type: "free",
+        start: new Date(cursor),
+        end: new Date(start)
+      });
     }
 
     segments.push({
@@ -211,25 +137,15 @@ function buildDayTimeline(
   });
 
   const trailingGap = minutesBetween(cursor, timelineEnd);
-  if (trailingGap >= 25) {
-    segments.push(
-      ...allocatePlannedBlocks(new Date(cursor), new Date(timelineEnd), deadlineSuggestions, consumedDeadlineIndex, t)
-    );
+  if (trailingGap >= 15) {
+    segments.push({
+      type: "free",
+      start: new Date(cursor),
+      end: new Date(timelineEnd)
+    });
   }
 
-  return segments.filter((segment) => {
-    if (segment.type !== "planned") {
-      return true;
-    }
-    return !suggestionMutes.some((mute) => {
-      const muteStart = new Date(mute.startTime);
-      const muteEnd = new Date(mute.endTime);
-      if (Number.isNaN(muteStart.getTime()) || Number.isNaN(muteEnd.getTime())) {
-        return false;
-      }
-      return segment.start.getTime() < muteEnd.getTime() && segment.end.getTime() > muteStart.getTime();
-    });
-  });
+  return segments;
 }
 
 interface ScheduleViewProps {
@@ -240,8 +156,6 @@ export function ScheduleView({ focusLectureId }: ScheduleViewProps): JSX.Element
   const { locale, t } = useI18n();
   const localeTag = locale === "no" ? "nb-NO" : "en-US";
   const [schedule, setSchedule] = useState<LectureEvent[]>([]);
-  const [deadlines, setDeadlines] = useState<Deadline[]>([]);
-  const [suggestionMutes, setSuggestionMutes] = useState<ScheduleSuggestionMute[]>([]);
   const [dayOffset, setDayOffset] = useState(0);
   const [dayTransitionDirection, setDayTransitionDirection] = useState<"left" | "right" | null>(null);
   const [dayAnimationKey, setDayAnimationKey] = useState(0);
@@ -267,15 +181,9 @@ export function ScheduleView({ focusLectureId }: ScheduleViewProps): JSX.Element
 
     const load = async (): Promise<void> => {
       try {
-        const [nextSchedule, nextDeadlines, nextSuggestionMutes] = await Promise.all([
-          getSchedule(),
-          getDeadlines(),
-          getScheduleSuggestionMutes(new Date())
-        ]);
+        const nextSchedule = await getSchedule();
         if (!disposed) {
           setSchedule(nextSchedule);
-          setDeadlines(nextDeadlines);
-          setSuggestionMutes(nextSuggestionMutes);
         }
       } catch { /* remain in loading state */ }
       if (!disposed) setLoading(false);
@@ -363,21 +271,9 @@ export function ScheduleView({ focusLectureId }: ScheduleViewProps): JSX.Element
   const sortedSchedule = [...schedule].sort((a, b) => 
     new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
   );
-  const pendingDeadlines = deadlines.filter((deadline) => !deadline.completed);
-  const deadlineSuggestions = pendingDeadlines
-    .map((deadline) => ({
-      dueDateMs: new Date(deadline.dueDate).getTime(),
-      label: `${deadline.course} ${deadline.task}`
-    }))
-    .filter((item) => Number.isFinite(item.dueDateMs))
-    .sort((left, right) => left.dueDateMs - right.dueDateMs)
-    .slice(0, 8)
-    .map((item) => item.label);
   const dayBlocks = sortedSchedule.filter((block) => isSameLocalDate(new Date(block.startTime), referenceDate));
-  // Only build gap-filler suggestions when there are real schedule events;
-  // on a fresh account with no events, show the empty state instead
   const dayTimeline = dayBlocks.length > 0
-    ? buildDayTimeline(dayBlocks, referenceDate, deadlineSuggestions, suggestionMutes, t)
+    ? buildDayTimeline(dayBlocks, referenceDate)
     : [];
   const scheduleTitle =
     dayOffset === 0
