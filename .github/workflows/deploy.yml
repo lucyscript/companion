@@ -28,7 +28,6 @@ jobs:
           node-version: 20
 
       - name: Install dependencies
-        working-directory: apps/web
         run: npm ci
 
       - name: Build

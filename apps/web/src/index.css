@@ -624,6 +624,9 @@ button:disabled {
   padding: 18px 16px 16px;
   display: grid;
   gap: 14px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .schedule-card-swipeable {
@@ -2809,12 +2812,11 @@ body:not(.chat-tab-active):not(.keyboard-open) .tab-content-area,
 body.chat-overlay-docked .tab-content-area {
   height: 100%;
   min-height: 0;
-  overflow-x: clip;
+  overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
   scrollbar-width: none;
-  scrollbar-gutter: auto;
   padding:
     max(20px, calc(20px + env(safe-area-inset-top)))
     max(20px, calc(20px + env(safe-area-inset-right)))
@@ -2827,8 +2829,6 @@ body.chat-overlay-docked .tab-content-area {
 body:not(.chat-tab-active):not(.keyboard-open) .tab-content-area::-webkit-scrollbar,
 body.chat-overlay-docked .tab-content-area::-webkit-scrollbar {
   display: none;
-  width: 0;
-  height: 0;
 }
 
 /* When chat overlay is open (keyboard down), fade background content just
@@ -4703,6 +4703,9 @@ body:not(.keyboard-open) .app-shell-chat-active .chat-messages {
   display: grid;
   gap: 16px;
   touch-action: pan-y;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
 }
 
 .schedule-grid {
