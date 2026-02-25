@@ -381,6 +381,7 @@ export function ChatView({ mood, onMoodChange, onDataMutated }: ChatViewProps): 
   const [isListening, setIsListening] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const nextPageRef = useRef(2);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -467,6 +468,8 @@ export function ChatView({ mood, onMoodChange, onDataMutated }: ChatViewProps): 
       } catch (err) {
         setError("Failed to load chat history");
         console.error(err);
+      } finally {
+        setHistoryLoaded(true);
       }
     };
 
@@ -930,7 +933,7 @@ export function ChatView({ mood, onMoodChange, onDataMutated }: ChatViewProps): 
             </button>
           </div>
         )}
-        {messages.length === 0 && (
+        {historyLoaded && messages.length === 0 && (
           <div className="chat-welcome">
             <h2>👋 Hi there!</h2>
             <p>I'm your personal AI companion. I know your schedule, deadlines, and food plan context.</p>
