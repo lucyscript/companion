@@ -2812,6 +2812,7 @@ body.chat-overlay-docked .tab-content-area {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+  scrollbar-width: none;
   padding:
     max(20px, calc(20px + env(safe-area-inset-top)))
     max(20px, calc(20px + env(safe-area-inset-right)))
@@ -2819,6 +2820,11 @@ body.chat-overlay-docked .tab-content-area {
     max(20px, calc(20px + env(safe-area-inset-left)));
   -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 calc(100% - 24px), transparent 100%);
   mask-image: linear-gradient(to bottom, #000 0%, #000 calc(100% - 24px), transparent 100%);
+}
+
+body:not(.chat-tab-active):not(.keyboard-open) .tab-content-area::-webkit-scrollbar,
+body.chat-overlay-docked .tab-content-area::-webkit-scrollbar {
+  display: none;
 }
 
 /* When chat overlay is open (keyboard down), fade background content just
