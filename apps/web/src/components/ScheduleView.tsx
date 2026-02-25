@@ -500,6 +500,26 @@ export function ScheduleView({ focusLectureId }: ScheduleViewProps): JSX.Element
     resetScheduleSwipe();
   };
 
+  // Compute "now" position relative to timeline segments for inline marker
+  const nowTime = now.getTime();
+  const totalSessionMinutes = dayBlocks.reduce((sum, b) => sum + b.durationMinutes, 0);
+
+  // Find where to insert "now" marker in the timeline
+  const nowInsertIndex = isReferenceToday
+    ? dayTimeline.findIndex((seg) => seg.start.getTime() > nowTime)
+    : -1;
+  // If now is past all events, insert at end (length)
+  const effectiveNowIndex = isReferenceToday
+    ? nowInsertIndex === -1 && dayTimeline.length > 0 && dayTimeline[dayTimeline.length - 1].end.getTime() < nowTime
+      ? dayTimeline.length
+      : nowInsertIndex
+    : -1;
+
+  // Check if "now" falls inside a segment
+  const nowInsideSegmentIndex = isReferenceToday
+    ? dayTimeline.findIndex((seg) => seg.start.getTime() <= nowTime && seg.end.getTime() > nowTime)
+    : -1;
+
   return (
     <section
       className="schedule-card schedule-card-swipeable"
@@ -508,43 +528,44 @@ export function ScheduleView({ focusLectureId }: ScheduleViewProps): JSX.Element
       onTouchEnd={handleScheduleTouchEnd}
       onTouchCancel={resetScheduleSwipe}
     >
-      <div className="schedule-card-header">
-        <div className="schedule-card-title-row">
-          <span className="schedule-card-icon schedule-card-icon-svg"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/><path d="M12 6v6l4 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg></span>
-          <div className="schedule-card-title-group">
-            <h2>{scheduleTitle}</h2>
-            <p className="schedule-card-subtitle">{scheduleDateLabel}</p>
-          </div>
+      {/* Compact header with integrated day nav */}
+      <div className="sched-header">
+        <button type="button" className="sched-nav-btn" onClick={() => navigateDay(-1)} aria-label={t("Previous day")}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </button>
+        <div className="sched-header-center">
+          <h2 className="sched-title">{scheduleTitle}</h2>
+          <span className="sched-date">{scheduleDateLabel}</span>
         </div>
-        <div className="schedule-card-meta">
-          {dayBlocks.length > 0 ? (
-            <span className="schedule-badge">
-              {dayBlocks.length === 1
-                ? t("{count} session", { count: dayBlocks.length })
-                : t("{count} sessions", { count: dayBlocks.length })}
-            </span>
-          ) : (
-            <span className="schedule-badge schedule-badge-empty">{t("Free day")}</span>
-          )}
-          {!isOnline && <span className="schedule-badge schedule-badge-offline">{t("Offline")}</span>}
-        </div>
+        <button type="button" className="sched-nav-btn" onClick={() => navigateDay(1)} aria-label={t("Next day")}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </button>
       </div>
+
+      {/* Meta badges */}
+      <div className="sched-badges">
+        {dayBlocks.length > 0 ? (
+          <span className="sched-chip">
+            {dayBlocks.length === 1
+              ? t("{count} session", { count: dayBlocks.length })
+              : t("{count} sessions", { count: dayBlocks.length })}
+          </span>
+        ) : (
+          <span className="sched-chip sched-chip--empty">{t("Free day")}</span>
+        )}
+        {totalSessionMinutes > 0 && (
+          <span className="sched-chip sched-chip--time">{formatDuration(totalSessionMinutes)}</span>
+        )}
+        {!isOnline && <span className="sched-chip sched-chip--offline">{t("Offline")}</span>}
+      </div>
+
       <div
         key={dayAnimationKey}
         className={`schedule-day-surface ${
           dayTransitionDirection ? `schedule-day-surface-${dayTransitionDirection}` : ""
         }`}
       >
-        <div className="schedule-day-nav" aria-label={t("Browse days")}>
-          <button type="button" className="schedule-day-nav-btn" onClick={() => navigateDay(-1)}>
-            ‹
-          </button>
-          <span className="schedule-day-nav-label">{scheduleDateLabel}</span>
-          <button type="button" className="schedule-day-nav-btn" onClick={() => navigateDay(1)}>
-            ›
-          </button>
-        </div>
-
+        {/* Day overview track */}
         <div className="schedule-day-track-wrap">
           <div className="schedule-day-track">
             {isReferenceToday && (
@@ -589,6 +610,7 @@ export function ScheduleView({ focusLectureId }: ScheduleViewProps): JSX.Element
           </div>
         </div>
 
+        {/* Timeline */}
         {loading ? (
           <div className="schedule-loading">
             <span className="schedule-loading-dot" />
@@ -596,42 +618,77 @@ export function ScheduleView({ focusLectureId }: ScheduleViewProps): JSX.Element
             <span className="schedule-loading-dot" />
           </div>
         ) : dayTimeline.length > 0 ? (
-          <ul className="timeline-list">
+          <div className="tl">
             {dayTimeline.map((segment, index) => {
-              const track = toDayTrackPosition(segment.start, segment.end);
-              const segmentTypeClass = segment.type === "event" ? "timeline-item--lecture" : "timeline-item--gap";
+              const isEvent = segment.type === "event";
+              const isActive = isReferenceToday && nowInsideSegmentIndex === index;
+              const showNowBefore = effectiveNowIndex === index;
+              const timeStart = segment.start.toLocaleTimeString(localeTag, { hour: "2-digit", minute: "2-digit", hour12: false });
+              const timeEnd = segment.end.toLocaleTimeString(localeTag, { hour: "2-digit", minute: "2-digit", hour12: false });
+              const duration = formatDuration(minutesBetween(segment.start, segment.end));
+              const label = formatDayTimelineLabel(segment, t);
+              const isLast = index === dayTimeline.length - 1;
+              const lectureId = isEvent && segment.event ? segment.event.id : undefined;
+
               return (
-                <li
-                  key={`${segment.type}-${segment.start.toISOString()}-${index}`}
-                  className={`timeline-item ${segmentTypeClass}`}
-                >
-                  <div className="timeline-item-track" aria-hidden="true">
-                    <span
-                      className={`timeline-item-track-fill ${
-                        segment.type === "event" ? "timeline-item-track-fill-lecture" : "timeline-item-track-fill-gap"
-                      }`}
-                      style={{ left: `${track.startPercent}%`, width: `${track.widthPercent}%` }}
-                    />
-                  </div>
-                  <div className="timeline-item-content">
-                    <div className="timeline-item-time-row">
-                      <span className="timeline-time">
-                        {segment.start.toLocaleTimeString(localeTag, { hour: "2-digit", minute: "2-digit", hour12: false })}
-                        {" – "}
-                        {segment.end.toLocaleTimeString(localeTag, { hour: "2-digit", minute: "2-digit", hour12: false })}
-                      </span>
-                      <span className="timeline-item-duration">
-                        {formatDuration(minutesBetween(segment.start, segment.end))}
-                      </span>
+                <div key={`${segment.type}-${segment.start.toISOString()}-${index}`}>
+                  {/* Now marker inserted between segments */}
+                  {showNowBefore && (
+                    <div className="tl-now">
+                      <span className="tl-now-dot" />
+                      <span className="tl-now-line" />
+                      <span className="tl-now-label">{t("Now")} {nowLabel}</span>
                     </div>
-                    <p className="timeline-item-label">
-                      {formatDayTimelineLabel(segment, t)}
-                    </p>
-                  </div>
-                </li>
+                  )}
+
+                  {isEvent ? (
+                    <div
+                      className={`tl-event${isActive ? " tl-event--active" : ""}${focusLectureId && lectureId === focusLectureId ? " tl-event--focused" : ""}`}
+                      id={lectureId ? `lecture-${lectureId}` : undefined}
+                    >
+                      <div className="tl-connector">
+                        <span className={`tl-dot${isActive ? " tl-dot--active" : ""}`} />
+                        {!isLast && <span className="tl-stem" />}
+                      </div>
+                      <div className="tl-event-card">
+                        <div className="tl-event-time">
+                          <span>{timeStart}</span>
+                          <span className="tl-event-arrow">→</span>
+                          <span>{timeEnd}</span>
+                          <span className="tl-event-dur">{duration}</span>
+                        </div>
+                        <p className="tl-event-title">{label}</p>
+                        {isActive && (
+                          <span className="tl-event-live">{t("Happening now")}</span>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="tl-gap">
+                      <div className="tl-connector">
+                        <span className="tl-dot tl-dot--gap" />
+                        {!isLast && <span className="tl-stem tl-stem--dashed" />}
+                      </div>
+                      <div className="tl-gap-body">
+                        <span className="tl-gap-time">{timeStart} – {timeEnd}</span>
+                        <span className="tl-gap-label">{label}</span>
+                        <span className="tl-gap-dur">{duration}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
               );
             })}
-          </ul>
+
+            {/* Now marker at end if past all events */}
+            {effectiveNowIndex === dayTimeline.length && (
+              <div className="tl-now">
+                <span className="tl-now-dot" />
+                <span className="tl-now-line" />
+                <span className="tl-now-label">{t("Now")} {nowLabel}</span>
+              </div>
+            )}
+          </div>
         ) : (
           <div className="schedule-empty-state">
             <span className="schedule-empty-icon">🌤️</span>
