@@ -1532,7 +1532,8 @@ export function buildContextWindow(context: ContextWindow): string {
     context.todaySchedule.forEach((event) => {
       const startTime = new Date(event.startTime).toLocaleTimeString("en-US", {
         hour: "2-digit",
-        minute: "2-digit"
+        minute: "2-digit",
+        timeZone: config.TIMEZONE
       });
       parts.push(`- ${startTime}: ${event.title} (${event.durationMinutes} min)`);
     });

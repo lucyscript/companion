@@ -30,6 +30,9 @@ COPY --from=builder /app/dist ./dist
 # Create data directory for SQLite
 RUN mkdir -p /app/data
 
+# Set default timezone for Node.js process
+ENV TZ=Europe/Oslo
+
 # Expose port
 EXPOSE 8787
 

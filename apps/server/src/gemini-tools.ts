@@ -20,6 +20,7 @@ import {
   WithingsWeightEntry
 } from "./types.js";
 import { applyRoutinePresetPlacements } from "./routine-presets.js";
+import { config } from "./config.js";
 
 /**
  * Function declarations for Gemini function calling.
@@ -1117,7 +1118,7 @@ export const functionDeclarations: FunctionDeclaration[] = [
         },
         startTime: {
           type: SchemaType.STRING,
-          description: "ISO datetime when the block starts"
+          description: "ISO datetime in the user's LOCAL timezone (e.g. 2026-02-26T18:00:00, NOT with Z suffix). The system will convert to UTC automatically."
         },
         durationMinutes: {
           type: SchemaType.NUMBER,
@@ -1330,15 +1331,77 @@ function minutesBetween(start: Date, end: Date): number {
   return Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000));
 }
 
+/**
+ * Convert a local date+time in a given IANA timezone to a UTC Date.
+ * Uses Intl.DateTimeFormat to discover the real offset (DST-aware).
+ */
+function localTimeToUTC(
+  year: number, month: number, day: number,
+  hours: number, minutes: number, timezone: string
+): Date {
+  // Start with a rough UTC estimate so Intl formats the correct calendar day
+  const rough = new Date(Date.UTC(year, month, day, hours, minutes, 0, 0));
+
+  // Ask Intl what local clock time `rough` maps to in `timezone`
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: timezone,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hour12: false
+  }).formatToParts(rough);
+
+  const p = (type: string) => Number(parts.find(x => x.type === type)?.value ?? 0);
+  const localH = p("hour") === 24 ? 0 : p("hour");
+  const localM = p("minute");
+  const localD = p("day");
+
+  // Offset = how far ahead the timezone is from UTC
+  let offsetMin = (localH - hours) * 60 + (localM - minutes) + (localD - day) * 24 * 60;
+  // Normalise to ±720 min (±12 h) to handle month/year wraparound
+  if (offsetMin > 720) offsetMin -= 1440;
+  if (offsetMin < -720) offsetMin += 1440;
+
+  // The desired local time in UTC = desired wall-clock minus the offset
+  return new Date(Date.UTC(year, month, day, hours, minutes, 0, 0) - offsetMin * 60 * 1000);
+}
+
+/**
+ * Get the local date components (year/month/day) for a Date in a given IANA timezone.
+ */
+function getLocalDateParts(date: Date, timezone: string): { year: number; month: number; day: number } {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: timezone,
+    year: "numeric", month: "2-digit", day: "2-digit"
+  }).formatToParts(date);
+  const p = (type: string) => Number(parts.find(x => x.type === type)?.value ?? 0);
+  return { year: p("year"), month: p("month") - 1, day: p("day") };
+}
+
 function parseFlexibleDateTime(value: string, referenceDate: Date = new Date()): Date | null {
   const trimmed = value.trim();
   if (!trimmed) {
     return null;
   }
+  const tz = config.TIMEZONE || "Europe/Oslo";
 
-  const direct = new Date(trimmed);
-  if (!Number.isNaN(direct.getTime())) {
-    return direct;
+  // If it's a full ISO string with explicit Z or offset, parse as-is (already UTC-qualified)
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(trimmed)) {
+    // Strip trailing Z so the time is treated as the user's LOCAL timezone, not UTC
+    const withoutZ = trimmed.replace(/Z$/i, "");
+    // Extract date/time components
+    const m = withoutZ.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+    if (m) {
+      const [, yr, mo, dy, hr, mn] = m;
+      const utc = localTimeToUTC(
+        Number(yr), Number(mo) - 1, Number(dy),
+        Number(hr), Number(mn), tz
+      );
+      if (!Number.isNaN(utc.getTime())) return utc;
+    }
+    // Fallback: if it had an explicit +/- offset (not Z), honour it as-is
+    if (/[+-]\d{2}:\d{2}$/.test(trimmed)) {
+      const direct = new Date(trimmed);
+      if (!Number.isNaN(direct.getTime())) return direct;
+    }
   }
 
   const normalized = trimmed
@@ -1385,15 +1448,26 @@ function parseFlexibleDateTime(value: string, referenceDate: Date = new Date()):
     return null;
   }
 
-  const candidate = new Date(referenceDate);
-  candidate.setSeconds(0, 0);
+  // Resolve reference date in the configured timezone
+  const refLocal = getLocalDateParts(referenceDate, tz);
+  let localYear = refLocal.year;
+  let localMonth = refLocal.month;
+  let localDay = refLocal.day;
+
   if (hasTomorrow) {
-    candidate.setDate(candidate.getDate() + 1);
+    // Advance by 1 day in local timezone
+    const tmp = new Date(Date.UTC(localYear, localMonth, localDay + 1));
+    localYear = tmp.getUTCFullYear();
+    localMonth = tmp.getUTCMonth();
+    localDay = tmp.getUTCDate();
   }
-  candidate.setHours(hours, minutes, 0, 0);
+
+  const candidate = localTimeToUTC(localYear, localMonth, localDay, hours, minutes, tz);
 
   if (!hasToday && !hasTomorrow && candidate.getTime() < referenceDate.getTime() - 5 * 60 * 1000) {
-    candidate.setDate(candidate.getDate() + 1);
+    // Advance by 1 day
+    const nextLocal = getLocalDateParts(new Date(candidate.getTime() + 24 * 60 * 60 * 1000), tz);
+    return localTimeToUTC(nextLocal.year, nextLocal.month, nextLocal.day, hours, minutes, tz);
   }
 
   return candidate;

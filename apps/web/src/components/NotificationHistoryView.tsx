@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { getNotificationInteractions } from "../lib/api";
 import { apiUrl } from "../lib/config";
 import { NotificationInteraction, NotificationInteractionType, AgentName } from "../types";
+import { IconPointer, IconXCircle, IconZap, IconClipboard } from "./Icons";
+import type { ReactNode } from "react";
 
 async function retriggerNotification(title: string, message: string, priority: string): Promise<void> {
   try {
@@ -80,16 +82,16 @@ export function NotificationHistoryView(): JSX.Element {
     return `${Math.round(ms / 60000)}m`;
   };
 
-  const getInteractionIcon = (type: NotificationInteractionType): string => {
+  const getInteractionIcon = (type: NotificationInteractionType): ReactNode => {
     switch (type) {
       case "tap":
-        return "👆";
+        return <IconPointer size={14} />;
       case "dismiss":
-        return "❌";
+        return <IconXCircle size={14} />;
       case "action":
-        return "⚡";
+        return <IconZap size={14} />;
       default:
-        return "📋";
+        return <IconClipboard size={14} />;
     }
   };
 

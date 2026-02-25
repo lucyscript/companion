@@ -692,7 +692,7 @@ function formatInTimeZone(
 }
 
 function buildRuntimeContextNudge(now: Date): string {
-  const timezone = config.TIMEZONE || "UTC";
+  const timezone = config.TIMEZONE || "Europe/Oslo";
   const isoNow = now.toISOString();
   const localDate = formatInTimeZone(now, timezone, {
     weekday: "long",
@@ -712,7 +712,8 @@ function buildRuntimeContextNudge(now: Date): string {
     `- Timezone: ${timezone}`,
     `- Local date: ${localDate}`,
     `- Local time: ${localTime}`,
-    `- UTC now: ${isoNow}`
+    `- UTC now: ${isoNow}`,
+    `IMPORTANT: The user is in ${timezone}. All times you mention in conversation MUST be in ${timezone} local time. Never show UTC or offset-adjusted times to the user. When you read schedule event times from tool results, those are already converted to local time.`
   ];
 
   return lines.join("\n");
@@ -1223,6 +1224,7 @@ Core behavior:
 - For manual deadline entry/removal requests, use createDeadline/deleteDeadline.
 - CRITICAL timezone rule for deadlines: All stored dueDate values from getDeadlines are in UTC. The user sees and speaks in LOCAL time (see timezone in runtime context below). When the user says a date/time like "22.02.2026 23:59", that is LOCAL time — convert it to UTC before passing to queueDeadlineAction. For example, 23:59 Europe/Oslo (UTC+1 winter) = 22:59 UTC → newDueDate "2026-02-22T22:59:00.000Z". Similarly, when comparing a stored UTC dueDate against the user's stated local time, apply the timezone offset — a UTC date of 2026-02-22T23:59Z displays as 2026-02-23T00:59 in Europe/Oslo, NOT Feb 22 23:59. Always call queueDeadlineAction if the user's intended local time differs from the current local-time interpretation of the stored UTC dueDate.
 - For schedule mutations, execute immediately with createScheduleBlock/updateScheduleBlock/deleteScheduleBlock/clearScheduleWindow.
+- CRITICAL timezone rule for schedule blocks: When calling createScheduleBlock or updateScheduleBlock, pass startTime as LOCAL time (the user's timezone) without a Z suffix. For example, if user says "add gym at 18:00", pass startTime "2026-02-26T18:00:00" (no Z). The system converts local time to UTC automatically. Do NOT append Z to schedule startTime values.
 - IMPORTANT: Only create/modify the specific schedule items the user asks for. Never auto-fill the rest of the day with extra blocks unless explicitly asked (e.g. "plan my whole day"). The schedule UI already shows gap suggestions automatically.
 - When the user asks to be reminded about something at a specific time, use scheduleReminder. Pick a fitting emoji icon for the reminder (e.g. 📚 for study, 💊 for meds, 🏋️ for gym, 📧 for emails). If the user doesn't specify a time, infer a reasonable one from context.
 - For recurring reminders ("remind me every day at 9am"), set the recurrence field to 'daily', 'weekly', or 'monthly'. The system auto-reschedules after each delivery.

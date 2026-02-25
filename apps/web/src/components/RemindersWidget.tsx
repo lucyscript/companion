@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getScheduledReminders, cancelScheduledReminder, ScheduledReminder } from "../lib/api";
 import { useI18n } from "../lib/i18n";
+import { IconBell } from "./Icons";
 
 function formatReminderTime(
   iso: string,
@@ -74,7 +75,7 @@ export function RemindersWidget(): JSX.Element | null {
     <div className="reminders-card">
       <div className="reminders-card-header">
         <div className="reminders-card-title-row">
-          <span className="reminders-card-icon">🔔</span>
+          <span className="reminders-card-icon"><IconBell size={18} /></span>
           <h2>{t("Reminders")}</h2>
         </div>
         <span className="reminders-badge">{t("{count} upcoming", { count: reminders.length })}</span>

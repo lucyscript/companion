@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import {
   getCanvasStatus,
   getGeminiStatus,
@@ -9,6 +10,7 @@ import type {
   CanvasStatus,
   GeminiStatus
 } from "../types";
+import { IconGradCap, IconSparkles, IconCalendar } from "./Icons";
 
 function formatRelative(timestamp: string | null): string {
   if (!timestamp) return "Never";
@@ -32,7 +34,7 @@ interface IntegrationDef {
   id: IntegrationId;
   name: string;
   description: string;
-  icon: string;
+  icon: ReactNode;
   status: "connected" | "configured" | "not-configured" | "syncing";
   detail?: string;
   action?: { label: string; handler: () => void; disabled?: boolean };
@@ -83,7 +85,7 @@ export function IntegrationStatusView(): JSX.Element {
       id: "canvas",
       name: "Canvas LMS",
       description: "Courses, assignments, deadlines, grades",
-      icon: "🎓",
+      icon: <IconGradCap size={18} />,
       status: canvasSyncing ? "syncing" : canvasStatus.lastSyncedAt ? "connected" : "not-configured",
       detail: canvasStatus.lastSyncedAt
         ? `${canvasStatus.courses.length} courses · Synced ${formatRelative(canvasStatus.lastSyncedAt)}`
@@ -98,7 +100,7 @@ export function IntegrationStatusView(): JSX.Element {
       id: "gemini",
       name: "Gemini AI",
       description: "Conversational AI, summaries, coaching",
-      icon: "✨",
+      icon: <IconSparkles size={18} />,
       status: geminiStatus.apiConfigured ? "connected" : "not-configured",
       detail: geminiStatus.apiConfigured
         ? `${geminiStatus.model} · Last used ${formatRelative(geminiStatus.lastRequestAt)}`
@@ -108,7 +110,7 @@ export function IntegrationStatusView(): JSX.Element {
       id: "ical",
       name: "TP EduCloud (iCal)",
       description: "Schedule events from your iCal timetable feed",
-      icon: "📅",
+      icon: <IconCalendar size={18} />,
       status: "configured",
       detail: "Configured via your TP iCal subscription · Syncs weekly"
     }

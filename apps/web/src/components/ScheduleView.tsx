@@ -3,6 +3,7 @@ import type { TouchEvent } from "react";
 import { getSchedule } from "../lib/api";
 import { useI18n } from "../lib/i18n";
 import { LectureEvent } from "../types";
+import { IconSunPartial } from "./Icons";
 
 interface DayTimelineSegment {
   type: "event" | "free";
@@ -101,16 +102,21 @@ function buildDayTimeline(
   referenceDate: Date
 ): DayTimelineSegment[] {
   const sorted = [...scheduleBlocks].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-  const firstStart = sorted.length > 0 ? new Date(sorted[0].startTime) : new Date(referenceDate);
-  const timelineStart = new Date(referenceDate);
-  timelineStart.setHours(Math.min(7, firstStart.getHours()), 0, 0, 0);
 
-  const lastLecture = sorted.length > 0 ? sorted[sorted.length - 1] : null;
-  const lastEnd = lastLecture
-    ? new Date(new Date(lastLecture.startTime).getTime() + lastLecture.durationMinutes * 60000)
-    : new Date(referenceDate);
+  if (sorted.length === 0) {
+    return [];
+  }
+
+  // Timeline starts 1h before first event (clamped to 00:00)
+  const firstStart = new Date(sorted[0].startTime);
+  const timelineStart = new Date(referenceDate);
+  timelineStart.setHours(Math.max(0, firstStart.getHours() - 1), 0, 0, 0);
+
+  // Timeline ends 1h after last event (clamped to 23:59)
+  const lastLecture = sorted[sorted.length - 1];
+  const lastEnd = new Date(new Date(lastLecture.startTime).getTime() + lastLecture.durationMinutes * 60000);
   const timelineEnd = new Date(referenceDate);
-  timelineEnd.setHours(Math.max(20, lastEnd.getHours() + 1), 0, 0, 0);
+  timelineEnd.setHours(Math.min(23, lastEnd.getHours() + 1), lastEnd.getHours() + 1 > 23 ? 59 : 0, 0, 0);
 
   const segments: DayTimelineSegment[] = [];
   let cursor = timelineStart;
@@ -505,7 +511,7 @@ export function ScheduleView({ focusLectureId }: ScheduleViewProps): JSX.Element
           </div>
         ) : (
           <div className="schedule-empty-state">
-            <span className="schedule-empty-icon">🌤️</span>
+            <span className="schedule-empty-icon"><IconSunPartial size={32} /></span>
             <p>{dayOffset === 0 ? t("No fixed sessions today") : t("No fixed sessions this day")}</p>
             <p className="schedule-empty-hint">{t("Ask Gemini to build your day plan")}</p>
           </div>

@@ -612,7 +612,7 @@ export function BodyCompChart({ entries }: BodyCompProps) {
       }
       if (e.fatRatioPercent !== null) tipLines.push(`BF: ${e.fatRatioPercent.toFixed(1)}%`);
       if (e.muscleMassKg !== null) tipLines.push(`Muscle: ${e.muscleMassKg.toFixed(1)} kg`);
-      if (e.gymCheckedIn) tipLines.push("🏋️ Gym day");
+      if (e.gymCheckedIn) tipLines.push("[Gym day]");
       drawTooltip(ctx, highlightIdx, entries, tipLines, w, h, plotW);
     }
   }, [entries]);

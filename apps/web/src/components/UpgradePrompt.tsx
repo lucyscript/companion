@@ -10,6 +10,7 @@ import {
 } from "../lib/api";
 import { useI18n } from "../lib/i18n";
 import type { ConnectorService, FeatureId, PlanId, PlanTierSummary, UserPlanInfo } from "../types";
+import { IconSparkles } from "./Icons";
 
 type PaymentMethod = "vipps" | "stripe";
 
@@ -125,7 +126,7 @@ export function UpgradePrompt({ feature, onDismiss }: UpgradePromptProps): JSX.E
         </button>
 
         <div className="upgrade-header">
-          <span className="upgrade-icon">✨</span>
+          <span className="upgrade-icon"><IconSparkles size={24} /></span>
           <h2 className="upgrade-title">{t("Upgrade to unlock")}</h2>
           {feature && <p className="upgrade-feature-label">{t("{feature} requires a paid plan", { feature })}</p>}
         </div>
@@ -249,7 +250,7 @@ export function LockedFeatureOverlay({ featureName, onUpgradeClick }: LockedFeat
         <h3 className="locked-feature-title">{featureName}</h3>
         <p className="locked-feature-desc">{t("This feature is available on paid plans.")}</p>
         <button className="locked-feature-btn" onClick={onUpgradeClick}>
-          <span>✨</span> {t("Upgrade to unlock")}
+          <span><IconSparkles size={14} /></span> {t("Upgrade to unlock")}
         </button>
       </div>
     </div>

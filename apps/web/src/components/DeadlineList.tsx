@@ -3,6 +3,7 @@ import { confirmDeadlineStatus, getDeadlines } from "../lib/api";
 import { hapticSuccess } from "../lib/haptics";
 import { useI18n } from "../lib/i18n";
 import { Deadline } from "../types";
+import { IconTarget, IconCheckCircle } from "./Icons";
 
 interface DeadlineListProps {
   focusDeadlineId?: string;
@@ -177,7 +178,7 @@ export function DeadlineList({ focusDeadlineId }: DeadlineListProps): JSX.Elemen
     <section className="deadline-card">
       <div className="deadline-card-header">
         <div className="deadline-card-title-row">
-          <span className="deadline-card-icon">🎯</span>
+          <span className="deadline-card-icon"><IconTarget size={18} /></span>
           <h2>{t("Deadlines")}</h2>
         </div>
         <div className="deadline-card-meta">
@@ -288,7 +289,7 @@ export function DeadlineList({ focusDeadlineId }: DeadlineListProps): JSX.Elemen
           </>
         ) : (
           <div className="deadline-empty-state">
-            <span className="deadline-empty-icon">✅</span>
+            <span className="deadline-empty-icon"><IconCheckCircle size={32} /></span>
             <p>{t("No deadlines tracked")}</p>
             <p className="deadline-empty-hint">{t("Add assignments to stay on top of your work")}</p>
           </div>

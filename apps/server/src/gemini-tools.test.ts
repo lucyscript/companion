@@ -1118,7 +1118,7 @@ describe("gemini-tools", () => {
       const result = executePendingChatAction(pending, store, userId);
 
       expect(result.success).toBe(true);
-      expect(result.lecture?.startTime).toContain("T08:00:00.000Z");
+      expect(result.lecture?.startTime).toContain("T07:00:00.000Z");
       expect(result.lecture?.durationMinutes).toBe(75);
     });
 

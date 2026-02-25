@@ -8,6 +8,7 @@ import {
   McpServerTemplate,
   UserPlanInfo
 } from "../types";
+import { IconLock } from "./Icons";
 import {
   connectService,
   connectMcpTemplate,
@@ -972,7 +973,7 @@ export function ConnectorsView({ planInfo, onUpgrade }: ConnectorsViewProps): JS
         ) : (
           <div className="connector-card connector-card-locked">
             <div className="connector-header connector-header-static">
-              <span className="connector-icon">🔒</span>
+              <span className="connector-icon"><IconLock size={18} /></span>
               <div className="connector-info">
                 <span className="connector-label">{t("Upgrade to unlock Connected Apps")}</span>
                 <span className="connector-desc">{t("Connect external apps like GitHub, Notion, and Withings.")}</span>

@@ -7,6 +7,10 @@ import { clearCompanionSessionData } from "../lib/storage";
 import { useI18n } from "../lib/i18n";
 import { THEME_OPTIONS } from "../lib/theme";
 import type { ThemePreference, UserPlanInfo } from "../types";
+import {
+  IconGear, IconDiamond, IconSparkles, IconPalette, IconLink, IconGlobe,
+  IconTarget, IconBell, IconShield, IconTrash, IconWarning, IconCircleFilled
+} from "./Icons";
 
 interface SettingsViewProps {
   planInfo: UserPlanInfo | null;
@@ -93,14 +97,14 @@ export function SettingsView({
       )}
 
       <div className="settings-header">
-        <span className="settings-header-icon">⚙️</span>
+        <span className="settings-header-icon"><IconGear size={20} /></span>
         <h2>{t("Settings")}</h2>
       </div>
 
       {/* Plan & Usage section */}
       {planInfo && (
         <div className="settings-section">
-          <h3 className="settings-section-title">💎 {t("Your Plan")}</h3>
+          <h3 className="settings-section-title"><IconDiamond size={16} style={{ verticalAlign: 'middle', marginRight: 4 }} /> {t("Your Plan")}</h3>
           <div className="plan-info-card">
             <div className="plan-info-row">
               <span className={`plan-badge plan-badge-${planInfo.plan}`}>{planInfo.badge}</span>
@@ -129,7 +133,7 @@ export function SettingsView({
             )}
             {planInfo.plan === "free" && (
               <button className="plan-upgrade-btn" onClick={onUpgrade}>
-                ✨ {t("Upgrade plan")}
+                <IconSparkles size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} /> {t("Upgrade plan")}
               </button>
             )}
           </div>
@@ -137,7 +141,7 @@ export function SettingsView({
       )}
 
       <div className="settings-section">
-        <h3 className="settings-section-title">🎨 {t("Appearance")}</h3>
+        <h3 className="settings-section-title"><IconPalette size={16} style={{ verticalAlign: 'middle', marginRight: 4 }} /> {t("Appearance")}</h3>
         <div className="settings-theme-card">
           <p className="settings-theme-info">
             {themesLocked
@@ -178,12 +182,12 @@ export function SettingsView({
       </div>
 
       <div className="settings-section">
-        <h3 className="settings-section-title">🔗 {t("Integrations")}</h3>
+        <h3 className="settings-section-title"><IconLink size={16} style={{ verticalAlign: 'middle', marginRight: 4 }} /> {t("Integrations")}</h3>
         <ConnectorsView planInfo={planInfo} onUpgrade={onUpgrade} />
       </div>
 
       <div className="settings-section">
-        <h3 className="settings-section-title">🌐 {t("Language")}</h3>
+        <h3 className="settings-section-title"><IconGlobe size={16} style={{ verticalAlign: 'middle', marginRight: 4 }} /> {t("Language")}</h3>
         <div className="settings-language-card">
           <p className="settings-theme-info">{t("Choose app language. English is default.")}</p>
           <div className="settings-language-options">
@@ -208,12 +212,12 @@ export function SettingsView({
       </div>
 
       <div className="settings-section">
-        <h3 className="settings-section-title">🎯 {t("Data Scope")}</h3>
+        <h3 className="settings-section-title"><IconTarget size={16} style={{ verticalAlign: 'middle', marginRight: 4 }} /> {t("Data Scope")}</h3>
         <IntegrationScopeSettings />
       </div>
 
       <div className="settings-section">
-        <h3 className="settings-section-title">🔔 {t("Notifications")}</h3>
+        <h3 className="settings-section-title"><IconBell size={16} style={{ verticalAlign: 'middle', marginRight: 4 }} /> {t("Notifications")}</h3>
 
         {/* Push notification toggle */}
         <div className="settings-push-card">
@@ -253,7 +257,7 @@ export function SettingsView({
 
       {/* GDPR / Data section */}
       <div className="settings-section">
-        <h3 className="settings-section-title">🛡️ {t("Privacy & Data")}</h3>
+        <h3 className="settings-section-title"><IconShield size={16} style={{ verticalAlign: 'middle', marginRight: 4 }} /> {t("Privacy & Data")}</h3>
         <div className="settings-gdpr-card">
           <p className="settings-gdpr-info">
             {t("Your data is processed in accordance with the GDPR (EEA). You can delete your account and all associated data at any time. This action is permanent and cannot be undone.")}
@@ -265,14 +269,14 @@ export function SettingsView({
               className="settings-delete-btn"
               onClick={() => setDeleteConfirmStep(1)}
             >
-              🗑️ {t("Delete my account & data")}
+              <IconTrash size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} /> {t("Delete my account & data")}
             </button>
           )}
 
           {deleteConfirmStep === 1 && (
             <div className="settings-delete-confirm">
               <p className="settings-delete-warning">
-                ⚠️ {t("This will permanently delete ALL your data: chat history, schedules, deadlines, habits, goals, journal entries, nutrition logs, integrations, and your account. This cannot be undone.")}
+                <IconWarning size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} /> {t("This will permanently delete ALL your data: chat history, schedules, deadlines, habits, goals, journal entries, nutrition logs, integrations, and your account. This cannot be undone.")}
               </p>
               <div className="settings-delete-actions">
                 <button
@@ -296,7 +300,7 @@ export function SettingsView({
           {deleteConfirmStep === 2 && (
             <div className="settings-delete-confirm">
               <p className="settings-delete-warning settings-delete-final-warning">
-                🔴 {t("Final confirmation: Are you absolutely sure? All your data will be gone forever.")}
+                <IconCircleFilled size={14} style={{ verticalAlign: 'middle', marginRight: 4, color: 'var(--color-error, #f44)' }} /> {t("Final confirmation: Are you absolutely sure? All your data will be gone forever.")}
               </p>
               <div className="settings-delete-actions">
                 <button

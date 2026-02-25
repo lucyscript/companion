@@ -5,7 +5,7 @@ dotenv.config();
 
 const env = {
   ...process.env,
-  TIMEZONE: process.env.TIMEZONE,
+  TIMEZONE: process.env.TIMEZONE ?? process.env.AXIS_TIMEZONE,
   USER_NAME: process.env.USER_NAME ?? process.env.AXIS_USER_NAME,
   VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY ?? process.env.AXIS_VAPID_PUBLIC_KEY,
   VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY ?? process.env.AXIS_VAPID_PRIVATE_KEY,

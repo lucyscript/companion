@@ -1,7 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { getAnalyticsCoachInsight, getDailyGrowthSummary } from "../lib/api";
 import { useI18n } from "../lib/i18n";
 import { AnalyticsCoachInsight, ChallengePrompt, DailyGrowthSummary } from "../types";
+import {
+  IconLink, IconCrystalBall, IconThought, IconFist, IconLightbulb,
+  IconTarget, IconBrain, IconStrength, IconWarning
+} from "./Icons";
 
 type PeriodDays = 1 | 7 | 14 | 30;
 
@@ -21,11 +25,11 @@ function formatGeneratedAt(value: string, localeTag: string): string {
   });
 }
 
-const CHALLENGE_ICONS: Record<ChallengePrompt["type"], string> = {
-  connect: "🔗",
-  predict: "🔮",
-  reflect: "💭",
-  commit: "✊"
+const CHALLENGE_ICONS: Record<ChallengePrompt["type"], ReactNode> = {
+  connect: <IconLink size={16} />,
+  predict: <IconCrystalBall size={16} />,
+  reflect: <IconThought size={16} />,
+  commit: <IconFist size={16} />
 };
 
 const CHALLENGE_LABELS: Record<ChallengePrompt["type"], string> = {
@@ -154,7 +158,7 @@ export function AnalyticsDashboard(): JSX.Element {
                           <span className="challenge-type">{t(CHALLENGE_LABELS[type])}</span>
                         </div>
                         <p className="challenge-question">{c.question}</p>
-                        {c.hint && <p className="challenge-hint">💡 {c.hint}</p>}
+                        {c.hint && <p className="challenge-hint"><IconLightbulb size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} /> {c.hint}</p>}
                       </div>
                     ))}
                     {cards.length > 1 && <div className="swipe-indicator">← →</div>}
@@ -201,7 +205,7 @@ export function AnalyticsDashboard(): JSX.Element {
                             <span className="challenge-type">{t(CHALLENGE_LABELS[type])}</span>
                           </div>
                           <p className="challenge-question">{c.question}</p>
-                          {c.hint && <p className="challenge-hint">💡 {c.hint}</p>}
+                          {c.hint && <p className="challenge-hint"><IconLightbulb size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} /> {c.hint}</p>}
                         </div>
                       ))}
                       <div className="swipe-indicator">← →</div>
@@ -214,7 +218,7 @@ export function AnalyticsDashboard(): JSX.Element {
             {/* Insight cards: each category is its own swipeable row */}
             <div className="swipeable-card-stack">
               <div className="swipe-card decorated-card next-steps-card">
-                <div className="challenge-header"><span className="challenge-icon">🎯</span><span className="challenge-type" style={{color: 'var(--accent)'}}>{t("Next Steps")}</span></div>
+                <div className="challenge-header"><span className="challenge-icon"><IconTarget size={16} /></span><span className="challenge-type" style={{color: 'var(--accent)'}}>{t("Next Steps")}</span></div>
                 <ol className="analytics-list analytics-list-numbered">
                   {insight.recommendations.map((item) => (
                     <li key={item}>{item}</li>
@@ -222,7 +226,7 @@ export function AnalyticsDashboard(): JSX.Element {
                 </ol>
               </div>
               <div className="swipe-card decorated-card coaching-card">
-                <div className="challenge-header"><span className="challenge-icon">🧠</span><span className="challenge-type" style={{color: '#a78bfa'}}>{t("Coaching")}</span></div>
+                <div className="challenge-header"><span className="challenge-icon"><IconBrain size={16} /></span><span className="challenge-type" style={{color: '#a78bfa'}}>{t("Coaching")}</span></div>
                 <ul className="analytics-list">
                   {insight.correlations.map((item) => (
                     <li key={item}>{item}</li>
@@ -230,7 +234,7 @@ export function AnalyticsDashboard(): JSX.Element {
                 </ul>
               </div>
               <div className="swipe-card decorated-card strengths-card">
-                <div className="challenge-header"><span className="challenge-icon">💪</span><span className="challenge-type" style={{color: '#34d399'}}>{t("Strengths")}</span></div>
+                <div className="challenge-header"><span className="challenge-icon"><IconStrength size={16} /></span><span className="challenge-type" style={{color: '#34d399'}}>{t("Strengths")}</span></div>
                 <ul className="analytics-list">
                   {insight.strengths.map((item) => (
                     <li key={item}>{item}</li>
@@ -238,7 +242,7 @@ export function AnalyticsDashboard(): JSX.Element {
                 </ul>
               </div>
               <div className="swipe-card decorated-card risks-card">
-                <div className="challenge-header"><span className="challenge-icon">⚠️</span><span className="challenge-type" style={{color: 'var(--danger)'}}>{t("Risks")}</span></div>
+                <div className="challenge-header"><span className="challenge-icon"><IconWarning size={16} /></span><span className="challenge-type" style={{color: 'var(--danger)'}}>{t("Risks")}</span></div>
                 <ul className="analytics-list">
                   {insight.risks.map((item) => (
                     <li key={item}>{item}</li>

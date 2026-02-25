@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 import { getNotificationPreferences, updateNotificationPreferences } from "../lib/api";
 import { useI18n } from "../lib/i18n";
 import { NotificationPreferences } from "../types";
+import { IconNotes, IconCalendar, IconBooks, IconBrain, IconMoon, IconSiren, IconBell } from "./Icons";
+import type { ReactNode } from "react";
 
-const categoryLabels: Record<string, { label: string; emoji: string; description: string }> = {
-  notes: { label: "Notes Agent", emoji: "📝", description: "Journal reflections and capture prompts" },
-  "lecture-plan": { label: "Lecture Planner", emoji: "📅", description: "Upcoming lectures and schedule changes" },
-  "assignment-tracker": { label: "Assignments", emoji: "📚", description: "Lab deadlines and progress alerts" },
-  orchestrator: { label: "Smart Nudges", emoji: "🧠", description: "Proactive reminders and check-ins" }
+const categoryLabels: Record<string, { label: string; icon: ReactNode; description: string }> = {
+  notes: { label: "Notes Agent", icon: <IconNotes size={16} />, description: "Journal reflections and capture prompts" },
+  "lecture-plan": { label: "Lecture Planner", icon: <IconCalendar size={16} />, description: "Upcoming lectures and schedule changes" },
+  "assignment-tracker": { label: "Assignments", icon: <IconBooks size={16} />, description: "Lab deadlines and progress alerts" },
+  orchestrator: { label: "Smart Nudges", icon: <IconBrain size={16} />, description: "Proactive reminders and check-ins" }
 };
 
 const categoryOrder: Array<keyof NotificationPreferences["categoryToggles"]> = [
@@ -105,7 +107,7 @@ export function NotificationSettings(): JSX.Element {
       <div className="noti-settings-card">
         <div className="noti-settings-row">
           <div className="noti-settings-row-text">
-            <span className="noti-settings-label">🌙 {t("Quiet Hours")}</span>
+            <span className="noti-settings-label"><IconMoon size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} /> {t("Quiet Hours")}</span>
             <span className="noti-settings-desc">
               {preferences.quietHours.enabled
                 ? t("Silent {start} – {end}", {
@@ -171,7 +173,7 @@ export function NotificationSettings(): JSX.Element {
 
             <div className="noti-settings-row noti-settings-sub-row">
               <div className="noti-settings-row-text">
-                <span className="noti-settings-label">🚨 {t("Critical override")}</span>
+                <span className="noti-settings-label"><IconSiren size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} /> {t("Critical override")}</span>
                 <span className="noti-settings-desc">{t("Allow critical alerts during quiet hours")}</span>
               </div>
               <ToggleSwitch
@@ -188,11 +190,11 @@ export function NotificationSettings(): JSX.Element {
       <div className="noti-settings-card">
         <p className="noti-settings-section-title">{t("Sources")}</p>
         {categoryOrder.map((category) => {
-          const info = categoryLabels[category] ?? { label: category, emoji: "🔔", description: "" };
+          const info = categoryLabels[category] ?? { label: category, icon: <IconBell size={16} />, description: "" };
           return (
             <div key={category} className="noti-settings-row">
               <div className="noti-settings-row-text">
-                <span className="noti-settings-label">{info.emoji} {t(info.label)}</span>
+                <span className="noti-settings-label">{info.icon} {t(info.label)}</span>
                 <span className="noti-settings-desc">{t(info.description)}</span>
               </div>
               <ToggleSwitch

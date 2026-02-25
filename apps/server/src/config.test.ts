@@ -221,12 +221,12 @@ describe("config", () => {
       expect(config.VIDEO_PROVIDER).toBe("manual");
     });
 
-    it("should ignore legacy AXIS_TIMEZONE and use canonical/default timezone", async () => {
+    it("should use AXIS_TIMEZONE as fallback when TIMEZONE is not set", async () => {
       delete process.env.TIMEZONE;
       process.env.AXIS_TIMEZONE = "America/Los_Angeles";
 
       const { config } = await import("./config.js");
-      expect(config.TIMEZONE).toBe("Europe/Oslo");
+      expect(config.TIMEZONE).toBe("America/Los_Angeles");
     });
   });
 

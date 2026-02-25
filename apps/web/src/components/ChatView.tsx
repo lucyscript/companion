@@ -1,6 +1,10 @@
 import { Fragment, ReactNode, useEffect, useRef, useState } from "react";
 import { sendChatMessageStream, getChatHistory } from "../lib/api";
 import { ChatCitation, ChatImageAttachment, ChatMessage, ChatMood, ChatPendingAction } from "../types";
+import {
+  IconCalendar, IconTarget, IconStrength, IconStar, IconUtensils, IconMail,
+  IconScale, IconMoon, IconFolder, IconSearch, IconPaperclip, IconWave
+} from "./Icons";
 
 const MOOD_PARTICLES: Record<Exclude<ChatMood, "neutral">, { emojis: string[]; count: number }> = {
   encouraging: { emojis: ["💪", "⭐", "🔥", "✨", "🚀"], count: 14 },
@@ -116,20 +120,21 @@ function formatCitationChipLabel(citation: ChatCitation): string {
   return label.length > 56 ? `${label.slice(0, 56)}...` : label;
 }
 
-function citationIcon(type: ChatCitation["type"]): string {
+function citationIcon(type: ChatCitation["type"]): ReactNode {
+  const s = 14;
   switch (type) {
-    case "schedule": return "📅";
-    case "deadline": return "🎯";
-    case "habit": return "💪";
-    case "goal": return "⭐";
+    case "schedule": return <IconCalendar size={s} />;
+    case "deadline": return <IconTarget size={s} />;
+    case "habit": return <IconStrength size={s} />;
+    case "goal": return <IconStar size={s} />;
     case "nutrition-meal":
-    case "nutrition-custom-food": return "🍽️";
-    case "email": return "✉️";
-    case "withings-weight": return "⚖️";
-    case "withings-sleep": return "😴";
-    case "github-course-doc": return "📂";
-    case "web-search": return "🔍";
-    default: return "📎";
+    case "nutrition-custom-food": return <IconUtensils size={s} />;
+    case "email": return <IconMail size={s} />;
+    case "withings-weight": return <IconScale size={s} />;
+    case "withings-sleep": return <IconMoon size={s} />;
+    case "github-course-doc": return <IconFolder size={s} />;
+    case "web-search": return <IconSearch size={s} />;
+    default: return <IconPaperclip size={s} />;
   }
 }
 
@@ -1003,7 +1008,7 @@ export function ChatView({ mood, onMoodChange, onDataMutated }: ChatViewProps): 
         )}
         {historyLoaded && messages.length === 0 && (
           <div className="chat-welcome">
-            <h2>👋 Hi there!</h2>
+            <h2><IconWave size={24} style={{ verticalAlign: 'middle', marginRight: 6 }} />Hi there!</h2>
             <p>I'm your personal AI companion. I know your schedule, deadlines, and food plan context.</p>
             <p>Ask me anything about your day, plans, and goals!</p>
             <div className="chat-quick-actions">
@@ -1057,7 +1062,7 @@ export function ChatView({ mood, onMoodChange, onDataMutated }: ChatViewProps): 
                     onClick={() => toggleCitationStack(msg.id)}
                     aria-expanded={expandedCitationMessageIds.has(msg.id)}
                   >
-                    <span className="chat-citation-toggle-icon" aria-hidden="true">📎</span>
+                    <span className="chat-citation-toggle-icon" aria-hidden="true"><IconPaperclip size={14} /></span>
                     <span className="chat-citation-toggle-text">
                       {citations.length === 1
                         ? `1 source`

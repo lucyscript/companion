@@ -569,7 +569,7 @@ describe("buildSystemPrompt", () => {
     expect(result).toContain("Lucy");
     expect(result).toContain("personal AI assistant for Lucy");
     expect(result).toContain(contextWindow);
-    expect(result).toContain("encouraging, conversational, and proactive");
+    expect(result).toContain("encouraging, conversational, and helpful");
   });
 
   it("should include context window in prompt", () => {
