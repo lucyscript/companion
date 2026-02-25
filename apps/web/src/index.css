@@ -3057,10 +3057,13 @@ body.ios-touch.keyboard-open.chat-overlay-active .chat-overlay-panel:not(.chat-o
   background: var(--chat-overlay-keyboard-scrim);
 }
 
-/* Constrain chat content to visual viewport so composer sits above keyboard */
+/* Constrain chat content to visual viewport so composer sits above keyboard.
+   Use a definite height (not auto) so percentage children resolve correctly
+   and chat-messages scrolling works. */
 body.ios-touch.keyboard-open.chat-overlay-active .chat-overlay-panel:not(.chat-overlay-panel-docked) .chat-tab {
-  height: auto;
+  height: var(--visual-viewport-height);
   max-height: var(--visual-viewport-height);
+  flex-shrink: 0;
 }
 
 body.ios-touch.keyboard-open.chat-overlay-docked .chat-overlay-panel-docked {
@@ -3075,8 +3078,9 @@ body.ios-touch.keyboard-open.chat-overlay-docked .chat-overlay-panel-docked {
 }
 
 body.ios-touch.keyboard-open.chat-overlay-docked .chat-overlay-panel-docked .chat-tab {
-  height: auto;
+  height: var(--visual-viewport-height);
   max-height: var(--visual-viewport-height);
+  flex-shrink: 0;
 }
 
 body.ios-touch.keyboard-open.chat-overlay-docked .chat-overlay-docked-close-btn {
