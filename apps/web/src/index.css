@@ -3228,8 +3228,8 @@ body.keyboard-open.chat-overlay-active .chat-overlay-panel .chat-messages {
   padding-bottom: 8px;
   margin-bottom: 0;
   scroll-padding-bottom: 8px;
-  -webkit-mask-image: none;
-  mask-image: none;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 24px, #000 calc(100% - 18px), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 24px, #000 calc(100% - 18px), transparent 100%);
   background: transparent;
 }
 
@@ -6214,10 +6214,10 @@ body.keyboard-open.chat-tab-active .app-shell-chat-active .chat-input-container 
 /* Chat tab keyboard layout: keep messages clear of fixed composer. */
 body.keyboard-open.chat-tab-active .app-shell-chat-active .chat-messages {
   padding-bottom: 8px;
-  margin-bottom: 72px;
-  scroll-padding-bottom: 72px;
-  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 calc(100% - 18px), transparent 100%);
-  mask-image: linear-gradient(to bottom, #000 0%, #000 calc(100% - 18px), transparent 100%);
+  margin-bottom: 52px;
+  scroll-padding-bottom: 52px;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 calc(100% - 14px), transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 calc(100% - 14px), transparent 100%);
 }
 
 body.keyboard-open.chat-tab-active {
