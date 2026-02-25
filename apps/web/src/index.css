@@ -253,6 +253,7 @@ html {
 html:has(body.keyboard-open) {
   background-image: none !important;
   background-color: var(--bg-keyboard, var(--bg-solid, #091019));
+  transition: none;
 }
 
 body.chat-tab-active {
@@ -2940,6 +2941,7 @@ body.keyboard-open .chat-overlay-panel {
   background: var(--bg-keyboard, var(--bg-solid, #091019));
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
+  transition: none;
 }
 
 .chat-overlay-panel-docked {
@@ -2956,6 +2958,7 @@ body.keyboard-open .chat-overlay-panel-docked {
   background: var(--bg-keyboard, var(--bg-solid, #091019));
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
+  transition: none;
 }
 
 .chat-overlay-panel-docked .chat-tab {
