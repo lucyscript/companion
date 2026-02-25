@@ -455,7 +455,7 @@ export function ChatView({ mood, onMoodChange, onDataMutated }: ChatViewProps): 
   useEffect(() => {
     const loadHistory = async (): Promise<void> => {
       try {
-        const response = await getChatHistory(1, 50);
+        const response = await getChatHistory(1, 25);
         const msgs = response.history.messages;
         setHasMore(response.history.hasMore);
         nextPageRef.current = 2;
