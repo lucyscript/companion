@@ -7,9 +7,15 @@ export interface ThemeOption {
   preview: [string, string, string];
 }
 
-export const DEFAULT_THEME: ThemePreference = "ocean-gold";
+export const DEFAULT_THEME: ThemePreference = "dark";
 
 export const THEME_OPTIONS: ThemeOption[] = [
+  {
+    id: "dark",
+    label: "Dark",
+    description: "Clean neutral dark with cool blue accents.",
+    preview: ["#1c1c1e", "#111113", "#60a5fa"]
+  },
   {
     id: "ocean-gold",
     label: "Ocean Gold",
@@ -31,6 +37,7 @@ export const THEME_OPTIONS: ThemeOption[] = [
 ];
 
 const THEME_COLORS: Record<ThemePreference, string> = {
+  "dark": "#0f0f11",
   "ocean-gold": "#0f1f2f",
   "emerald-dusk": "#0e2227",
   "sunset-indigo": "#181025"

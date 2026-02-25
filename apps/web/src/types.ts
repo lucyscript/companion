@@ -381,7 +381,7 @@ export interface NotificationPreferences {
 
 export type Locale = "en" | "no";
 
-export type ThemePreference = "ocean-gold" | "emerald-dusk" | "sunset-indigo";
+export type ThemePreference = "dark" | "ocean-gold" | "emerald-dusk" | "sunset-indigo";
 
 export type NotificationInteractionType = "tap" | "dismiss" | "action";
 
