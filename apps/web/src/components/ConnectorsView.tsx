@@ -173,13 +173,13 @@ const NOTION_MCP_ICON = { src: iconPath("icons/integrations/notion.svg"), alt: "
 
 // ── Connector grouping ──────────────────────────────────────────────────
 
-/** Services rendered inside the collapsed "University" abstraction pill. */
+/** Services rendered inside the collapsed "Academic Sources" abstraction pill. */
 const UNIVERSITY_SERVICES: ConnectorService[] = ["canvas", "blackboard", "tp_schedule", "timeedit"];
 
 /** Services rendered inside the collapsed "Connected Apps" abstraction pill. */
 const CONNECTED_APPS_SERVICES: ConnectorService[] = ["mcp", "teams"];
 
-const UNIVERSITY_PILL_ICON = { src: iconPath("icons/integrations/canvas.svg"), alt: "University" };
+const UNIVERSITY_PILL_ICON = { src: iconPath("icons/integrations/academic-sources-custom.svg"), alt: "Academic Sources" };
 
 function formatRelative(
   timestamp: string | null,
@@ -1039,7 +1039,7 @@ export function ConnectorsView({ planInfo, onUpgrade }: ConnectorsViewProps): JS
     );
   }
 
-  // ── University abstraction pill ──────────────────────────────────────
+  // ── Academic Sources abstraction pill ───────────────────────────────
   const universityConnectors = UNIVERSITY_SERVICES
     .map(s => CONNECTORS.find(c => c.service === s))
     .filter((c): c is ConnectorMeta => c !== undefined);
@@ -1252,7 +1252,7 @@ export function ConnectorsView({ planInfo, onUpgrade }: ConnectorsViewProps): JS
         </div>
       </section>
 
-      {/* University — single abstraction pill */}
+      {/* Academic Sources — single abstraction pill */}
       <section className="connector-section">
         <div className={`connector-card ${universityAnyConnected ? "connector-connected" : ""} ${expandedUniversity ? "connector-expanded" : ""}`}>
           <div
@@ -1266,7 +1266,7 @@ export function ConnectorsView({ planInfo, onUpgrade }: ConnectorsViewProps): JS
               <img className="connector-icon-image" src={UNIVERSITY_PILL_ICON.src} alt={UNIVERSITY_PILL_ICON.alt} />
             </span>
             <div className="connector-info">
-              <span className="connector-label">{t("University")}</span>
+              <span className="connector-label">{t("Academic Sources")}</span>
               {universityAnyConnected ? (
                 <span className="connector-display-label">
                   {universityConnectedCount === 1
@@ -1274,7 +1274,7 @@ export function ConnectorsView({ planInfo, onUpgrade }: ConnectorsViewProps): JS
                     : t("{count} sources connected", { count: universityConnectedCount })}
                 </span>
               ) : (
-                <span className="connector-desc">{t("Canvas, Blackboard, TP, and TimeEdit schedule sources.")}</span>
+                <span className="connector-desc">{t("LMS and schedule integrations — Canvas, Blackboard, TP, TimeEdit.")}</span>
               )}
             </div>
             <div className="connector-status">

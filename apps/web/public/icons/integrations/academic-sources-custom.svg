@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" aria-label="Academic Sources">
+  <style>
+    @keyframes cap-float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-1.5px)} }
+    @keyframes ray-pulse { 0%,100%{opacity:0.15;stroke-dashoffset:12} 50%{opacity:0.55;stroke-dashoffset:0} }
+    @keyframes dot-glow  { 0%,100%{opacity:0.6;r:2.2} 50%{opacity:1;r:3} }
+    @keyframes ring-breathe { 0%,100%{opacity:0.12;r:22} 50%{opacity:0.22;r:24} }
+    .cap{animation:cap-float 3s ease-in-out infinite}
+    .ray{stroke-dasharray:6;animation:ray-pulse 3s ease-in-out infinite}
+    .dg{animation:dot-glow 3s ease-in-out infinite}
+  </style>
+
+  <!-- Subtle breathing ring behind everything -->
+  <circle cx="32" cy="34" fill="none" stroke="#60a5fa" stroke-width="1.2">
+    <animate attributeName="r" values="22;24;22" dur="3s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0.12;0.22;0.12" dur="3s" repeatCount="indefinite"/>
+  </circle>
+
+  <!-- Radiating data rays from center outward to 4 corners -->
+  <g fill="none" stroke="#60a5fa" stroke-linecap="round" stroke-width="1.8">
+    <line class="ray" x1="32" y1="34" x2="14" y2="18" style="animation-delay:0s"/>
+    <line class="ray" x1="32" y1="34" x2="50" y2="18" style="animation-delay:0.4s"/>
+    <line class="ray" x1="32" y1="34" x2="14" y2="50" style="animation-delay:0.8s"/>
+    <line class="ray" x1="32" y1="34" x2="50" y2="50" style="animation-delay:1.2s"/>
+  </g>
+
+  <!-- Corner source dots (Canvas, Blackboard, TP, TimeEdit) -->
+  <circle class="dg" cx="14" cy="18" fill="#f8fafc" r="2.5" style="animation-delay:0s"/>
+  <circle class="dg" cx="50" cy="18" fill="#f8fafc" r="2.5" style="animation-delay:0.4s"/>
+  <circle class="dg" cx="14" cy="50" fill="#f8fafc" r="2.5" style="animation-delay:0.8s"/>
+  <circle class="dg" cx="50" cy="50" fill="#f8fafc" r="2.5" style="animation-delay:1.2s"/>
+
+  <!-- Graduation cap — floating group -->
+  <g class="cap">
+    <!-- Cap board (diamond) -->
+    <polygon points="32,22 48,30 32,38 16,30" fill="#f8fafc" opacity="0.92"/>
+    <!-- Cap board top highlight -->
+    <polygon points="32,22 48,30 32,32 16,30" fill="#e2e8f0" opacity="0.3"/>
+    <!-- Tassel string -->
+    <line x1="32" y1="30" x2="32" y2="42" stroke="#60a5fa" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+    <!-- Tassel end -->
+    <circle cx="32" cy="43" r="1.8" fill="#60a5fa" opacity="0.85">
+      <animate attributeName="opacity" values="0.65;1;0.65" dur="3s" repeatCount="indefinite"/>
+    </circle>
+    <!-- Cap button on top -->
+    <circle cx="32" cy="30" r="2" fill="#60a5fa" opacity="0.9">
+      <animate attributeName="r" values="1.8;2.4;1.8" dur="3s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.7;1;0.7" dur="3s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+</svg>
