@@ -9,6 +9,7 @@ import {
 } from "./gemini.js";
 import { FunctionDeclaration, Part, SchemaType } from "@google/generative-ai";
 import { functionDeclarations, executeFunctionCall, executePendingChatAction } from "./gemini-tools.js";
+import { getAllowedToolNames, type PlanId } from "./plan-config.js";
 import { RuntimeStore } from "./store.js";
 import { buildMcpToolContext, executeMcpToolCall } from "./mcp.js";
 import type { McpToolBinding } from "./mcp.js";
@@ -3219,6 +3220,8 @@ interface SendChatOptions {
   geminiClient?: GeminiClient;
   attachments?: ChatImageAttachment[];
   onTextChunk?: (chunk: string) => void;
+  /** Effective plan ID for tool filtering. If omitted, all tools are available. */
+  planId?: PlanId;
 }
 
 function emitTextChunks(text: string, onTextChunk?: (chunk: string) => void): void {
@@ -3483,8 +3486,16 @@ export async function sendChatMessage(
   }
   const longTermMemoryNudge = buildLongTermMemoryNudge(longTermMemory);
   const mcpToolContext = await buildMcpToolContext(store, userId);
+
+  // Filter Gemini function declarations based on user's plan tier
+  const planId = options.planId;
+  const allowedTools = planId ? getAllowedToolNames(planId) : null;
+  const filteredDeclarations = allowedTools
+    ? functionDeclarations.filter((d) => allowedTools.has(d.name))
+    : functionDeclarations;
+
   const activeToolDeclarations: FunctionDeclaration[] = [
-    ...functionDeclarations,
+    ...filteredDeclarations,
     ...mcpToolContext.declarations
   ];
   const systemInstruction = buildFunctionCallingSystemInstruction(

@@ -2079,9 +2079,13 @@ app.post("/api/chat", async (req, res) => {
 
   try {
     const userId = (req as AuthenticatedRequest).authUser?.id ?? "";
+    const effectivePlan = authReq.authUser
+      ? getEffectivePlan(authReq.authUser.plan, authReq.authUser.role, authReq.authUser.trialEndsAt)
+      : undefined;
     await Promise.all([maybeAutoSyncCanvasData(userId)]);
     const result = await sendChatMessage(store, userId, parsed.data.message.trim(), {
-      attachments: parsed.data.attachments
+      attachments: parsed.data.attachments,
+      planId: effectivePlan
     });
     return res.json({
       reply: result.reply,
@@ -2150,10 +2154,14 @@ app.post("/api/chat/stream", async (req, res) => {
 
   try {
     const userId = (req as AuthenticatedRequest).authUser?.id ?? "";
+    const effectivePlan = authReq.authUser
+      ? getEffectivePlan(authReq.authUser.plan, authReq.authUser.role, authReq.authUser.trialEndsAt)
+      : undefined;
     await Promise.all([maybeAutoSyncCanvasData(userId)]);
     const result = await sendChatMessage(store, userId, parsed.data.message.trim(), {
       attachments: parsed.data.attachments,
-      onTextChunk: (chunk: string) => sendSse("token", { delta: chunk })
+      onTextChunk: (chunk: string) => sendSse("token", { delta: chunk }),
+      planId: effectivePlan
     });
 
     sendSse("done", {

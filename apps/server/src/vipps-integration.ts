@@ -16,7 +16,7 @@
  *   VIPPS_USE_TEST_MODE            — Set to "true" to use test environment
  */
 
-import type { PlanId } from "./plan-config.js";
+import { type PlanId, PLAN_TIERS } from "./plan-config.js";
 
 // ── Configuration ────────────────────────────────────────────────────────
 
@@ -178,14 +178,15 @@ export async function createAgreement(params: CreateAgreementParams): Promise<Ag
     transactionType: "DIRECT_CAPTURE"
   };
 
-  // Add 7-day trial campaign for Plus plan
-  if (params.planId === "plus") {
+  // Add trial campaign if the plan offers a free trial
+  const trialDays = PLAN_TIERS[params.planId]?.trialDays ?? 0;
+  if (trialDays > 0) {
     body.campaign = {
       type: "PERIOD_CAMPAIGN",
       price: 0, // Free trial
       period: {
         unit: "DAY",
-        count: 7
+        count: trialDays
       }
     };
     // Remove initial charge for trial — user shouldn't pay until trial ends

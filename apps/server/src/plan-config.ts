@@ -50,7 +50,7 @@ export const PLAN_TIERS: Record<PlanId, PlanTier> = {
   free: {
     id: "free",
     name: "Free",
-    description: "Get started with AI chat, schedule, Canvas, and TP sync.",
+    description: "10 AI messages/day, schedule & deadlines, Canvas + TP sync.",
     priceMonthlyNok: 0,
     dailyChatLimit: 10,
     features: new Set<FeatureId>(["chat", "schedule", "connectors"]),
@@ -69,6 +69,7 @@ export const PLAN_TIERS: Record<PlanId, PlanTier> = {
       "chat", "schedule", "nutrition",
       "connectors", "gemini_tools", "chat_history", "custom_moods"
     ]),
+    // 3 connectors total, but Gemini counts as 1 — so 2 user-chosen integrations
     connectors: ["canvas", "mcp", "tp_schedule"] as ConnectorService[],
     maxChatHistory: 500,
     trialDays: 7,
@@ -84,12 +85,89 @@ export const PLAN_TIERS: Record<PlanId, PlanTier> = {
       "chat", "schedule", "nutrition", "habits",
       "connectors", "gemini_tools", "chat_history", "analytics", "custom_moods"
     ]),
+    // Unlimited integrations — all connector types available
     connectors: ["canvas", "mcp", "withings", "tp_schedule"] as ConnectorService[],
     maxChatHistory: 0,
-    trialDays: 7,
+    trialDays: 0,
     badge: "Pro"
   }
 };
+
+// ── Tool tier mapping: which Gemini tools each plan can access ───────────
+
+/** Tools available to all plans (free + paid) — schedule & deadline basics */
+const FREE_TIER_TOOLS: ReadonlySet<string> = new Set([
+  "getSchedule",
+  "getRoutinePresets",
+  "getDeadlines",
+  "createDeadline",
+  "deleteDeadline",
+  "queueDeadlineAction",
+  "createScheduleBlock",
+  "updateScheduleBlock",
+  "deleteScheduleBlock",
+  "clearScheduleWindow",
+  "queueCreateRoutinePreset",
+  "queueUpdateRoutinePreset",
+  "scheduleReminder",
+  "getReminders",
+  "cancelReminder",
+  "setResponseMood"
+]);
+
+/** Additional tools unlocked at Plus tier — nutrition */
+const PLUS_TIER_TOOLS: ReadonlySet<string> = new Set([
+  "getNutritionSummary",
+  "getNutritionHistory",
+  "getNutritionTargets",
+  "updateNutritionTargets",
+  "getNutritionMeals",
+  "getNutritionPlanSnapshots",
+  "saveNutritionPlanSnapshot",
+  "applyNutritionPlanSnapshot",
+  "deleteNutritionPlanSnapshot",
+  "getNutritionCustomFoods",
+  "createNutritionCustomFood",
+  "updateNutritionCustomFood",
+  "deleteNutritionCustomFood",
+  "logMeal",
+  "createNutritionMeal",
+  "updateNutritionMeal",
+  "addNutritionMealItem",
+  "updateNutritionMealItem",
+  "removeNutritionMealItem",
+  "moveNutritionMeal",
+  "setNutritionMealOrder",
+  "deleteMeal"
+]);
+
+/** Additional tools unlocked at Pro tier — habits, goals, withings */
+const PRO_TIER_TOOLS: ReadonlySet<string> = new Set([
+  "getWithingsHealthSummary",
+  "getHabitsGoalsStatus",
+  "updateHabitCheckIn",
+  "checkInGym",
+  "updateGoalCheckIn",
+  "createHabit",
+  "deleteHabit",
+  "createGoal",
+  "deleteGoal"
+]);
+
+/**
+ * Get the set of allowed tool names for a given plan.
+ * Each tier includes all tools from lower tiers.
+ */
+export function getAllowedToolNames(planId: PlanId): ReadonlySet<string> {
+  const allowed = new Set(FREE_TIER_TOOLS);
+  if (planId === "plus" || planId === "pro") {
+    for (const t of PLUS_TIER_TOOLS) allowed.add(t);
+  }
+  if (planId === "pro") {
+    for (const t of PRO_TIER_TOOLS) allowed.add(t);
+  }
+  return allowed;
+}
 
 // ── Helper: resolve a user's effective plan ─────────────────────────────
 

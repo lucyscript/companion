@@ -159,7 +159,7 @@ export function UpgradePrompt({ feature, onDismiss }: UpgradePromptProps): JSX.E
               <ul className="upgrade-tier-features">
                 <li>{tier.dailyChatLimit === 0 ? t("Unlimited") : tier.dailyChatLimit} {t("AI messages/day")}</li>
                 <li>{tier.maxChatHistory === 0 ? t("Unlimited") : tier.maxChatHistory} {t("chat history")}</li>
-                <li>{tier.connectors.length} {t("integrations")}</li>
+                <li>{tier.id === "pro" ? t("Unlimited") : tier.connectors.length} {t("integrations")}</li>
                 {tier.features.includes("nutrition" as FeatureId) && <li>{t("Nutrition tracking")}</li>}
                 {tier.features.includes("gemini_tools" as FeatureId) && !tier.features.includes("analytics" as FeatureId) && <li>{t("AI tools & search")}</li>}
                 {tier.features.includes("habits" as FeatureId) && <li>{t("Growth & habits")}</li>}
