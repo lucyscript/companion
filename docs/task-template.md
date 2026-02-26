@@ -1,4 +1,4 @@
-# AXIS Task Template
+# Companion Task Template
 
 ## Summary
 

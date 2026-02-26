@@ -103,24 +103,6 @@ The system operates in a continuous loop:
 - Sync daily to catch newly pushed labs
 - QuickFeed platform (`uis.itest.run`) handles automated grading
 
-### YouTube Data API v3
-- Auth: API key from `YOUTUBE_API_KEY` env var
-- Key endpoints: `subscriptions`, `search` (channel uploads), `videos` (metadata)
-- Quota: 10,000 units/day — cache aggressively, sync every 6 hours
-- Used for social media digest feature (Gemini summarizes video content)
-
-### X (Twitter) API v2
-- Auth: OAuth 1.0a — `X_API_KEY`, `X_API_KEY_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_TOKEN_SECRET` env vars
-- App-only bearer token: `X_BEARER_TOKEN` env var
-- Key endpoints: `/2/users/:id/timelines/reverse_chronological` (home timeline), `/2/tweets/search/recent`
-- Sync every 4 hours, Gemini summarizes into AI newsletter-style digest
-- Free tier: 100 reads/month; Basic tier: 10K reads/month
-
-### Twitch API
-- Auth: TBD (client credentials from Twitch Developer Console)
-- Key endpoints: `/helix/streams/followed` (live status), `/helix/users/follows`
-- Poll every 15 minutes for live stream alerts
-
 ### Gmail API
 - Auth: OAuth 2.0 — `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET` env vars + user-granted refresh token
 - Scope: `gmail.readonly` (read-only inbox access)

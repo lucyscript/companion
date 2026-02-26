@@ -21,28 +21,24 @@ describe("config", () => {
 
     it("should use default TIMEZONE when not provided", async () => {
       delete process.env.TIMEZONE;
-      delete process.env.AXIS_TIMEZONE;
       const { config } = await import("./config.js");
       expect(config.TIMEZONE).toBe("Europe/Oslo");
     });
 
     it("should use default USER_NAME when not provided", async () => {
       delete process.env.USER_NAME;
-      delete process.env.AXIS_USER_NAME;
       const { config } = await import("./config.js");
       expect(config.USER_NAME).toBe("friend");
     });
 
     it("should use default FALLBACK_EMAIL when not provided", async () => {
       delete process.env.FALLBACK_EMAIL;
-      delete process.env.AXIS_FALLBACK_EMAIL;
       const { config } = await import("./config.js");
       expect(config.FALLBACK_EMAIL).toBe("user@example.com");
     });
 
     it("should use default VAPID_SUBJECT when not provided", async () => {
       delete process.env.VAPID_SUBJECT;
-      delete process.env.AXIS_VAPID_SUBJECT;
       const { config } = await import("./config.js");
       expect(config.VAPID_SUBJECT).toBe("mailto:companion@example.com");
     });
@@ -106,14 +102,12 @@ describe("config", () => {
       process.env.NOTES_PROVIDER = "local";
       process.env.ASSIGNMENT_PROVIDER = "manual";
       process.env.FOOD_PROVIDER = "manual";
-      process.env.VIDEO_PROVIDER = "manual";
 
       const { config } = await import("./config.js");
 
       expect(config.NOTES_PROVIDER).toBe("local");
       expect(config.ASSIGNMENT_PROVIDER).toBe("manual");
       expect(config.FOOD_PROVIDER).toBe("manual");
-      expect(config.VIDEO_PROVIDER).toBe("manual");
     });
 
     it("should parse Gemini Live API env vars", async () => {
@@ -192,41 +186,6 @@ describe("config", () => {
       expect(config.INTEGRATION_WINDOW_FUTURE_DAYS).toBe(120);
       expect(config.NOTIFICATION_DIGEST_MORNING_HOUR).toBe(7);
       expect(config.NOTIFICATION_DIGEST_EVENING_HOUR).toBe(19);
-    });
-  });
-
-  describe("legacy AXIS_ compatibility", () => {
-    it("should parse legacy AXIS_* variables when canonical names are missing", async () => {
-      process.env.AXIS_USER_NAME = "Legacy User";
-      process.env.AXIS_VAPID_PUBLIC_KEY = "legacy-public";
-      process.env.AXIS_VAPID_PRIVATE_KEY = "legacy-private";
-      process.env.AXIS_VAPID_SUBJECT = "mailto:legacy@example.com";
-      process.env.AXIS_FALLBACK_EMAIL = "legacy@example.com";
-      process.env.AXIS_NOTES_PROVIDER = "local";
-      process.env.AXIS_ASSIGNMENT_PROVIDER = "manual";
-      process.env.AXIS_FOOD_PROVIDER = "manual";
-      process.env.AXIS_VIDEO_PROVIDER = "manual";
-
-      const { config } = await import("./config.js");
-
-      expect(config.TIMEZONE).toBe("Europe/Oslo");
-      expect(config.USER_NAME).toBe("Legacy User");
-      expect(config.VAPID_PUBLIC_KEY).toBe("legacy-public");
-      expect(config.VAPID_PRIVATE_KEY).toBe("legacy-private");
-      expect(config.VAPID_SUBJECT).toBe("mailto:legacy@example.com");
-      expect(config.FALLBACK_EMAIL).toBe("legacy@example.com");
-      expect(config.NOTES_PROVIDER).toBe("local");
-      expect(config.ASSIGNMENT_PROVIDER).toBe("manual");
-      expect(config.FOOD_PROVIDER).toBe("manual");
-      expect(config.VIDEO_PROVIDER).toBe("manual");
-    });
-
-    it("should use AXIS_TIMEZONE as fallback when TIMEZONE is not set", async () => {
-      delete process.env.TIMEZONE;
-      process.env.AXIS_TIMEZONE = "America/Los_Angeles";
-
-      const { config } = await import("./config.js");
-      expect(config.TIMEZONE).toBe("America/Los_Angeles");
     });
   });
 

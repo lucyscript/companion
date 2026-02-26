@@ -4524,10 +4524,10 @@ async function fetchCalendarIcs(url: string): Promise<string | null> {
 const server = app.listen(config.PORT, () => {
   const storage = storageDiagnostics();
   // eslint-disable-next-line no-console
-  console.log(`[axis-server] listening on http://localhost:${config.PORT}`);
+  console.log(`[companion] listening on http://localhost:${config.PORT}`);
   // eslint-disable-next-line no-console
   console.log(
-    `[axis-server] storage backend=${storage.backend} sqlite=${storage.sqlitePath}` +
+    `[companion] storage backend=${storage.backend} sqlite=${storage.sqlitePath}` +
       (persistenceContext.restoredSnapshotAt
         ? ` restoredSnapshotAt=${persistenceContext.restoredSnapshotAt}`
         : "")
@@ -4575,14 +4575,14 @@ const shutdown = (): void => {
         await persistenceContext.postgresSnapshotStore.flush(() => store.serializeDatabase());
       } catch (error) {
         // eslint-disable-next-line no-console
-        console.error("[axis-server] failed final PostgreSQL snapshot flush", error);
+        console.error("[companion] failed final PostgreSQL snapshot flush", error);
       }
 
       try {
         await persistenceContext.postgresSnapshotStore.close();
       } catch (error) {
         // eslint-disable-next-line no-console
-        console.error("[axis-server] failed closing PostgreSQL snapshot store", error);
+        console.error("[companion] failed closing PostgreSQL snapshot store", error);
       }
     }
 

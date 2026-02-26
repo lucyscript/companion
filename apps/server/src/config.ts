@@ -5,16 +5,6 @@ dotenv.config();
 
 const env = {
   ...process.env,
-  TIMEZONE: process.env.TIMEZONE ?? process.env.AXIS_TIMEZONE,
-  USER_NAME: process.env.USER_NAME ?? process.env.AXIS_USER_NAME,
-  VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY ?? process.env.AXIS_VAPID_PUBLIC_KEY,
-  VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY ?? process.env.AXIS_VAPID_PRIVATE_KEY,
-  VAPID_SUBJECT: process.env.VAPID_SUBJECT ?? process.env.AXIS_VAPID_SUBJECT,
-  FALLBACK_EMAIL: process.env.FALLBACK_EMAIL ?? process.env.AXIS_FALLBACK_EMAIL,
-  NOTES_PROVIDER: process.env.NOTES_PROVIDER ?? process.env.AXIS_NOTES_PROVIDER,
-  ASSIGNMENT_PROVIDER: process.env.ASSIGNMENT_PROVIDER ?? process.env.AXIS_ASSIGNMENT_PROVIDER,
-  FOOD_PROVIDER: process.env.FOOD_PROVIDER ?? process.env.AXIS_FOOD_PROVIDER,
-  VIDEO_PROVIDER: process.env.VIDEO_PROVIDER ?? process.env.AXIS_VIDEO_PROVIDER,
   GEMINI_VERTEX_PROJECT_ID: process.env.GEMINI_VERTEX_PROJECT_ID ?? process.env.GCP_PROJECT_ID,
   GEMINI_VERTEX_LOCATION: process.env.GEMINI_VERTEX_LOCATION ?? process.env.GCP_LOCATION,
   GOOGLE_SERVICE_ACCOUNT_JSON:
@@ -51,7 +41,6 @@ const schema = z.object({
   NOTES_PROVIDER: z.string().default("local"),
   ASSIGNMENT_PROVIDER: z.string().default("manual"),
   FOOD_PROVIDER: z.string().default("manual"),
-  VIDEO_PROVIDER: z.string().default("manual"),
   GEMINI_API_KEY: z.string().optional(),
   GEMINI_USE_LIVE_API: z
     .preprocess((value) => parseBooleanEnv(value), z.boolean())

@@ -54,7 +54,7 @@ describe("SyncAutoHealingPolicy", () => {
     vi.spyOn(Math, "random").mockReturnValue(0);
 
     const policy = new SyncAutoHealingPolicy({
-      integration: "youtube",
+      integration: "canvas",
       baseBackoffMs: 1_000,
       maxBackoffMs: 8_000,
       circuitFailureThreshold: 3,

@@ -6,7 +6,7 @@ This guide covers deploying the Companion server to production using Railway.
 
 The Companion server is a Node.js application that provides:
 - AI chat powered by Google Gemini
-- Data sync services (Canvas LMS, TP EduCloud, Withings, MCP providers, YouTube, X/Twitter)
+- Data sync services (Canvas LMS, TP EduCloud, Withings, MCP providers)
 - Push notifications via Web Push
 - SQLite runtime store with optional PostgreSQL-backed snapshot persistence
 
@@ -38,8 +38,6 @@ In the Railway project dashboard:
 - `USER_NAME=Lucy`
 - `GEMINI_API_KEY=your-gemini-api-key`
 
-Legacy `AXIS_*` aliases still work, but canonical names above are preferred.
-
 **For push notifications (generate keys):**
 ```bash
 npx web-push generate-vapid-keys
@@ -52,8 +50,6 @@ Then set:
 **Optional integrations:**
 - `CANVAS_API_TOKEN=...` (Canvas LMS sync)
 - `CONNECTOR_CREDENTIALS_SECRET=...` (required in production for encrypted connector credentials)
-- `YOUTUBE_API_KEY=...` (YouTube digest)
-- `X_API_KEY`, `X_API_KEY_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_TOKEN_SECRET` (X/Twitter digest)
 
 ### 3. Trigger Deployment
 

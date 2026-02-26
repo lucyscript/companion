@@ -2,8 +2,6 @@
 
 This file documents all environment variables required to run the Companion server in production.
 
-`AXIS_*` environment variable aliases are still accepted for backward compatibility, but canonical names below are preferred.
-
 ## Required Variables
 
 ### Server Configuration
@@ -21,8 +19,6 @@ This file documents all environment variables required to run the Companion serv
 - `NOTES_PROVIDER` (default: "local") — Journal provider
 - `ASSIGNMENT_PROVIDER` (default: "manual") — Assignment provider
 - `FOOD_PROVIDER` (default: "manual") — Food tracking provider
-- `SOCIAL_PROVIDER` (default: "manual") — Social media provider
-- `VIDEO_PROVIDER` (default: "manual") — Video provider
 
 ### Push Notifications (Web Push)
 - `VAPID_PUBLIC_KEY` (required for push) — VAPID public key
@@ -70,25 +66,6 @@ This file documents all environment variables required to run the Companion serv
 - Users connect per-account MCP servers in-app (for example GitHub/Stripe) with their own tokens.
 - Optional: keep provider fallback env vars only when you want a global instance-wide default (for example `CANVAS_API_TOKEN`).
 
-### Social Media Integrations
-
-#### YouTube Data API v3
-- `YOUTUBE_API_KEY` (optional) — YouTube Data API key
-  - Get key: https://console.cloud.google.com/apis/credentials
-  - Quota: 10,000 units/day
-- `YOUTUBE_CHANNEL_IDS` (optional) — Comma-separated channel IDs to track directly (recommended when OAuth subscriptions are unavailable)
-- `YOUTUBE_FALLBACK_QUERIES` (optional) — Comma-separated keyword queries used when subscriptions cannot be fetched
-  - Example: `YOUTUBE_FALLBACK_QUERIES=DAT560 machine learning,DAT520 software engineering`
-  - Note: API key-only mode cannot reliably use `mine=true` subscriptions; fallback channel IDs/queries are used instead.
-
-#### X (Twitter) API v2
-- `X_API_KEY` (optional) — X API consumer key
-- `X_API_KEY_SECRET` (optional) — X API consumer secret
-- `X_ACCESS_TOKEN` (optional) — X user access token
-- `X_ACCESS_TOKEN_SECRET` (optional) — X user access token secret
-- `X_BEARER_TOKEN` (optional) — X app-only bearer token (alternative to OAuth)
-- `X_FALLBACK_QUERY` (optional) — Search query used in bearer-token-only mode when home timeline endpoint is unavailable
-
 ### Withings Health Integration
 - `WITHINGS_API_ENDPOINT` (default: `https://wbsapi.withings.net`) — Withings API base URL
 - `WITHINGS_CLIENT_ID` (optional) — Withings OAuth client ID
@@ -104,7 +81,7 @@ This file documents all environment variables required to run the Companion serv
 2. **Generate VAPID keys**: `npx web-push generate-vapid-keys`
 3. **Set VAPID keys**: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`
 4. **Configure auth**: Set `AUTH_ADMIN_EMAIL` and `AUTH_ADMIN_PASSWORD` (and optionally `AUTH_REQUIRED=true`)
-5. **Optional integrations**: Set Canvas/TP defaults, YouTube, X, and Withings keys if needed
+5. **Optional integrations**: Set Canvas/TP defaults and Withings keys if needed
 6. **Set production port**: `PORT=8787` (or Railway's auto-assigned port)
 7. **Verify health check**: `curl http://<server-url>/api/health` should return `{"status":"ok"}`
 
@@ -126,8 +103,6 @@ USER_NAME=Lucy
 NOTES_PROVIDER=local
 ASSIGNMENT_PROVIDER=manual
 FOOD_PROVIDER=manual
-SOCIAL_PROVIDER=manual
-VIDEO_PROVIDER=manual
 
 # VAPID (Web Push)
 VAPID_PUBLIC_KEY=your-vapid-public-key
@@ -159,19 +134,6 @@ INTEGRATION_WINDOW_PAST_DAYS=30
 INTEGRATION_WINDOW_FUTURE_DAYS=180
 NOTIFICATION_DIGEST_MORNING_HOUR=8
 NOTIFICATION_DIGEST_EVENING_HOUR=18
-
-# YouTube
-YOUTUBE_API_KEY=your-youtube-key
-YOUTUBE_CHANNEL_IDS=UCxxxxxxxx,UCyyyyyyyy
-YOUTUBE_FALLBACK_QUERIES=DAT560 machine learning,DAT520 software engineering
-
-# X (Twitter)
-X_API_KEY=your-x-api-key
-X_API_KEY_SECRET=your-x-api-secret
-X_ACCESS_TOKEN=your-x-access-token
-X_ACCESS_TOKEN_SECRET=your-x-access-token-secret
-X_BEARER_TOKEN=your-x-bearer-token
-X_FALLBACK_QUERY=(machine learning OR distributed systems OR software engineering) -is:retweet lang:en
 
 # Withings bootstrap (optional)
 WITHINGS_API_ENDPOINT=https://wbsapi.withings.net

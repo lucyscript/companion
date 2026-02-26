@@ -12,7 +12,6 @@ Companion is like a knowledgeable friend who has read your entire syllabus. You 
 - **Between classes**: "Summarize what I need to prep for DAT560" → pulls your Canvas modules, recent announcements, upcoming quiz.
 - **Working**: "I'm stuck on the MapReduce assignment" → discusses the problem with you, references lecture notes from Canvas, suggests approaches.
 - **Evening**: "How was today?" → reflects on what you accomplished, what's coming tomorrow, suggests priorities.
-- **Catching up**: "What did I miss on X today?" → summarizes trending AI news, threads from accounts you follow, new YouTube uploads from your subscriptions.
 - **Proactive nudge** (push notification): "Heads up — DAT520 assignment 3 is due in 48 hours and you haven't submitted yet."
 
 The key difference from a generic chatbot: Companion has **context**. It knows your exact schedule, every deadline, your grades, your journal history, and your energy patterns. Every response is grounded in your real data.
@@ -32,12 +31,6 @@ The key difference from a generic chatbot: Companion has **context**. It knows y
 - **Course GitHub sync** — Pulls lab assignments, deadlines, and descriptions from course GitHub organizations (`dat520-2026`, `dat560-2026`) via GitHub API
 - **Withings health sync** — Pulls body metrics + sleep summaries via Withings OAuth (`weight`, `sleep`) so Gemini can adapt coaching from real daily health signals
 - **Auto-refresh** — Background jobs sync Canvas every ~30 min, TP weekly, GitHub daily, and Withings daily
-
-### Social Media Summary (NEW — Content Digest)
-- **YouTube digest** — Fetches recent uploads from subscribed channels via YouTube Data API v3, summarizes video titles/descriptions using Gemini
-- **X (Twitter) feed summary** — Pulls timeline/list tweets via X API v2, uses Gemini to create an AI newsletter-style digest of trending topics and key threads
-- **AI-powered summarization** — Gemini condenses hours of social media into a 2-minute read, grouped by topic (AI news, tech, entertainment)
-- **Platforms**: YouTube, X (Twitter)
 
 ### Existing Features (Already Built)
 1. **Push Notifications** — Web Push via VAPID keys to iPhone
@@ -72,9 +65,6 @@ The key difference from a generic chatbot: Companion has **context**. It knows y
 │  │ Gemini  │ │  Canvas  │ │TP EduCloud│ │ GitHub │ │
 │  │ Client  │ │  Sync    │ │ iCal Sync │ │  Sync  │ │
 │  └────┬────┘ └────┬─────┘ └─────┬─────┘ └───┬────┘ │
-│  ┌─────────────────────────────────────────────┐    │
-│  │  Social Media: YouTube │ X (Twitter)         │    │
-│  └─────────────────────────────────────────────┘    │
 │       │           │             │            │       │
 │  ┌────┴───────────┴─────────────┴────────────┴──┐   │
 │  │         RuntimeStore (SQLite)             │       │
@@ -96,7 +86,7 @@ The key difference from a generic chatbot: Companion has **context**. It knows y
 - **Backend**: Node + TypeScript (`apps/server`) — API server with agent runtime
 - **LLM**: Google Gemini API (free tier) — conversational AI with academic context
 - **Data**: RuntimeStore (SQLite-backed) — schedule, deadlines, journals, canvas data, chat history
-- **Integrations**: Canvas REST API (token auth) + TP EduCloud iCal feed (public, no auth) + Course GitHub orgs (PAT auth) + YouTube Data API v3 + X API v2
+- **Integrations**: Canvas REST API (token auth) + TP EduCloud iCal feed (public, no auth) + Course GitHub orgs (PAT auth)
 - **Notifications**: Web Push API (VAPID keys) for proactive nudges
 
 ## Deployment Status
@@ -109,7 +99,7 @@ The key difference from a generic chatbot: Companion has **context**. It knows y
 | **Backend** (`apps/server`) | ✅ Deployment ready | Railway-ready with Dockerfile, health checks, and workflow. Awaiting production deployment. |
 | **API calls** | ✅ Configurable | In dev: Vite proxies `/api/*` → `localhost:8787`. In prod: configurable via `VITE_API_BASE_URL` secret. |
 | **Database** | ✅ Persistent-ready | SQLite runtime store with PostgreSQL snapshot persistence when `DATABASE_URL` is configured (Railway-friendly). |
-| **Cron jobs/sync** | ✅ Ready | Canvas, TP, GitHub, YouTube, X sync services run automatically when server starts. |
+| **Cron jobs/sync** | ✅ Ready | Canvas, TP, GitHub sync services run automatically when server starts. |
 | **Push notifications** | ✅ Ready | Web Push configured with VAPID keys (set via Railway environment variables). |
 
 **What this means for agents:**
@@ -129,7 +119,6 @@ Before each Gemini call, build a context window that injects summaries into the 
 - Recent journal entries (last 3)
 - Current energy/stress state
 - Unread email summary (from Gmail sync)
-- Social media digest highlights
 
 This is simpler to implement and works well for conversational context.
 
@@ -140,7 +129,6 @@ Gemini supports [function calling](https://ai.google.dev/gemini-api/docs/functio
 - `searchJournal(query)` — search journal entries
 - `getCanvasAssignment(courseId, assignmentId)` — get assignment details
 - `getEmailSummary(hours)` — summarize recent emails
-- `getSocialMediaDigest(platform, hours)` — get social media summary
 
 This is more powerful (the AI decides what data it needs) but requires more implementation effort. Consider implementing this as an enhancement after context injection works.
 
@@ -191,27 +179,8 @@ This is more powerful (the AI decides what data it needs) but requires more impl
 ### Google Gemini API
 - **Model**: `gemini-2.5-flash`
 - **Auth**: API key stored as `GEMINI_API_KEY` secret
-- **Usage**: Chat responses, proactive nudge generation, weekly review narration, deadline coaching, social media summarization
+- **Usage**: Chat responses, proactive nudge generation, weekly review narration, deadline coaching
 - **System prompt**: Includes user's schedule, upcoming deadlines, recent journal entries, energy/stress state
-
-### YouTube Data API v3
-- **Auth**: API key stored as `YOUTUBE_API_KEY` env var
-- **Endpoints used**:
-  - `GET /youtube/v3/subscriptions` — user's subscribed channels
-  - `GET /youtube/v3/search` — recent uploads from specific channels
-  - `GET /youtube/v3/videos` — video details (title, description, duration, stats)
-- **Usage**: Fetch recent uploads from subscribed channels, summarize with Gemini
-- **Sync interval**: Every 6 hours (YouTube quota: 10,000 units/day)
-
-### X (Twitter) API v2
-- **Auth**: OAuth 1.0a with `X_API_KEY`, `X_API_KEY_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_TOKEN_SECRET` env vars. Bearer token `X_BEARER_TOKEN` for app-only endpoints.
-- **Endpoints used**:
-  - `GET /2/users/:id/timelines/reverse_chronological` — home timeline
-  - `GET /2/users/:id/liked_tweets` — liked tweets for interest signal
-  - `GET /2/tweets/search/recent` — search for topics (AI news, tech)
-- **Usage**: Pull recent timeline tweets, use Gemini to create AI newsletter-style digest grouped by topic
-- **Sync interval**: Every 4 hours (Free tier: 100 reads/month, Basic tier: 10K reads/month)
-- **Rate limits**: Respect X API rate limits, cache aggressively
 
 ### Gmail API (OAuth 2.0)
 - **Auth**: OAuth 2.0 with `GMAIL_CLIENT_ID` and `GMAIL_CLIENT_SECRET` env vars. User authorizes via OAuth consent flow, refresh token stored securely.
@@ -233,7 +202,6 @@ This is more powerful (the AI decides what data it needs) but requires more impl
 5. **Canvas Sync Agent** (NEW) — Periodically fetches courses, assignments, modules, announcements from Canvas API
 6. **TP Sync Agent** (NEW) — Fetches lecture schedule from TP EduCloud iCal feed
 7. **Chat Agent** (NEW) — Manages conversation flow, builds context window for Gemini, handles proactive message triggers
-8. **Social Media Agent** (NEW) — Fetches content from YouTube and X APIs, uses Gemini to generate digestible summaries, and delivers as a daily/on-demand feed
 
 ## Success Criteria
 
@@ -322,12 +290,12 @@ Features are built in priority order. The orchestrator reads this section to dec
 | ✅ done | `onboarding-v2` | frontend-engineer | Update onboarding flow to collect Canvas token and TP credentials, with explanations of what data is synced and privacy assurances. Include "skip for now" option for each integration. |
 | ✅ done | `integration-status-dashboard` | frontend-engineer | Build a settings/integrations page showing Canvas sync status, TP sync status, Gemini API status, with last-synced times, error states, and manual refresh buttons. |
 | | | | |
-| | **— Phase 3: Social Media Summary & Content Digest —** | | |
-| ✅ done | `youtube-sync-api` | backend-engineer | Add YouTube Data API v3 client: fetch subscribed channels' recent uploads, video metadata (title, description, duration, stats). Config: `YOUTUBE_API_KEY` env var. Sync every 6 hours. Quota-aware (10K units/day). |
-| ✅ done | `x-feed-sync-api` | backend-engineer | Add X/Twitter API v2 client: fetch home timeline and recent tweets from followed accounts using OAuth 1.0a. Config: `X_API_KEY`, `X_API_KEY_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_TOKEN_SECRET`, `X_BEARER_TOKEN` env vars. Sync every 4 hours. |
-| ✅ done | `social-media-summarizer` | backend-engineer | Build Gemini-powered summarization pipeline: takes raw YouTube/X data, generates AI newsletter-style digest grouped by topic (AI news, tech, entertainment). Configurable summary length and focus areas. |
-| ✅ done | `social-media-digest-ui` | frontend-engineer | Build Social Media Summary view: card-based digest with YouTube video thumbnails and X thread summaries. Filter by platform, refresh on demand. Tab in bottom nav. |
-| ✅ done | `social-media-chat-integration` | backend-engineer | Integrate social media context into Gemini chat: "What did I miss on X?" or "Any new AI videos?" queries pull from cached social media data and generate contextual summaries. |
+| | **— Phase 3: Legacy (Removed) —** | | |
+| ❌ removed | `youtube-sync-api` | backend-engineer | Deprecated — social media integrations removed. |
+| ❌ removed | `x-feed-sync-api` | backend-engineer | Deprecated — social media integrations removed. |
+| ❌ removed | `social-media-summarizer` | backend-engineer | Deprecated — social media integrations removed. |
+| ❌ removed | `social-media-digest-ui` | frontend-engineer | Deprecated — social media integrations removed. |
+| ❌ removed | `social-media-chat-integration` | backend-engineer | Deprecated — social media integrations removed. |
 | | | | |
 | | **— Phase 4: Production Deployment & Gmail —** | | |
 | ✅ done | `server-deployment` | backend-engineer | Deploy `apps/server` to a production host (Railway, Fly.io, or VPS). Add health check, environment variable config, and deployment workflow. Update frontend API base URL to point to production server. |
@@ -337,13 +305,13 @@ Features are built in priority order. The orchestrator reads this section to dec
 | ✅ done | `voice-chat-interaction` | frontend-engineer | Add voice input/output to chat: Web Speech API for voice-to-text input and Speech Synthesis API for AI responses read aloud. Add toggle for "talk mode" with visual sound wave feedback on iPhone. |
 | ✅ done | `swipe-gesture-actions` | frontend-engineer | Add swipe gestures to deadline and journal cards: swipe right to complete/archive, swipe left to snooze/delete. Include haptic feedback and undo toast for accidental swipes. |
 | ✅ done | `weekly-study-plan-generator` | backend-engineer | Add POST /api/study-plan/generate endpoint that analyzes all upcoming deadlines (Canvas + GitHub + manual) and user's schedule to create an optimized week plan with time-blocked study sessions. |
-| ✅ done | `content-recommendation-engine` | backend-engineer | Build recommendation system that matches YouTube videos and X threads to upcoming assignments/lectures. When user has DAT560 assignment due, surface relevant ML tutorials from subscribed channels. |
+| ✅ done | `content-recommendation-engine` | backend-engineer | Build recommendation system that matches content to upcoming assignments/lectures. When user has DAT560 assignment due, surface relevant tutorials. |
 | ✅ done | `progress-visualization-dashboard` | frontend-engineer | Add analytics dashboard with charts showing deadline completion rate over time, habit streak calendar heatmap, energy/stress patterns, and week-over-week productivity trends using Chart.js or similar. |
-| ✅ done | `gemini-function-calling` | backend-engineer | Add Gemini function calling (tools): define callable functions (`getSchedule`, `getDeadlines`, `searchJournal`, `getEmails`, `getSocialDigest`) that Gemini can invoke on demand instead of relying solely on context injection. |
+| ✅ done | `gemini-function-calling` | backend-engineer | Add Gemini function calling (tools): define callable functions (`getSchedule`, `getDeadlines`, `searchJournal`, `getEmails`) that Gemini can invoke on demand instead of relying solely on context injection. |
 | | | | |
 | | **— Phase 5: Product Polish & Daily Workflow —** | | |
 | ✅ done | `study-plan-ui` | frontend-engineer | Build a Study Plan screen that calls `POST /api/study-plan/generate`, shows day-by-day time blocks, and supports regenerate controls (horizon/session length) optimized for iPhone touch usage. |
-| ✅ done | `content-recommendations-ui` | frontend-engineer | Surface `/api/recommendations/content` in the app with course-linked recommendation cards (YouTube/X), relevance reasons, and quick-open actions from Social and Chat contexts. |
+| ✅ done | `content-recommendations-ui` | frontend-engineer | Surface `/api/recommendations/content` in the app with course-linked recommendation cards, relevance reasons, and quick-open actions from Chat contexts. |
 | ✅ done | `integration-date-window-filtering` | backend-engineer | Add strict date-window filtering for TP iCal import/sync and Canvas sync so only current-semester and near-horizon academic items are kept in schedule/deadlines context. Exclude stale historical and far-future records by default, with configurable horizon limits. |
 | ✅ done | `chat-action-executor` | backend-engineer | Extend chat tool-calling so Gemini can perform safe actions (complete/snooze deadlines, create schedule blocks, create journal draft) behind explicit user confirmation. |
 | ✅ done | `notification-deep-link-routing` | frontend-engineer | Add deep-link handling for push notifications and action buttons so tapping a notification navigates directly to the relevant deadline, chat thread, or review screen. |
@@ -359,17 +327,17 @@ Features are built in priority order. The orchestrator reads this section to dec
 | ✅ done | `gemini-transient-429-resilience` | backend-engineer | Add short retry/backoff for transient Gemini 429 responses and reduce chat token pressure by trimming function-calling history payload size to reduce false-looking rate-limit failures in web usage. |
 | ✅ done | `env-prefix-cleanup` | backend-engineer | Use canonical non-prefixed server env names (`TIMEZONE`, `USER_NAME`, `VAPID_*`, provider vars) with backward-compatible fallback from legacy `AXIS_*` aliases. |
 | ✅ done | `gmail-env-token-bootstrap` | backend-engineer | Bootstrap Gmail connection from `GMAIL_ACCESS_TOKEN`/`GMAIL_REFRESH_TOKEN`, persist token source metadata, and expose connection-source diagnostics in integration status. |
-| ✅ done | `x-bearer-fallback-sync` | backend-engineer | Support X bearer-token-only sync mode using recent-search fallback, classify sync failures (auth/rate-limit/empty/network), and expose actionable diagnostics in social sync responses. |
+| ❌ removed | `x-bearer-fallback-sync` | backend-engineer | Deprecated — social media integrations removed. |
 | ✅ done | `integration-scope-enforcement` | backend-engineer | Enforce per-user integration scope in TP/Canvas ingestion and sync pipelines so only selected courses and in-window records are stored and bridged into deadlines/schedule. |
 | ✅ done | `canvas-stale-on-read-auto-sync` | backend-engineer | Add stale-aware Canvas auto-refresh on key read endpoints (chat/schedule/deadlines) with minimum-interval throttling and in-flight sync coalescing so newly released assignments appear without manual sync. Tracked in issue #321. |
 | ✅ done | `deadline-dedup-merge` | backend-engineer | Add duplicate deadline detection across Canvas, GitHub, and manual sources with merge suggestions and a canonical-record strategy to prevent multi-source assignment duplicates. |
 | ✅ done | `notification-digest-batching` | backend-engineer | Batch non-urgent nudges into configurable morning/evening digest notifications with deep links, while preserving immediate delivery for critical reminders. |
-| ✅ done | `offline-readonly-cache-ui` | frontend-engineer | Cache last-known schedule, deadlines, study plan, and social digest snapshots for offline viewing with stale-data indicators and one-tap refresh when back online. |
+| ✅ done | `offline-readonly-cache-ui` | frontend-engineer | Cache last-known schedule, deadlines, and study plan snapshots for offline viewing with stale-data indicators and one-tap refresh when back online. |
 | | | | |
 | | **— Phase 7: Execution Feedback & Trust —** | | |
 | ✅ done | `study-plan-session-checkins-api` | backend-engineer | Add API + storage for marking generated study-plan sessions as done/skipped, with completion timestamps and per-week adherence metrics for replanning. |
 | ✅ done | `study-plan-session-checkins-ui` | frontend-engineer | Add tap-to-complete controls on Study Plan sessions, show daily completion progress, and support quick skip/reschedule actions optimized for iPhone touch input. |
-| ✅ done | `chat-citations` | backend-engineer | Extend chat responses with structured citations to schedule/deadline/journal/email/social records so guidance is traceable to concrete data. |
+| ✅ done | `chat-citations` | backend-engineer | Extend chat responses with structured citations to schedule/deadline/journal/email records so guidance is traceable to concrete data. |
 | ✅ done | `chat-citation-chips-ui` | frontend-engineer | Render citation chips under assistant messages and deep-link taps to referenced deadlines, schedule blocks, journal entries, or settings screens. |
 | ✅ done | `sync-failure-recovery-prompts` | backend-engineer | Detect repeated TP/Canvas/Gmail sync failures and create actionable recovery prompts with root-cause hints and suggested fixes before data becomes stale. |
 | | | | |
@@ -406,7 +374,7 @@ Features are built in priority order. The orchestrator reads this section to dec
 | ✅ done | `onboarding-one-tap-defaults` | frontend-engineer | Trim onboarding to one-tap start with fixed defaults (`Europe/Oslo`, balanced tone) and no manual profile fields (name/baseline/timezone prompts removed). |
 | ✅ done | `schedule-workload-badge-removal` | frontend-engineer | Remove low/medium/high difficulty badge from lecture/lab cards in Schedule tab to keep the view focused on timing and context. |
 | ✅ done | `habits-analytics-tab-merge` | frontend-engineer | Merge Habits and Analytics into a single Growth tab in bottom navigation, preserve deep-link compatibility (`tab=analytics` -> `tab=habits`), and stack both surfaces in one scrollable view. |
-| ✅ done | `social-sync-strict-diagnostics` | fullstack-engineer | Keep social sync strict (no hidden provider fallback behavior), return explicit sync diagnostics (`channelsCount`/`videosCount`/`tweetsCount` + `lastSyncedAt`) from `/api/social-media/sync`, and surface “synced but 0 items” debug messaging in Social tab. Tracked in issue #334. |
+| ❌ removed | `social-sync-strict-diagnostics` | fullstack-engineer | Deprecated — social media integrations removed. |
 | | | | |
 | | **— Phase 10: Wellness & Nutrition —** | | |
 | ✅ done | `food-module-integration` | fullstack-engineer | Integrate macro-focused nutrition tracking into Companion as a native module (meal logging, calories/protein/carbs/fat, meal plans), expose Gemini nutrition tools, and persist nutrition data in primary runtime storage/API/UI surfaces. Tracked in issue #300. |
@@ -424,7 +392,7 @@ Features are built in priority order. The orchestrator reads this section to dec
 | ✅ done | `new-deadline-release-notifications` | backend-engineer | Detect newly discovered assignments/exams during Canvas/GitHub sync deltas and push concise notifications that include due date, course, and deep-link into Deadlines so users never miss newly published work. |
 | ✅ done | `schedule-routine-presets` | fullstack-engineer | Add reusable routine presets (e.g., gym 07:00, nightly review 21:00) that Gemini can create/update and auto-place into free schedule blocks without overwriting fixed lecture/lab events. |
 | ✅ done | `offline-habit-goal-checkin-queue` | fullstack-engineer | Extend offline queueing to habit/goal check-ins (and schedule block edits) with optimistic UI, conflict-safe replay, and visible sync state so execution tracking works reliably on flaky mobile connections. |
-| ✅ done | `chat-social-context-cleanup` | backend-engineer | Remove redundant social-media prompt-context injection helpers from chat context assembly so Gemini prompt context only includes active product surfaces (schedule/deadlines/journal/email/recommendations/nutrition/course docs). Tracked in issue #434. |
+| ❌ removed | `chat-social-context-cleanup` | backend-engineer | Deprecated — social media integrations removed. |
 | ✅ done | `sync-queue-status-contract-fix` | fullstack-engineer | Add dedicated `/api/sync/queue-status` contract and web fallback parsing so SyncStatusBadge reads real server queue metrics instead of silently falling back to local-only counts. Tracked in issue #436. |
 | ✅ done | `deadline-effort-workflow-removal` | fullstack-engineer | Remove effort-estimate editing from deadline UI, simplify schedule messaging to pending-count only, and make study-plan allocation ignore custom effort metadata in favor of uniform priority defaults. Tracked in issue #443. |
 | ✅ done | `deadline-swipe-removal` | frontend-engineer | Remove swipe complete/snooze gestures from Deadline cards and keep completion interaction checkbox-only for simpler, predictable mobile behavior. Tracked in issue #448. |
@@ -441,9 +409,9 @@ Features are built in priority order. The orchestrator reads this section to dec
 | | | | |
 | | **— Phase 12: Multi-User & Monetization —** | | |
 | ⬜ todo | `google-oauth-registration` | fullstack-engineer | Replace admin-only auth with Google OAuth 2.0 sign-in (registration + login). Support multiple user accounts with isolated data per user. Each user gets their own storage partition for deadlines/meals/habits/journal/schedule. |
-| ⬜ todo | `oauth-integration-connect` | fullstack-engineer | Add per-user OAuth connection flows for Canvas, Gmail, Withings, GitHub, and X so users can link integrations securely in-app (no credential storage — only OAuth tokens). Settings page shows connected/disconnected state per integration. |
+| ⬜ todo | `oauth-integration-connect` | fullstack-engineer | Add per-user OAuth connection flows for Canvas, Gmail, Withings, and GitHub so users can link integrations securely in-app (no credential storage — only OAuth tokens). Settings page shows connected/disconnected state per integration. |
 | ⬜ todo | `free-trial-onboarding` | fullstack-engineer | 7-day free trial for new accounts. User must connect a payment card with auto-renewal enabled. Cancelling anytime retains the full 7-day trial period. One trial per card/account to prevent abuse. Trial countdown visible in Settings. After trial expires, downgrade to free tier automatically. |
-| ⬜ todo | `subscription-plans-billing` | fullstack-engineer | Implement tiered subscription plans with Stripe integration. **Free tier**: Chat + Schedule only, 20 Gemini calls/day, no integrations, ads shown. **Pro tier** (~$5/mo): all tabs, 200 Gemini calls/day, academic integrations (Canvas + GitHub), no ads. **Premium tier** (~$12/mo): unlimited Gemini calls, all integrations (Canvas, Gmail, Withings, GitHub, YouTube, X/Twitter, Twitch), priority coaching, no ads. Requires Stripe account + webhook setup. |
+| ⬜ todo | `subscription-plans-billing` | fullstack-engineer | Implement tiered subscription plans with Stripe integration. **Free tier**: Chat + Schedule only, 20 Gemini calls/day, no integrations, ads shown. **Pro tier** (~$5/mo): all tabs, 200 Gemini calls/day, academic integrations (Canvas + GitHub), no ads. **Premium tier** (~$12/mo): unlimited Gemini calls, all integrations (Canvas, Gmail, Withings, GitHub), priority coaching, no ads. Requires Stripe account + webhook setup. |
 | ⬜ todo | `free-tier-feature-gating` | fullstack-engineer | Lock premium tabs/features behind subscription tier. Free users get Chat + Schedule only. Growth, Food, and advanced analytics require paid plan. Show upgrade prompts with feature previews when free users tap gated tabs. |
 | ⬜ todo | `integration-paywalls` | fullstack-engineer | Gate third-party integrations behind paid tiers. Free tier gets no integrations; Pro tier gets academic (Canvas + GitHub); Premium tier gets all. Settings page shows lock icons with upgrade CTA. |
 | ⬜ todo | `gemini-call-rate-limiting` | backend-engineer | Add per-user Gemini API rate limiting and quota tracking. Free tier: 20 calls/day. Pro: 200 calls/day. Premium: unlimited. Track usage in storage with daily reset. Show remaining calls count in chat UI. |
