@@ -14,7 +14,7 @@ interface Screen {
 
 const SCREENS: Screen[] = [
   {
-    illustration: "onboarding-welcome.svg",
+    illustration: "icon.svg",
     title: "Hey! I\u2019m your AI\u00a0companion.",
     subtitle: "I know your schedule, deadlines, and goals \u2014 ask me anything.",
   },

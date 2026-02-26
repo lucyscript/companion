@@ -630,9 +630,7 @@ export function ConnectorsView({ planInfo, onUpgrade }: ConnectorsViewProps): JS
                       onChange={(event) => handleInputChange("canvas_baseUrl", event.target.value)}
                       disabled={busy}
                     />
-                    <p className="connector-input-hint">
-                      {t("Use your school Canvas root URL (no <code>/courses</code>).")}
-                    </p>
+                    <p className="connector-input-hint" dangerouslySetInnerHTML={{ __html: t("Use your Canvas root URL (no <code>/courses</code>).") }} />
                   </div>
                 )}
                 <div className="connector-input-block">
@@ -651,9 +649,7 @@ export function ConnectorsView({ planInfo, onUpgrade }: ConnectorsViewProps): JS
                   />
                 </div>
                 {connector.service === "canvas" && (
-                  <p className="connector-help-text">
-                    {t("In Canvas go to <strong>Account</strong> → <strong>Settings</strong> → <strong>Approved Integrations</strong> → <strong>+ New Access Token</strong>, then paste the token above.")}
-                  </p>
+                  <p className="connector-help-text" dangerouslySetInnerHTML={{ __html: t("In Canvas go to <strong>Account</strong> → <strong>Settings</strong> → <strong>Approved Integrations</strong> → <strong>+ New Access Token</strong>, then paste the token above.") }} />
                 )}
                 <button
                   className="connector-connect-btn"
@@ -896,9 +892,7 @@ export function ConnectorsView({ planInfo, onUpgrade }: ConnectorsViewProps): JS
                   disabled={busy}
                 />
                 {connector.service === "tp_schedule" && (
-                  <p className="connector-help-text">
-                    {t("Go to <strong>tp.educloud.no</strong> → find your courses → click <strong>Verktøy</strong> → <strong>Kopier abonnementlenken til timeplanen</strong>. Paste the iCal URL here (starts with https://tp.educloud.no/...).")}
-                  </p>
+                  <p className="connector-help-text" dangerouslySetInnerHTML={{ __html: t("Go to <strong>tp.educloud.no</strong> → find your courses → click <strong>Verktøy</strong> → <strong>Kopier abonnementlenken til timeplanen</strong>. Paste the iCal URL here (starts with https://tp.educloud.no/...).") }} />
                 )}
                 <button
                   className="connector-connect-btn"

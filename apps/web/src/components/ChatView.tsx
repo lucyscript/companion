@@ -1025,7 +1025,7 @@ export function ChatView({ mood, onMoodChange, onDataMutated }: ChatViewProps): 
         {historyLoaded && messages.length === 0 && (
           <div className="chat-welcome">
             <h2><IconWave size={24} style={{ verticalAlign: 'middle', marginRight: 6 }} />Hi there!</h2>
-            <p>I'm your personal AI companion. I know your schedule, deadlines, and food plan context.</p>
+            <p>I'm your AI companion. I know your schedule, deadlines, and goals.</p>
             <p>Ask me anything about your day, plans, and goals!</p>
             <div className="chat-quick-actions">
               {quickActions.map((action) => (

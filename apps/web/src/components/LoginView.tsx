@@ -20,7 +20,7 @@ export function LoginView({ loading, error, providers }: LoginViewProps): JSX.El
             </svg>
           </div>
           <h1 className="login-title">Companion</h1>
-          <p className="login-subtitle">{t("Your personal AI study companion")}</p>
+          <p className="login-subtitle">{t("Your personal AI companion")}</p>
         </div>
 
         <div className="login-oauth-buttons">

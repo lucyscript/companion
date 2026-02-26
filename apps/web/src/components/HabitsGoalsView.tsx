@@ -29,7 +29,7 @@ function formatHabitCadence(
 
 function formatHabitTarget(targetPerWeek: number): string {
   if (!Number.isFinite(targetPerWeek) || targetPerWeek <= UNBOUNDED_HABIT_TARGET) {
-    return "Anytime";
+    return "∞";
   }
   if (targetPerWeek === 7) {
     return "Daily";
