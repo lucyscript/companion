@@ -15,7 +15,7 @@ function formatReminderTime(
   tomorrow.setDate(tomorrow.getDate() + 1);
   const isTomorrow = d.toDateString() === tomorrow.toDateString();
 
-  const time = d.toLocaleTimeString(localeTag, { hour: "2-digit", minute: "2-digit" });
+  const time = d.toLocaleTimeString(localeTag, { hour: "2-digit", minute: "2-digit", hour12: false });
 
   if (isToday) return t("Today {time}", { time });
   if (isTomorrow) return t("Tomorrow {time}", { time });
