@@ -1,5 +1,4 @@
 import { GeminiClient, getGeminiClient } from "./gemini.js";
-import { config } from "./config.js";
 import { maybeGenerateAnalyticsVisual } from "./growth-visuals.js";
 import { RuntimeStore } from "./store.js";
 import {
@@ -21,6 +20,8 @@ interface GenerateAnalyticsCoachOptions {
   periodDays?: number;
   now?: Date;
   geminiClient?: GeminiClient;
+  /** Per-user display name for the coach prompt. */
+  userName?: string;
 }
 
 interface ParsedCoachInsight {
@@ -46,6 +47,8 @@ interface AnalyticsDataset {
   bodyComp: WithingsWeightEntry[];
   sleepHistory: WithingsSleepSummaryEntry[];
   scheduleEvents: LectureEvent[];
+  /** Per-user display name for the coach prompt. */
+  userName?: string;
 }
 
 const SUPPORTED_PERIODS: Array<7 | 14 | 30> = [7, 14, 30];
@@ -144,7 +147,7 @@ function sortDeadlinesAscending(deadlines: Deadline[]): Deadline[] {
   });
 }
 
-function buildDataset(store: RuntimeStore, userId: string, periodDays: 7 | 14 | 30, now: Date): AnalyticsDataset {
+function buildDataset(store: RuntimeStore, userId: string, periodDays: 7 | 14 | 30, now: Date, userName?: string): AnalyticsDataset {
   const nowMs = now.getTime();
   const windowStartDate = new Date(nowMs - periodDays * 24 * 60 * 60 * 1000);
   const windowStartMs = windowStartDate.getTime();
@@ -208,7 +211,8 @@ function buildDataset(store: RuntimeStore, userId: string, periodDays: 7 | 14 | 
     nutritionHistory: store.getNutritionDailyHistory(userId, windowStartDate, now, { eatenOnly: true }),
     bodyComp: store.getWithingsData(userId).weight.filter((w) => inWindow(w.measuredAt, windowStartMs, nowMs)),
     sleepHistory: store.getWithingsData(userId).sleepSummary.filter((s) => inWindow(s.date, windowStartMs, nowMs)),
-    scheduleEvents: store.getScheduleEvents(userId).filter((e) => inWindow(e.startTime, windowStartMs, nowMs))
+    scheduleEvents: store.getScheduleEvents(userId).filter((e) => inWindow(e.startTime, windowStartMs, nowMs)),
+    userName
   };
 }
 
@@ -404,7 +408,7 @@ function buildPrompt(dataset: AnalyticsDataset): string {
     .map((e) => `- ${e.startTime.slice(0, 10)} ${e.title} (${e.durationMinutes}min, ${e.workload})`)
     .join("\n");
 
-  const userName = config.USER_NAME;
+  const userName = dataset.userName || "friend";
   return `You are ${userName}'s personal performance coach. Analyze their last ${dataset.periodDays} days. Address them directly (you/your).
 
 STYLE RULES (critical):
@@ -557,7 +561,7 @@ export async function generateAnalyticsCoachInsight(
 ): Promise<AnalyticsCoachInsight> {
   const now = options.now ?? new Date();
   const periodDays = coercePeriodDays(options.periodDays);
-  const dataset = buildDataset(store, userId, periodDays, now);
+  const dataset = buildDataset(store, userId, periodDays, now, options.userName);
   const fallback = buildFallbackInsight(dataset);
 
   const gemini = options.geminiClient ?? getGeminiClient();

@@ -31,8 +31,11 @@ import { getGeminiClient } from "./gemini.js";
 import { RuntimeStore } from "./store.js";
 import { fetchTPSchedule, diffScheduleEvents } from "./tp-sync.js";
 import { TPSyncService } from "./tp-sync-service.js";
+import { TimeEditSyncService } from "./timeedit-sync-service.js";
 import { CanvasSyncService } from "./canvas-sync.js";
 import type { CanvasSyncOptions } from "./canvas-sync.js";
+import { BlackboardSyncService } from "./blackboard-sync.js";
+import { TeamsSyncService } from "./teams-sync.js";
 import { WithingsOAuthService } from "./withings-oauth.js";
 import { WithingsSyncService } from "./withings-sync.js";
 import { buildStudyPlanCalendarIcs } from "./study-plan-export.js";
@@ -169,11 +172,69 @@ const storageDiagnostics = (): PostgresPersistenceDiagnostics =>
     ? persistenceContext.postgresSnapshotStore.getDiagnostics(persistenceContext.sqlitePath)
     : fallbackStorageDiagnostics(persistenceContext.sqlitePath);
 
+// ── Per-user background service management ──
+// Services that need to run per-user are created on-demand as users become known.
+// A periodic scan ensures new users get services spun up.
 const runtime = new OrchestratorRuntime(store);
+const digestServicesByUser = new Map<string, EmailDigestService>();
+const tpSyncServicesByUser = new Map<string, TPSyncService>();
+const timeEditSyncServicesByUser = new Map<string, TimeEditSyncService>();
+
+function ensurePerUserServices(userId: string): void {
+  if (!userId) return;
+
+  if (!digestServicesByUser.has(userId)) {
+    const ds = new EmailDigestService(store, userId);
+    digestServicesByUser.set(userId, ds);
+    ds.start();
+  }
+  if (!tpSyncServicesByUser.has(userId)) {
+    const ts = new TPSyncService(store, userId);
+    tpSyncServicesByUser.set(userId, ts);
+    ts.start();
+  }
+  if (!timeEditSyncServicesByUser.has(userId)) {
+    const te = new TimeEditSyncService(store, userId);
+    timeEditSyncServicesByUser.set(userId, te);
+    te.start();
+  }
+  // Blackboard & Teams sync are connection-gated AND plan-gated:
+  // only start when the user has actually connected the service
+  // and their plan allows the connector.
+  const user = store.getUserById(userId);
+  const userPlan = user ? getEffectivePlan(user.plan as PlanId, user.role, user.trialEndsAt) : ("free" as PlanId);
+
+  if (!blackboardSyncServicesByUser.has(userId)) {
+    if (planAllowsConnector(userPlan, "blackboard")) {
+      const bbConn = store.getUserConnection(userId, "blackboard");
+      if (bbConn?.credentials) {
+        const bb = new BlackboardSyncService(store, userId);
+        blackboardSyncServicesByUser.set(userId, bb);
+        bb.start();
+      }
+    }
+  }
+  if (!teamsSyncServicesByUser.has(userId)) {
+    if (planAllowsConnector(userPlan, "teams")) {
+      const tmConn = store.getUserConnection(userId, "teams");
+      if (tmConn?.credentials) {
+        const tm = new TeamsSyncService(store, userId);
+        teamsSyncServicesByUser.set(userId, tm);
+        tm.start();
+      }
+    }
+  }
+}
+
+/** Periodically scan for new users and spin up their background services. */
+function refreshPerUserServices(): void {
+  for (const uid of store.getAllUserIds()) {
+    ensurePerUserServices(uid);
+  }
+}
+
+// BackgroundSyncService operates on a global queue (not user-scoped) — one instance is fine.
 const syncService = new BackgroundSyncService(store, "");
-const digestService = new EmailDigestService(store, "");
-const tpSyncService = new TPSyncService(store, "");
-const canvasSyncService = new CanvasSyncService(store, "");
 const syncFailureRecovery = new SyncFailureRecoveryTracker();
 const CANVAS_ON_DEMAND_SYNC_MIN_INTERVAL_MS = 5 * 60 * 1000;
 const CANVAS_ON_DEMAND_SYNC_STALE_MS = 25 * 60 * 1000;
@@ -193,6 +254,8 @@ const analyticsCoachCache = new Map<string, AnalyticsCoachCacheEntry>();
 import type { DailyGrowthSummary } from "./types.js";
 const dailySummaryCache = new Map<string, DailyGrowthSummary>();
 const canvasSyncServicesByUser = new Map<string, CanvasSyncService>();
+const blackboardSyncServicesByUser = new Map<string, BlackboardSyncService>();
+const teamsSyncServicesByUser = new Map<string, TeamsSyncService>();
 const withingsOAuthServicesByUser = new Map<string, WithingsOAuthService>();
 const withingsSyncServicesByUser = new Map<string, WithingsSyncService>();
 
@@ -312,7 +375,9 @@ function resolveCanvasSyncOptions(userId: string, requested: Partial<CanvasSyncO
   const connected = getCanvasConnectorCredentials(userId);
   const requestedToken = typeof requested.token === "string" ? requested.token.trim() : "";
   const requestedBaseUrlRaw = typeof requested.baseUrl === "string" ? requested.baseUrl.trim() : "";
-  const token = requestedToken || connected?.token || config.CANVAS_API_TOKEN;
+  // Only use the user's own Canvas credentials or explicitly requested ones.
+  // Do NOT fall back to config.CANVAS_API_TOKEN — that would leak admin data to other users.
+  const token = requestedToken || connected?.token;
   const baseUrl = normalizeCanvasBaseUrl(requestedBaseUrlRaw || connected?.baseUrl || config.CANVAS_BASE_URL);
 
   return {
@@ -343,6 +408,28 @@ function getCanvasSyncServiceForUser(userId: string): CanvasSyncService {
 
   const created = new CanvasSyncService(store, userId);
   canvasSyncServicesByUser.set(userId, created);
+  return created;
+}
+
+function getBlackboardSyncServiceForUser(userId: string): BlackboardSyncService {
+  const existing = blackboardSyncServicesByUser.get(userId);
+  if (existing) {
+    return existing;
+  }
+
+  const created = new BlackboardSyncService(store, userId);
+  blackboardSyncServicesByUser.set(userId, created);
+  return created;
+}
+
+function getTeamsSyncServiceForUser(userId: string): TeamsSyncService {
+  const existing = teamsSyncServicesByUser.get(userId);
+  if (existing) {
+    return existing;
+  }
+
+  const created = new TeamsSyncService(store, userId);
+  teamsSyncServicesByUser.set(userId, created);
   return created;
 }
 
@@ -471,10 +558,28 @@ async function runTPSyncForUser(userId: string, options: TPUserSyncOptions = {})
   const requestedIcalUrl = normalizeHttpUrl(options.icalUrl);
   const connectedIcalUrl = getConnectedTPIcalUrl(userId);
   const appliedIcalUrl = requestedIcalUrl ?? connectedIcalUrl;
-  const appliedTpCourseIds =
+  const explicitCourseIds =
     options.courseIds && options.courseIds.length > 0
       ? options.courseIds.map((value) => value.trim()).filter(Boolean)
-      : [...DEFAULT_TP_SCOPE_COURSE_IDS];
+      : [];
+
+  // If user has no iCal URL configured and didn't provide explicit courseIds,
+  // there's nothing to sync — don't fall back to hardcoded course IDs.
+  if (!appliedIcalUrl && explicitCourseIds.length === 0) {
+    return {
+      success: true,
+      eventsProcessed: 0,
+      lecturesCreated: 0,
+      lecturesUpdated: 0,
+      lecturesDeleted: 0,
+      appliedScope: {
+        semester: options.semester ?? "26v",
+        courseIds: [],
+        pastDays: options.pastDays ?? config.INTEGRATION_WINDOW_PAST_DAYS,
+        futureDays: options.futureDays ?? config.INTEGRATION_WINDOW_FUTURE_DAYS
+      }
+    };
+  }
 
   tpSyncInFlightUsers.add(userId);
 
@@ -482,7 +587,7 @@ async function runTPSyncForUser(userId: string, options: TPUserSyncOptions = {})
     const tpEvents = await fetchTPSchedule({
       ...(appliedIcalUrl
         ? { icalUrl: appliedIcalUrl }
-        : { semester: options.semester, courseIds: appliedTpCourseIds }),
+        : { semester: options.semester, courseIds: explicitCourseIds }),
       pastDays: options.pastDays,
       futureDays: options.futureDays
     });
@@ -500,7 +605,7 @@ async function runTPSyncForUser(userId: string, options: TPUserSyncOptions = {})
       ...(examDeadlineBridge.candidates > 0 ? { examDeadlineBridge } : {}),
       appliedScope: {
         semester: options.semester ?? "26v",
-        courseIds: appliedIcalUrl ? [] : appliedTpCourseIds,
+        courseIds: appliedIcalUrl ? [] : explicitCourseIds,
         pastDays: options.pastDays ?? config.INTEGRATION_WINDOW_PAST_DAYS,
         futureDays: options.futureDays ?? config.INTEGRATION_WINDOW_FUTURE_DAYS,
         ...(appliedIcalUrl ? { icalUrl: appliedIcalUrl } : {})
@@ -660,11 +765,11 @@ function setCachedAnalyticsCoachInsight(cacheKey: string, entry: AnalyticsCoachC
   }
 }
 
-runtime.start();
+// Boot per-user services for all existing users, then check periodically for new ones.
+refreshPerUserServices();
+const perUserServiceRefreshTimer = setInterval(refreshPerUserServices, 60_000);
+
 syncService.start();
-digestService.start();
-tpSyncService.start();
-canvasSyncService.start();
 
 async function maybeAutoSyncCanvasData(userId: string): Promise<void> {
   try {
@@ -938,6 +1043,9 @@ app.post("/api/auth/login", (req, res) => {
     return res.status(401).json({ error: "Invalid email or password" });
   }
 
+  // Ensure background services are running for this user
+  ensurePerUserServices(session.user.id);
+
   return res.status(200).json({
     token: session.token,
     expiresAt: session.expiresAt,
@@ -971,6 +1079,8 @@ function createOAuthSession(user: AuthUser): { token: string; expiresAt: string 
   const tokenHash = hashSessionToken(token);
   const expiresAt = new Date(Date.now() + config.AUTH_SESSION_TTL_HOURS * 60 * 60 * 1000).toISOString();
   store.createAuthSession({ userId: user.id, tokenHash, expiresAt });
+  // Ensure background services are running for this user
+  ensurePerUserServices(user.id);
   return { token, expiresAt };
 }
 
@@ -1150,7 +1260,7 @@ app.delete("/api/user/data", (req, res) => {
 
 // ── User Connections / Connectors ──
 
-const connectorServiceSchema = z.enum(["canvas", "withings", "tp_schedule", "mcp"]);
+const connectorServiceSchema = z.enum(["canvas", "blackboard", "withings", "tp_schedule", "timeedit", "teams", "mcp"]);
 const canvasConnectorCredentialsSchema = z.object({
   token: z.string().trim().min(1),
   baseUrl: z.string().url().optional()
@@ -1391,6 +1501,31 @@ app.post("/api/connectors/:service/connect", async (req, res) => {
     });
   }
 
+  if (service === "timeedit") {
+    const { icalUrl } = req.body as { icalUrl?: string };
+    if (!icalUrl || typeof icalUrl !== "string" || !icalUrl.trim().startsWith("http")) {
+      return res.status(400).json({ error: "A valid TimeEdit iCal URL is required" });
+    }
+    store.upsertUserConnection({
+      userId: authReq.authUser.id,
+      service: "timeedit",
+      credentials: JSON.stringify({ icalUrl: icalUrl.trim() }),
+      displayLabel: "TimeEdit Schedule"
+    });
+
+    // Kick off an immediate schedule sync for TimeEdit iCal connection.
+    const teService = timeEditSyncServicesByUser.get(authReq.authUser.id);
+    let autoSync: { success: boolean; eventsProcessed: number; lecturesCreated: number; lecturesUpdated: number; lecturesDeleted: number; error?: string } | undefined;
+    if (teService) {
+      autoSync = await teService.sync();
+    }
+    return res.json({
+      ok: true,
+      service: "timeedit",
+      autoSync
+    });
+  }
+
   // For OAuth connectors, redirect to their OAuth flow
   if (service === "withings") {
     const authUrl = getWithingsOAuthServiceForUser(authReq.authUser.id).getAuthUrl();
@@ -1400,6 +1535,42 @@ app.post("/api/connectors/:service/connect", async (req, res) => {
     }
     registerPendingOAuthState(withingsPendingOAuthStates, state, authReq.authUser.id);
     return res.json({ redirectUrl: authUrl });
+  }
+
+  // Blackboard Learn — token-based, same pattern as Canvas
+  if (service === "blackboard") {
+    const { token, baseUrl } = req.body as { token?: string; baseUrl?: string };
+    if (!token || typeof token !== "string" || !token.trim()) {
+      return res.status(400).json({ error: "Blackboard REST API token is required" });
+    }
+    store.upsertUserConnection({
+      userId: authReq.authUser.id,
+      service: "blackboard",
+      credentials: JSON.stringify({
+        token: token.trim(),
+        ...(baseUrl && typeof baseUrl === "string" ? { baseUrl: baseUrl.trim() } : {})
+      }),
+      displayLabel: "Blackboard Learn"
+    });
+
+    // Kick off an immediate sync now that credentials are stored
+    const bbService = getBlackboardSyncServiceForUser(authReq.authUser.id);
+    if (!blackboardSyncServicesByUser.has(authReq.authUser.id)) {
+      blackboardSyncServicesByUser.set(authReq.authUser.id, bbService);
+      bbService.start();
+    }
+    const syncResult = await bbService.triggerSync().catch(() => ({ success: false }));
+
+    return res.json({ ok: true, service: "blackboard", autoSync: syncResult });
+  }
+
+  // Microsoft Teams — OAuth stub (Graph API integration)
+  if (service === "teams") {
+    // Teams OAuth is not yet implemented — store as placeholder
+    return res.status(501).json({
+      error: "Microsoft Teams OAuth integration is coming soon",
+      service: "teams"
+    });
   }
 
   return res.status(400).json({ error: "Unknown connector service" });
@@ -1414,6 +1585,22 @@ app.delete("/api/connectors/:service", (req, res) => {
 
   if (parsed.data === "canvas") {
     store.clearCanvasData(authReq.authUser.id);
+  }
+  if (parsed.data === "blackboard") {
+    store.clearBlackboardData(authReq.authUser.id);
+    const bbService = blackboardSyncServicesByUser.get(authReq.authUser.id);
+    if (bbService) {
+      bbService.stop();
+      blackboardSyncServicesByUser.delete(authReq.authUser.id);
+    }
+  }
+  if (parsed.data === "teams") {
+    store.clearTeamsData(authReq.authUser.id);
+    const tmService = teamsSyncServicesByUser.get(authReq.authUser.id);
+    if (tmService) {
+      tmService.stop();
+      teamsSyncServicesByUser.delete(authReq.authUser.id);
+    }
   }
   if (parsed.data === "mcp") {
     clearMcpServers(store, authReq.authUser.id);
@@ -1788,7 +1975,8 @@ app.get("/api/analytics/coach", async (req, res) => {
 
   const insight = await generateAnalyticsCoachInsight(store, userId, {
     periodDays,
-    now
+    now,
+    userName: (req as AuthenticatedRequest).authUser?.name
   });
   setCachedAnalyticsCoachInsight(cacheKey, {
     signature,
@@ -2082,10 +2270,12 @@ app.post("/api/chat", async (req, res) => {
     const effectivePlan = authReq.authUser
       ? getEffectivePlan(authReq.authUser.plan, authReq.authUser.role, authReq.authUser.trialEndsAt)
       : undefined;
+    const userName = (req as AuthenticatedRequest).authUser?.name;
     await Promise.all([maybeAutoSyncCanvasData(userId)]);
     const result = await sendChatMessage(store, userId, parsed.data.message.trim(), {
       attachments: parsed.data.attachments,
-      planId: effectivePlan
+      planId: effectivePlan,
+      userName
     });
     return res.json({
       reply: result.reply,
@@ -2157,11 +2347,13 @@ app.post("/api/chat/stream", async (req, res) => {
     const effectivePlan = authReq.authUser
       ? getEffectivePlan(authReq.authUser.plan, authReq.authUser.role, authReq.authUser.trialEndsAt)
       : undefined;
+    const userName = (req as AuthenticatedRequest).authUser?.name;
     await Promise.all([maybeAutoSyncCanvasData(userId)]);
     const result = await sendChatMessage(store, userId, parsed.data.message.trim(), {
       attachments: parsed.data.attachments,
-      onTextChunk: (chunk: string) => sendSse("token", { delta: chunk }),
-      planId: effectivePlan
+      planId: effectivePlan,
+      userName,
+      onTextChunk: (chunk: string) => sendSse("token", { delta: chunk })
     });
 
     sendSse("done", {
@@ -2793,8 +2985,6 @@ const integrationHealthSummaryQuerySchema = z.object({
   hours: z.coerce.number().int().min(1).max(24 * 365).optional().default(24 * 7)
 });
 
-const DEFAULT_TP_SCOPE_COURSE_IDS = ["DAT520,1", "DAT560,1", "DAT600,1"] as const;
-
 const notificationPreferencesSchema = z.object({
   quietHours: z
     .object({
@@ -2878,14 +3068,17 @@ store.onNotification((notification: Notification) => {
 });
 
 async function broadcastNotification(notification: Notification): Promise<void> {
-  if (!store.shouldDispatchNotification("", notification)) {
-    console.log(`[push] blocked by dispatch rules: source=${notification.source} priority=${notification.priority} title="${notification.title}"`);
+  const targetUserId = notification.userId ?? "";
+  if (!targetUserId) {
+    // No userId on the notification — can't route it. Skip push delivery.
     return;
   }
 
-  // Use getAllPushSubscriptions — orchestrator pushes with userId="" but subscriptions
-  // are stored under the real OAuth userId, so a userId-scoped query would miss them.
-  const subscriptions = store.getAllPushSubscriptions();
+  if (!store.shouldDispatchNotification(targetUserId, notification)) {
+    return;
+  }
+
+  const subscriptions = store.getPushSubscriptions(targetUserId);
 
   if (subscriptions.length === 0) {
     console.log(`[push] no subscriptions — notification "${notification.title}" not delivered`);
@@ -2905,7 +3098,7 @@ async function broadcastNotification(notification: Notification): Promise<void> 
     store.recordPushDeliveryResult(endpoint, notification, result);
 
     if (result.shouldDropSubscription) {
-      store.removePushSubscription("", endpoint);
+      store.removePushSubscription(targetUserId, endpoint);
     }
   }
 }
@@ -4115,8 +4308,10 @@ app.get("/api/sync/status", (req, res) => {
       sleepDaysTracked: withingsData.sleepSummary.length
     },
     autoHealing: {
-      tp: tpSyncService.getAutoHealingStatus(),
-      canvas: canvasSyncService.getAutoHealingStatus(),
+      tp: (tpSyncServicesByUser.get(userId) ?? new TPSyncService(store, userId)).getAutoHealingStatus(),
+      canvas: (canvasSyncServicesByUser.get(userId) ?? getCanvasSyncServiceForUser(userId)).getAutoHealingStatus(),
+      blackboard: (blackboardSyncServicesByUser.get(userId) ?? getBlackboardSyncServiceForUser(userId)).getAutoHealingStatus(),
+      teams: (teamsSyncServicesByUser.get(userId) ?? getTeamsSyncServiceForUser(userId)).getAutoHealingStatus(),
       withings: getWithingsSyncServiceForUser(userId).getAutoHealingStatus()
     }
   });
@@ -4160,7 +4355,7 @@ app.post("/api/integrations/scope/preview", (req, res) => {
   const selectedTPCourseIds =
     parsed.data.tpCourseIds && parsed.data.tpCourseIds.length > 0
       ? parsed.data.tpCourseIds
-      : [...DEFAULT_TP_SCOPE_COURSE_IDS];
+      : [];
   const selectedTPCourseCodes = selectedTPCourseIds
     .map((value) => value.split(",")[0]?.trim().toUpperCase())
     .filter((value): value is string => Boolean(value));
@@ -4246,7 +4441,7 @@ app.get("/api/tp/status", (req, res) => {
   return res.json({
     lastSyncedAt: events.length > 0 ? new Date().toISOString() : null,
     eventsCount: events.length,
-    isSyncing: tpSyncInFlightUsers.has(userId) || tpSyncService.isCurrentlySyncing()
+    isSyncing: tpSyncInFlightUsers.has(userId) || (tpSyncServicesByUser.get(userId)?.isCurrentlySyncing() ?? false)
   });
 });
 
@@ -4254,11 +4449,8 @@ app.get("/api/canvas/status", (req, res) => {
   const userId = (req as AuthenticatedRequest).authUser?.id ?? "";
   const canvasData = store.getCanvasData(userId);
   const connectedCanvasCredentials = getCanvasConnectorCredentials(userId);
-  const envFallbackCanvasBaseUrl =
-    config.CANVAS_API_TOKEN
-      ? normalizeCanvasBaseUrl(config.CANVAS_BASE_URL) ?? ""
-      : "";
-  const canvasBaseUrl = connectedCanvasCredentials?.baseUrl ?? envFallbackCanvasBaseUrl;
+  // Only show the user's own Canvas base URL — don't leak admin env config
+  const canvasBaseUrl = connectedCanvasCredentials?.baseUrl ?? "";
   return res.json({
     baseUrl: canvasBaseUrl,
     lastSyncedAt: canvasData?.lastSyncedAt ?? null,
@@ -4546,15 +4738,29 @@ const shutdown = (): void => {
   }
   shuttingDown = true;
 
+  // Stop per-user services
+  clearInterval(perUserServiceRefreshTimer);
   runtime.stop();
+  for (const ds of digestServicesByUser.values()) ds.stop();
+  digestServicesByUser.clear();
+  for (const ts of tpSyncServicesByUser.values()) ts.stop();
+  tpSyncServicesByUser.clear();
+  for (const te of timeEditSyncServicesByUser.values()) te.stop();
+  timeEditSyncServicesByUser.clear();
+
   syncService.stop();
-  digestService.stop();
-  tpSyncService.stop();
-  canvasSyncService.stop();
   for (const service of canvasSyncServicesByUser.values()) {
     service.stop();
   }
   canvasSyncServicesByUser.clear();
+  for (const service of blackboardSyncServicesByUser.values()) {
+    service.stop();
+  }
+  blackboardSyncServicesByUser.clear();
+  for (const service of teamsSyncServicesByUser.values()) {
+    service.stop();
+  }
+  teamsSyncServicesByUser.clear();
   for (const service of withingsSyncServicesByUser.values()) {
     service.stop();
   }
@@ -4565,7 +4771,9 @@ const shutdown = (): void => {
   const finalize = async (): Promise<void> => {
     // Flush any remaining buffered journal entries before shutdown
     try {
-      await flushJournalSessionBuffer(store, "");
+      for (const uid of store.getAllUserIds()) {
+        await flushJournalSessionBuffer(store, uid);
+      }
     } catch {
       // best-effort — don't block shutdown
     }

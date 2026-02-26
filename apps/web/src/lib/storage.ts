@@ -73,7 +73,7 @@ function normalizeCanvasBaseUrl(value: unknown): string {
   }
 
   // Generic Canvas root isn't a tenant URL and confuses users in the connector form.
-  if (origin.toLowerCase() === "https://canvas.instructure.com") {
+  if (origin.toLowerCase() === "https://canvas.instructure.com" || origin.toLowerCase() === "https://stavanger.instructure.com") {
     return "";
   }
 
@@ -93,7 +93,7 @@ const defaultCanvasStatus: CanvasStatus = {
 
 const defaultIntegrationScopeSettings: IntegrationScopeSettings = {
   semester: "26v",
-  tpCourseIds: ["DAT520,1", "DAT560,1", "DAT600,1"],
+  tpCourseIds: [],
   canvasCourseIds: [],
   pastDays: 7,
   futureDays: 180

@@ -2,8 +2,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EmailDigestService } from "./email-digest.js";
 import { RuntimeStore } from "./store.js";
 
+function createTestUser(store: RuntimeStore): string {
+  const user = store.createUser({
+    email: "test@example.com",
+    passwordHash: "",
+    role: "user",
+    name: "Test User"
+  });
+  return user.id;
+}
+
 describe("EmailDigestService", () => {
-  const userId = "test-user";
 
   beforeEach(() => {
     vi.useFakeTimers();
@@ -16,6 +25,7 @@ describe("EmailDigestService", () => {
 
   it("sends a daily digest when push delivery fails", async () => {
     const store = new RuntimeStore(":memory:");
+    const userId = createTestUser(store);
     const service = new EmailDigestService(store, userId);
 
     store.createDeadline(userId, {
@@ -57,6 +67,7 @@ describe("EmailDigestService", () => {
 
   it("sends a weekly digest on inactive Sundays", async () => {
     const store = new RuntimeStore(":memory:");
+    const userId = createTestUser(store);
     const service = new EmailDigestService(store, userId);
 
     store.recordChatMessage(userId, "user", "Finished the first draft of the report");
@@ -72,6 +83,7 @@ describe("EmailDigestService", () => {
 
   it("respects the daily cooldown to avoid duplicate digests", async () => {
     const store = new RuntimeStore(":memory:");
+    const userId = createTestUser(store);
     const service = new EmailDigestService(store, userId);
 
     store.recordPushDeliveryResult(

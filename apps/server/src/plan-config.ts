@@ -54,8 +54,8 @@ export const PLAN_TIERS: Record<PlanId, PlanTier> = {
     priceMonthlyNok: 0,
     dailyChatLimit: 10,
     features: new Set<FeatureId>(["chat", "schedule", "connectors"]),
-    // 3 integrations: Gemini + Canvas + TP
-    connectors: ["canvas", "tp_schedule"] as ConnectorService[],
+    // University integrations: Canvas + Blackboard + TP + TimeEdit
+    connectors: ["canvas", "blackboard", "tp_schedule", "timeedit"] as ConnectorService[],
     maxChatHistory: 50,
     trialDays: 0,
     badge: "Free"
@@ -70,8 +70,8 @@ export const PLAN_TIERS: Record<PlanId, PlanTier> = {
       "chat", "schedule", "nutrition",
       "connectors", "gemini_tools", "chat_history", "custom_moods"
     ]),
-    // Free integrations (Gemini + Canvas + TP) + 2 more from connected apps = 5 total
-    connectors: ["canvas", "mcp", "tp_schedule", "withings"] as ConnectorService[],
+    // University integrations + connected apps (MCP, Teams)
+    connectors: ["canvas", "blackboard", "mcp", "tp_schedule", "timeedit", "teams", "withings"] as ConnectorService[],
     maxChatHistory: 500,
     trialDays: 7,
     badge: "Plus"
@@ -87,7 +87,7 @@ export const PLAN_TIERS: Record<PlanId, PlanTier> = {
       "connectors", "gemini_tools", "chat_history", "analytics", "custom_moods"
     ]),
     // Unlimited integrations — all connector types available
-    connectors: ["canvas", "mcp", "withings", "tp_schedule"] as ConnectorService[],
+    connectors: ["canvas", "blackboard", "mcp", "withings", "tp_schedule", "timeedit", "teams"] as ConnectorService[],
     maxChatHistory: 0,
     trialDays: 0,
     badge: "Pro"

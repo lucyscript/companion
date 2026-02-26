@@ -115,6 +115,44 @@ const CONNECTORS: ConnectorMeta[] = [
     ],
     type: "url",
     placeholder: "Paste your TP iCal URL here"
+  },
+  {
+    service: "timeedit",
+    label: "TimeEdit Schedule",
+    icon: { src: iconPath("icons/integrations/timeedit.svg"), alt: "TimeEdit" },
+    description: "Import your timetable from TimeEdit.",
+    readMoreItems: [
+      "Sync lecture and lab events from your TimeEdit subscription feed.",
+      "Automatically refresh schedule blocks when the timetable changes.",
+      "Works with any university that uses TimeEdit (timeedit.net)."
+    ],
+    type: "url",
+    placeholder: "Paste your TimeEdit iCal URL here"
+  },
+  {
+    service: "blackboard",
+    label: "Blackboard Learn",
+    icon: { src: iconPath("icons/integrations/blackboard.svg"), alt: "Blackboard" },
+    description: "Courses, assignments, and grades from Blackboard Learn.",
+    readMoreItems: [
+      "Import assignments and due dates into your deadline tracking.",
+      "Sync course content and announcements for chat context.",
+      "Works with any university using Blackboard Learn (NTNU, UiB, etc.)."
+    ],
+    type: "token",
+    placeholder: "Paste your Blackboard REST API token"
+  },
+  {
+    service: "teams",
+    label: "Microsoft Teams",
+    icon: { src: iconPath("icons/integrations/teams.svg"), alt: "Teams" },
+    description: "Class teams, assignments, and lecture recordings.",
+    readMoreItems: [
+      "Surface Teams assignments alongside Canvas and Blackboard deadlines.",
+      "Access lecture recordings and class notebook links in chat.",
+      "Connects via your university Microsoft 365 account."
+    ],
+    type: "oauth"
   }
 ];
 
@@ -133,8 +171,20 @@ const GEMINI_CARD: GeminiCard = {
 const GITHUB_MCP_ICON = { src: iconPath("icons/integrations/github.svg"), alt: "GitHub" };
 const NOTION_MCP_ICON = { src: iconPath("icons/integrations/notion.svg"), alt: "Notion" };
 
-const FREE_TIER_SERVICES: ConnectorService[] = ["canvas", "tp_schedule"];
-const CONNECTED_APPS_SERVICES: ConnectorService[] = ["mcp"];
+// ── Connector category grouping ─────────────────────────────────────────
+
+interface ConnectorCategory {
+  key: string;
+  label: string;
+  services: ConnectorService[];
+}
+
+const FREE_TIER_CATEGORIES: ConnectorCategory[] = [
+  { key: "university", label: "University", services: ["canvas", "blackboard", "tp_schedule", "timeedit"] },
+];
+
+const FREE_TIER_SERVICES: ConnectorService[] = FREE_TIER_CATEGORIES.flatMap(c => c.services);
+const CONNECTED_APPS_SERVICES: ConnectorService[] = ["mcp", "teams"];
 
 function formatRelative(
   timestamp: string | null,
@@ -396,6 +446,9 @@ export function ConnectorsView({ planInfo, onUpgrade }: ConnectorsViewProps): JS
           await connectService(connector.service, { token, baseUrl });
           const current = loadCanvasSettings();
           saveCanvasSettings({ ...current, baseUrl });
+        } else {
+          // Generic token connector (Blackboard, etc.)
+          await connectService(connector.service, { token });
         }
       } else if (connector.type === "config") {
         if (connector.service === "mcp") {
@@ -520,9 +573,6 @@ export function ConnectorsView({ planInfo, onUpgrade }: ConnectorsViewProps): JS
   };
 
   const isPaidPlan = planInfo ? planInfo.plan !== "free" : false;
-  const freeTierConnectors = FREE_TIER_SERVICES
-    .map((service) => CONNECTORS.find((connector) => connector.service === service))
-    .filter((connector): connector is ConnectorMeta => connector !== undefined);
   const connectedAppConnectors = CONNECTED_APPS_SERVICES
     .map((service) => CONNECTORS.find((connector) => connector.service === service))
     .filter((connector): connector is ConnectorMeta => connector !== undefined);
@@ -650,6 +700,9 @@ export function ConnectorsView({ planInfo, onUpgrade }: ConnectorsViewProps): JS
                 </div>
                 {connector.service === "canvas" && (
                   <p className="connector-help-text" dangerouslySetInnerHTML={{ __html: t("In Canvas go to <strong>Account</strong> → <strong>Settings</strong> → <strong>Approved Integrations</strong> → <strong>+ New Access Token</strong>, then paste the token above.") }} />
+                )}
+                {connector.service === "blackboard" && (
+                  <p className="connector-help-text" dangerouslySetInnerHTML={{ __html: t("In Blackboard go to <strong>System Admin</strong> → <strong>REST API Integrations</strong> to generate and copy your API token.") }} />
                 )}
                 <button
                   className="connector-connect-btn"
@@ -938,8 +991,22 @@ export function ConnectorsView({ planInfo, onUpgrade }: ConnectorsViewProps): JS
     );
   }
 
+  const renderCategoryGroup = (category: ConnectorCategory): JSX.Element | null => {
+    const cards = category.services
+      .map(s => CONNECTORS.find(c => c.service === s))
+      .filter((c): c is ConnectorMeta => c !== undefined);
+    if (cards.length === 0) return null;
+    return (
+      <div key={category.key} className="connector-category-group">
+        <h4 className="connector-category-label">{t(category.label)}</h4>
+        {cards.map(renderConnectorCard)}
+      </div>
+    );
+  };
+
   return (
     <div className="connectors-list">
+      {/* AI Assistant — always first */}
       <section className="connector-section">
         <div className={`connector-card ${geminiStatus.apiConfigured ? "connector-connected" : ""}`}>
           <div className="connector-header connector-header-static">
@@ -973,10 +1040,14 @@ export function ConnectorsView({ planInfo, onUpgrade }: ConnectorsViewProps): JS
             </ul>
           </details>
         </div>
-        {freeTierConnectors.map(renderConnectorCard)}
       </section>
 
+      {/* Free-tier connectors grouped by category */}
+      {FREE_TIER_CATEGORIES.map(renderCategoryGroup)}
+
+      {/* Connected Apps — paid tier */}
       <section className="connector-section">
+        <h4 className="connector-category-label">{t("Connected Apps")}</h4>
         {isPaidPlan ? (
           connectedAppConnectors.map(renderConnectorCard)
         ) : (
@@ -985,7 +1056,7 @@ export function ConnectorsView({ planInfo, onUpgrade }: ConnectorsViewProps): JS
               <span className="connector-icon"><IconLock size={18} /></span>
               <div className="connector-info">
                 <span className="connector-label">{t("Upgrade to unlock Connected Apps")}</span>
-                <span className="connector-desc">{t("Connect external apps like GitHub, Notion, and Withings.")}</span>
+                <span className="connector-desc">{t("Connect external apps like GitHub, Notion, Teams, and Withings.")}</span>
               </div>
               <div className="connector-status">
                 <span className="connector-badge connector-badge-disconnected">{t("Paid plan")}</span>

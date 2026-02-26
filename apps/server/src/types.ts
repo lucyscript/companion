@@ -20,6 +20,8 @@ export type NotificationAction = "complete" | "working" | "snooze" | "view";
 
 export interface Notification {
   id: string;
+  /** The user this notification belongs to. Used for push routing. */
+  userId?: string;
   title: string;
   message: string;
   priority: Priority;
@@ -204,7 +206,7 @@ export interface AuthSession {
   lastSeenAt: string;
 }
 
-export type ConnectorService = "canvas" | "withings" | "tp_schedule" | "mcp";
+export type ConnectorService = "canvas" | "blackboard" | "withings" | "tp_schedule" | "timeedit" | "teams" | "mcp";
 
 export interface UserConnection {
   id: string;
@@ -358,6 +360,8 @@ export interface Deadline {
   priority: Priority;
   completed: boolean;
   canvasAssignmentId?: number;
+  blackboardContentId?: string;
+  teamsAssignmentId?: string;
   effortHoursRemaining?: number;
   effortConfidence?: EffortConfidence;
 }
@@ -1041,4 +1045,81 @@ export interface WithingsSyncResult {
   weightsCount: number;
   sleepDaysCount: number;
   error?: string;
+}
+
+// ── Blackboard Learn types ──────────────────────────────────────────────
+
+export interface BlackboardCourse {
+  id: string;
+  courseId: string;
+  name: string;
+  description?: string;
+  availability?: { available: string };
+}
+
+export interface BlackboardAssignment {
+  id: string;
+  title: string;
+  description?: string;
+  courseId?: string;
+  availability?: {
+    adaptiveRelease?: {
+      start?: string;
+      end?: string;
+    };
+  };
+  score?: {
+    possible: number;
+  };
+}
+
+export interface BlackboardAnnouncement {
+  id: string;
+  title: string;
+  body: string;
+  created: string;
+}
+
+export interface BlackboardData {
+  courses: BlackboardCourse[];
+  assignments: BlackboardAssignment[];
+  announcements: BlackboardAnnouncement[];
+  lastSyncedAt: string | null;
+}
+
+// ── Microsoft Teams types ────────────────────────────────────────────────
+
+export interface TeamsClass {
+  id: string;
+  displayName: string;
+  description?: string;
+  mailNickname?: string;
+}
+
+export interface TeamsAssignment {
+  id: string;
+  displayName: string;
+  instructions?: { content?: string };
+  dueDateTime: string | null;
+  assignDateTime?: string;
+  status?: "draft" | "assigned" | "published";
+  classId?: string;
+  grading?: {
+    maxPoints?: number;
+  };
+}
+
+export interface TeamsAnnouncement {
+  id: string;
+  subject?: string;
+  body?: { content?: string };
+  createdDateTime?: string;
+  from?: { user?: { displayName?: string } };
+}
+
+export interface TeamsData {
+  classes: TeamsClass[];
+  assignments: TeamsAssignment[];
+  announcements: TeamsAnnouncement[];
+  lastSyncedAt: string | null;
 }

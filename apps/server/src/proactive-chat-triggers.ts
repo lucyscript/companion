@@ -193,7 +193,7 @@ const scheduleGapTrigger: ProactiveTrigger = {
     }
 
     const [before, after] = gap;
-    const beforeTitle = before.title.split(" ")[0]; // e.g., "DAT520"
+    const beforeTitle = before.title.split(" ")[0];
     const afterTitle = after.title.split(" ")[0];
 
     const specificContext = `Gap between ${beforeTitle} and ${afterTitle}. User might want to work on assignments or review material.`;

@@ -31,12 +31,6 @@ describe("config", () => {
       expect(config.USER_NAME).toBe("friend");
     });
 
-    it("should use default FALLBACK_EMAIL when not provided", async () => {
-      delete process.env.FALLBACK_EMAIL;
-      const { config } = await import("./config.js");
-      expect(config.FALLBACK_EMAIL).toBe("user@example.com");
-    });
-
     it("should use default VAPID_SUBJECT when not provided", async () => {
       delete process.env.VAPID_SUBJECT;
       const { config } = await import("./config.js");
@@ -167,7 +161,6 @@ describe("config", () => {
       process.env.VAPID_PUBLIC_KEY = "public-key";
       process.env.VAPID_PRIVATE_KEY = "private-key";
       process.env.VAPID_SUBJECT = "mailto:bob@example.com";
-      process.env.FALLBACK_EMAIL = "bob@example.com";
       process.env.INTEGRATION_WINDOW_PAST_DAYS = "14";
       process.env.INTEGRATION_WINDOW_FUTURE_DAYS = "120";
       process.env.NOTIFICATION_DIGEST_MORNING_HOUR = "7";
@@ -181,7 +174,6 @@ describe("config", () => {
       expect(config.VAPID_PUBLIC_KEY).toBe("public-key");
       expect(config.VAPID_PRIVATE_KEY).toBe("private-key");
       expect(config.VAPID_SUBJECT).toBe("mailto:bob@example.com");
-      expect(config.FALLBACK_EMAIL).toBe("bob@example.com");
       expect(config.INTEGRATION_WINDOW_PAST_DAYS).toBe(14);
       expect(config.INTEGRATION_WINDOW_FUTURE_DAYS).toBe(120);
       expect(config.NOTIFICATION_DIGEST_MORNING_HOUR).toBe(7);

@@ -106,6 +106,79 @@ function buildCanvasContextSummary(store: RuntimeStore, userId: string, now: Dat
   return parts.join("\n");
 }
 
+function buildBlackboardContextSummary(store: RuntimeStore, userId: string, now: Date = new Date()): string {
+  const bbData = store.getBlackboardData(userId);
+
+  if (!bbData || bbData.announcements.length === 0) {
+    return "";
+  }
+
+  const recentAnnouncements = bbData.announcements
+    .filter((ann) => {
+      const createdAt = new Date(ann.created);
+      if (Number.isNaN(createdAt.getTime())) {
+        return false;
+      }
+      const daysSincePosted = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
+      return daysSincePosted <= 7;
+    })
+    .sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime())
+    .slice(0, 5);
+
+  if (recentAnnouncements.length === 0) {
+    return "";
+  }
+
+  const parts = ["**Blackboard Announcements (last 7 days):**"];
+  recentAnnouncements.forEach((ann) => {
+    const postedDate = new Date(ann.created).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric"
+    });
+    const preview = ann.body.replace(/<[^>]*>/g, "").slice(0, 80);
+    parts.push(`- ${ann.title} (${postedDate}): ${preview}${ann.body.length > 80 ? "..." : ""}`);
+  });
+
+  return parts.join("\n");
+}
+
+function buildTeamsContextSummary(store: RuntimeStore, userId: string, now: Date = new Date()): string {
+  const teamsData = store.getTeamsData(userId);
+
+  if (!teamsData || teamsData.announcements.length === 0) {
+    return "";
+  }
+
+  const recentAnnouncements = teamsData.announcements
+    .filter((ann) => {
+      const createdAt = new Date(ann.createdDateTime ?? "");
+      if (Number.isNaN(createdAt.getTime())) {
+        return false;
+      }
+      const daysSincePosted = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
+      return daysSincePosted <= 7;
+    })
+    .sort((a, b) => new Date(b.createdDateTime ?? "").getTime() - new Date(a.createdDateTime ?? "").getTime())
+    .slice(0, 5);
+
+  if (recentAnnouncements.length === 0) {
+    return "";
+  }
+
+  const parts = ["**Teams Announcements (last 7 days):**"];
+  recentAnnouncements.forEach((ann) => {
+    const postedDate = new Date(ann.createdDateTime ?? "").toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric"
+    });
+    const bodyText = ann.body?.content ?? "";
+    const preview = bodyText.replace(/<[^>]*>/g, "").slice(0, 80);
+    parts.push(`- ${ann.subject ?? "Untitled"} (${postedDate}): ${preview}${bodyText.length > 80 ? "..." : ""}`);
+  });
+
+  return parts.join("\n");
+}
+
 function buildWithingsContextSummary(store: RuntimeStore, userId: string, now: Date = new Date()): string {
   const data = store.getWithingsData(userId);
   if (data.weight.length === 0 && data.sleepSummary.length === 0) {
@@ -188,6 +261,8 @@ export function buildChatContext(store: RuntimeStore, userId: string, now: Date 
 
   const userState: UserContext = store.getUserContext(userId);
   const canvasContext = buildCanvasContextSummary(store, userId, now);
+  const blackboardContext = buildBlackboardContextSummary(store, userId, now);
+  const teamsContext = buildTeamsContextSummary(store, userId, now);
   const nutritionContext = buildNutritionContextSummary(store, userId, now);
   const withingsContext = buildWithingsContextSummary(store, userId, now);
 
@@ -197,6 +272,8 @@ export function buildChatContext(store: RuntimeStore, userId: string, now: Date 
     userState,
     customContext: [
       canvasContext,
+      blackboardContext,
+      teamsContext,
       nutritionContext,
       withingsContext
     ]
@@ -3224,6 +3301,8 @@ interface SendChatOptions {
   onTextChunk?: (chunk: string) => void;
   /** Effective plan ID for tool filtering. If omitted, all tools are available. */
   planId?: PlanId;
+  /** Per-user display name for the AI system prompt. Falls back to config.USER_NAME. */
+  userName?: string;
 }
 
 function emitTextChunks(text: string, onTextChunk?: (chunk: string) => void): void {
@@ -3501,7 +3580,7 @@ export async function sendChatMessage(
     ...mcpToolContext.declarations
   ];
   const systemInstruction = buildFunctionCallingSystemInstruction(
-    config.USER_NAME,
+    options.userName || config.USER_NAME,
     buildHabitGoalNudgeContext(store, userId),
     buildRuntimeContextNudge(now),
     longTermMemoryNudge,

@@ -217,7 +217,7 @@ export class RuntimeStore {
       "nutrition_meals", "nutrition_custom_foods", "nutrition_target_profiles",
       "nutrition_plan_snapshots", "nutrition_plan_settings",
       "study_plan_sessions",
-      "canvas_data", "withings_data",
+      "canvas_data", "blackboard_data", "teams_data", "withings_data",
       "routine_presets", "integration_sync_attempts",
       "sync_queue", "tags"
     ];
@@ -836,6 +836,22 @@ export class RuntimeStore {
         lastSyncedAt TEXT
       );
 
+      CREATE TABLE IF NOT EXISTS blackboard_data (
+        userId TEXT PRIMARY KEY,
+        courses TEXT NOT NULL DEFAULT '[]',
+        assignments TEXT NOT NULL DEFAULT '[]',
+        announcements TEXT NOT NULL DEFAULT '[]',
+        lastSyncedAt TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS teams_data (
+        userId TEXT PRIMARY KEY,
+        classes TEXT NOT NULL DEFAULT '[]',
+        assignments TEXT NOT NULL DEFAULT '[]',
+        announcements TEXT NOT NULL DEFAULT '[]',
+        lastSyncedAt TEXT
+      );
+
       CREATE TABLE IF NOT EXISTS withings_data (
         userId TEXT PRIMARY KEY,
         withingsUserId TEXT,
@@ -893,6 +909,14 @@ export class RuntimeStore {
     const hasSourceDueDate = deadlineColumns.some((col) => col.name === "sourceDueDate");
     if (!hasSourceDueDate) {
       this.db.prepare("ALTER TABLE deadlines ADD COLUMN sourceDueDate TEXT").run();
+    }
+    const hasBlackboardContentId = deadlineColumns.some((col) => col.name === "blackboardContentId");
+    if (!hasBlackboardContentId) {
+      this.db.prepare("ALTER TABLE deadlines ADD COLUMN blackboardContentId TEXT").run();
+    }
+    const hasTeamsAssignmentId = deadlineColumns.some((col) => col.name === "teamsAssignmentId");
+    if (!hasTeamsAssignmentId) {
+      this.db.prepare("ALTER TABLE deadlines ADD COLUMN teamsAssignmentId TEXT").run();
     }
 
     const nutritionMealColumns = this.db.prepare("PRAGMA table_info(nutrition_meals)").all() as Array<{ name: string }>;
@@ -1200,6 +1224,7 @@ export class RuntimeStore {
     const full: Notification = {
       ...notification,
       id: makeId("notif"),
+      userId,
       timestamp: nowIso()
     };
 
@@ -1208,16 +1233,16 @@ export class RuntimeStore {
     );
     insertStmt.run(full.id, userId, full.source, full.title, full.message, full.priority, full.timestamp);
 
-    // Trim to maxNotifications
-    const count = (this.db.prepare("SELECT COUNT(*) as count FROM notifications").get() as { count: number }).count;
+    // Trim to maxNotifications per user
+    const count = (this.db.prepare("SELECT COUNT(*) as count FROM notifications WHERE userId = ?").get(userId) as { count: number }).count;
     if (count > this.maxNotifications) {
       this.db
         .prepare(
           `DELETE FROM notifications WHERE id IN (
-            SELECT id FROM notifications ORDER BY insertOrder ASC LIMIT ?
+            SELECT id FROM notifications WHERE userId = ? ORDER BY insertOrder ASC LIMIT ?
           )`
         )
-        .run(count - this.maxNotifications);
+        .run(userId, count - this.maxNotifications);
     }
 
     for (const listener of this.notificationListeners) {
@@ -1965,6 +1990,12 @@ export class RuntimeStore {
 
   // ── Plan + Daily Usage ──
 
+  /** Return all registered user IDs (for background services that iterate over users). */
+  getAllUserIds(): string[] {
+    const rows = this.db.prepare("SELECT id FROM users ORDER BY insertOrder ASC").all() as Array<{ id: string }>;
+    return rows.map((r) => r.id);
+  }
+
   updateUserPlan(userId: string, plan: PlanId, trialEndsAt?: string | null): void {
     const updatedAt = nowIso();
     this.db
@@ -2066,6 +2097,8 @@ export class RuntimeStore {
       "sync_queue",
       "integration_sync_attempts",
       "canvas_data",
+      "blackboard_data",
+      "teams_data",
       "withings_data",
     ];
 
@@ -3631,8 +3664,8 @@ export class RuntimeStore {
     this.db
       .prepare(
         `INSERT INTO deadlines (
-          id, userId, course, task, dueDate, sourceDueDate, priority, completed, canvasAssignmentId, effortHoursRemaining, effortConfidence
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          id, userId, course, task, dueDate, sourceDueDate, priority, completed, canvasAssignmentId, blackboardContentId, teamsAssignmentId, effortHoursRemaining, effortConfidence
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         deadline.id,
@@ -3644,6 +3677,8 @@ export class RuntimeStore {
         deadline.priority,
         deadline.completed ? 1 : 0,
         deadline.canvasAssignmentId ?? null,
+        deadline.blackboardContentId ?? null,
+        deadline.teamsAssignmentId ?? null,
         deadline.effortHoursRemaining ?? null,
         deadline.effortConfidence ?? null
       );
@@ -3716,6 +3751,8 @@ export class RuntimeStore {
       priority: string;
       completed: number;
       canvasAssignmentId: number | null;
+      blackboardContentId: string | null;
+      teamsAssignmentId: string | null;
       effortHoursRemaining: number | null;
       effortConfidence: string | null;
     }>;
@@ -3729,6 +3766,8 @@ export class RuntimeStore {
       priority: row.priority as Deadline["priority"],
       completed: Boolean(row.completed),
       ...(row.canvasAssignmentId && { canvasAssignmentId: row.canvasAssignmentId }),
+      ...(row.blackboardContentId ? { blackboardContentId: row.blackboardContentId } : {}),
+      ...(row.teamsAssignmentId ? { teamsAssignmentId: row.teamsAssignmentId } : {}),
       ...(row.effortHoursRemaining !== null ? { effortHoursRemaining: row.effortHoursRemaining } : {}),
       ...(row.effortConfidence ? { effortConfidence: row.effortConfidence as Deadline["effortConfidence"] } : {})
     })).map((deadline) => (applyEscalation ? this.applyDeadlinePriorityEscalation(deadline, referenceDate) : deadline));
@@ -3762,6 +3801,8 @@ export class RuntimeStore {
           priority: string;
           completed: number;
           canvasAssignmentId: number | null;
+          blackboardContentId: string | null;
+          teamsAssignmentId: string | null;
           effortHoursRemaining: number | null;
           effortConfidence: string | null;
         }
@@ -3780,6 +3821,8 @@ export class RuntimeStore {
       priority: row.priority as Deadline["priority"],
       completed: Boolean(row.completed),
       ...(row.canvasAssignmentId && { canvasAssignmentId: row.canvasAssignmentId }),
+      ...(row.blackboardContentId ? { blackboardContentId: row.blackboardContentId } : {}),
+      ...(row.teamsAssignmentId ? { teamsAssignmentId: row.teamsAssignmentId } : {}),
       ...(row.effortHoursRemaining !== null ? { effortHoursRemaining: row.effortHoursRemaining } : {}),
       ...(row.effortConfidence ? { effortConfidence: row.effortConfidence as Deadline["effortConfidence"] } : {})
     };
@@ -3803,7 +3846,8 @@ export class RuntimeStore {
       .prepare(
         `UPDATE deadlines SET
           course = ?, task = ?, dueDate = ?, sourceDueDate = ?, priority = ?, completed = ?,
-          canvasAssignmentId = ?, effortHoursRemaining = ?, effortConfidence = ?
+          canvasAssignmentId = ?, blackboardContentId = ?, teamsAssignmentId = ?,
+          effortHoursRemaining = ?, effortConfidence = ?
          WHERE id = ? AND userId = ?`
       )
       .run(
@@ -3814,6 +3858,8 @@ export class RuntimeStore {
         next.priority,
         next.completed ? 1 : 0,
         next.canvasAssignmentId ?? null,
+        next.blackboardContentId ?? null,
+        next.teamsAssignmentId ?? null,
         next.effortHoursRemaining ?? null,
         next.effortConfidence ?? null,
         id,
@@ -6517,7 +6563,7 @@ export class RuntimeStore {
     const agentStates = this.getAgentStates();
     const activeAgents = agentStates.filter((a) => a.status === "running").length;
 
-    const notifications = this.db.prepare("SELECT * FROM notifications ORDER BY insertOrder DESC").all() as Array<{
+    const notifications = this.db.prepare("SELECT * FROM notifications WHERE userId = ? ORDER BY insertOrder DESC").all(userId) as Array<{
       id: string;
       source: string;
       title: string;
@@ -6656,7 +6702,8 @@ export class RuntimeStore {
               .prepare(
                 `UPDATE deadlines SET
                   course = ?, task = ?, dueDate = ?, sourceDueDate = ?, priority = ?, completed = ?,
-                  canvasAssignmentId = ?, effortHoursRemaining = ?, effortConfidence = ?
+                  canvasAssignmentId = ?, blackboardContentId = ?, teamsAssignmentId = ?,
+                  effortHoursRemaining = ?, effortConfidence = ?
                  WHERE id = ? AND userId = ?`
               )
               .run(
@@ -6667,6 +6714,8 @@ export class RuntimeStore {
                 normalizedDeadline.priority,
                 normalizedDeadline.completed ? 1 : 0,
                 normalizedDeadline.canvasAssignmentId ?? null,
+                normalizedDeadline.blackboardContentId ?? null,
+                normalizedDeadline.teamsAssignmentId ?? null,
                 normalizedDeadline.effortHoursRemaining ?? null,
                 normalizedDeadline.effortConfidence ?? null,
                 normalizedDeadline.id,
@@ -6677,8 +6726,8 @@ export class RuntimeStore {
             this.db
               .prepare(
                 `INSERT INTO deadlines (
-                  id, userId, course, task, dueDate, sourceDueDate, priority, completed, canvasAssignmentId, effortHoursRemaining, effortConfidence
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                  id, userId, course, task, dueDate, sourceDueDate, priority, completed, canvasAssignmentId, blackboardContentId, teamsAssignmentId, effortHoursRemaining, effortConfidence
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
               )
               .run(
                 normalizedDeadline.id,
@@ -6690,6 +6739,8 @@ export class RuntimeStore {
                 normalizedDeadline.priority,
                 normalizedDeadline.completed ? 1 : 0,
                 normalizedDeadline.canvasAssignmentId ?? null,
+                normalizedDeadline.blackboardContentId ?? null,
+                normalizedDeadline.teamsAssignmentId ?? null,
                 normalizedDeadline.effortHoursRemaining ?? null,
                 normalizedDeadline.effortConfidence ?? null
               );
@@ -8046,6 +8097,92 @@ export class RuntimeStore {
    */
   clearCanvasData(userId: string): void {
     this.db.prepare("DELETE FROM canvas_data WHERE userId = ?").run(userId);
+  }
+
+  // ── Blackboard Data CRUD ──
+
+  setBlackboardData(userId: string, data: import("./types.js").BlackboardData): void {
+    this.db.prepare(`
+      INSERT OR REPLACE INTO blackboard_data (
+        userId, courses, assignments, announcements, lastSyncedAt
+      ) VALUES (?, ?, ?, ?, ?)
+    `).run(
+      userId,
+      JSON.stringify(data.courses),
+      JSON.stringify(data.assignments),
+      JSON.stringify(data.announcements),
+      data.lastSyncedAt
+    );
+  }
+
+  getBlackboardData(userId: string): import("./types.js").BlackboardData | null {
+    const row = this.db.prepare(`
+      SELECT courses, assignments, announcements, lastSyncedAt
+      FROM blackboard_data WHERE userId = ?
+    `).get(userId) as {
+      courses: string;
+      assignments: string;
+      announcements: string;
+      lastSyncedAt: string | null;
+    } | undefined;
+
+    if (!row) {
+      return null;
+    }
+
+    return {
+      courses: JSON.parse(row.courses),
+      assignments: JSON.parse(row.assignments),
+      announcements: JSON.parse(row.announcements),
+      lastSyncedAt: row.lastSyncedAt
+    };
+  }
+
+  clearBlackboardData(userId: string): void {
+    this.db.prepare("DELETE FROM blackboard_data WHERE userId = ?").run(userId);
+  }
+
+  // ── Teams Data CRUD ──
+
+  setTeamsData(userId: string, data: import("./types.js").TeamsData): void {
+    this.db.prepare(`
+      INSERT OR REPLACE INTO teams_data (
+        userId, classes, assignments, announcements, lastSyncedAt
+      ) VALUES (?, ?, ?, ?, ?)
+    `).run(
+      userId,
+      JSON.stringify(data.classes),
+      JSON.stringify(data.assignments),
+      JSON.stringify(data.announcements),
+      data.lastSyncedAt
+    );
+  }
+
+  getTeamsData(userId: string): import("./types.js").TeamsData | null {
+    const row = this.db.prepare(`
+      SELECT classes, assignments, announcements, lastSyncedAt
+      FROM teams_data WHERE userId = ?
+    `).get(userId) as {
+      classes: string;
+      assignments: string;
+      announcements: string;
+      lastSyncedAt: string | null;
+    } | undefined;
+
+    if (!row) {
+      return null;
+    }
+
+    return {
+      classes: JSON.parse(row.classes),
+      assignments: JSON.parse(row.assignments),
+      announcements: JSON.parse(row.announcements),
+      lastSyncedAt: row.lastSyncedAt
+    };
+  }
+
+  clearTeamsData(userId: string): void {
+    this.db.prepare("DELETE FROM teams_data WHERE userId = ?").run(userId);
   }
 
   setWithingsTokens(userId: string, data: {

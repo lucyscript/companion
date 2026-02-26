@@ -1,7 +1,7 @@
 import { RuntimeStore } from "./store.js";
 import { Deadline, Priority } from "./types.js";
 
-export type DeadlineReleaseSource = "canvas" | "github";
+export type DeadlineReleaseSource = "canvas" | "blackboard" | "teams" | "github";
 
 function formatDueDateForNotification(dueDate: string): string {
   if (/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) {

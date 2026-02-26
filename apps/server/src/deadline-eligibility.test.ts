@@ -28,7 +28,7 @@ describe("deadline eligibility", () => {
     ).toBe(false);
   });
 
-  it("accepts DAT520 lab deadlines", () => {
+  it("accepts lab deadlines from any course", () => {
     expect(
       isAssignmentOrExamDeadline({
         course: "DAT520",
@@ -45,13 +45,13 @@ describe("deadline eligibility", () => {
     ).toBe(true);
   });
 
-  it("keeps non-DAT520 labs out unless otherwise assignment/exam linked", () => {
+  it("accepts lab deadlines from other courses too", () => {
     expect(
       isAssignmentOrExamDeadline({
         course: "DAT560",
         task: "Lab 3 submission",
         canvasAssignmentId: undefined
       })
-    ).toBe(false);
+    ).toBe(true);
   });
 });

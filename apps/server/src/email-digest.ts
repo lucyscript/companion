@@ -1,4 +1,3 @@
-import { config } from "./config.js";
 import { RuntimeStore } from "./store.js";
 import { EmailDigestReason } from "./types.js";
 
@@ -13,7 +12,7 @@ export interface DigestContent {
   timeframeEnd: string;
 }
 
-export function buildDailyDigest(store: RuntimeStore, userId: string, referenceDate: Date = new Date()): DigestContent {
+export function buildDailyDigest(store: RuntimeStore, userId: string, referenceDate: Date = new Date(), userName?: string): DigestContent {
   const start = startOfDay(referenceDate);
   const windowEndIso = referenceDate.toISOString();
 
@@ -31,7 +30,7 @@ export function buildDailyDigest(store: RuntimeStore, userId: string, referenceD
   const context = store.getUserContext(userId);
 
   const bodyLines: string[] = [
-    `Hi ${config.USER_NAME || "friend"},`,
+    `Hi ${userName || "friend"},`,
     "Push notifications were missed recently, so here's your daily digest.",
     `Timeframe: ${start.toISOString()} to ${windowEndIso}`,
     "",
@@ -52,7 +51,7 @@ export function buildDailyDigest(store: RuntimeStore, userId: string, referenceD
   };
 }
 
-export function buildWeeklyDigest(store: RuntimeStore, userId: string, referenceDate: Date = new Date()): DigestContent {
+export function buildWeeklyDigest(store: RuntimeStore, userId: string, referenceDate: Date = new Date(), userName?: string): DigestContent {
   const summary = store.getWeeklySummary(userId, referenceDate.toISOString());
   const reflections = store
     .getRecentChatMessages(userId, 200)
@@ -67,7 +66,7 @@ export function buildWeeklyDigest(store: RuntimeStore, userId: string, reference
     .reverse();
 
   const bodyLines: string[] = [
-    `Hi ${config.USER_NAME || "friend"},`,
+    `Hi ${userName || "friend"},`,
     "Push has been quiet, so here's a weekly recap to keep you on track.",
     `Window: ${summary.windowStart} to ${summary.windowEnd}`,
     "",
@@ -123,22 +122,31 @@ export class EmailDigestService {
       return;
     }
 
+    const user = this.store.getUserById(this.userId);
+    if (!user?.email) {
+      // Cannot send email digest without a known recipient email
+      return;
+    }
+
+    const recipient = user.email;
+    const userName = user.name;
+
     if (this.shouldSendDaily(referenceDate)) {
-      const digest = buildDailyDigest(this.store, this.userId, referenceDate);
+      const digest = buildDailyDigest(this.store, this.userId, referenceDate, userName);
       this.store.recordEmailDigest(this.userId, {
         type: "daily",
         reason,
-        recipient: config.FALLBACK_EMAIL,
+        recipient,
         ...digest
       });
     }
 
     if (this.shouldSendWeekly(referenceDate)) {
-      const digest = buildWeeklyDigest(this.store, this.userId, referenceDate);
+      const digest = buildWeeklyDigest(this.store, this.userId, referenceDate, userName);
       this.store.recordEmailDigest(this.userId, {
         type: "weekly",
         reason,
-        recipient: config.FALLBACK_EMAIL,
+        recipient,
         ...digest
       });
     }

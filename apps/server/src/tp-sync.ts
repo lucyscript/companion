@@ -14,7 +14,6 @@ export interface TPSyncResult {
 }
 
 const DEFAULT_TP_SEMESTER = "26v";
-const DEFAULT_TP_COURSE_IDS = ["DAT520,1", "DAT560,1", "DAT600,1"] as const;
 
 export interface TPScheduleFetchOptions {
   icalUrl?: string;
@@ -25,12 +24,7 @@ export interface TPScheduleFetchOptions {
 }
 
 function normalizeCourseIds(courseIds?: string[]): string[] {
-  const normalized = (courseIds ?? []).map((value) => value.trim()).filter(Boolean);
-  if (normalized.length > 0) {
-    return normalized;
-  }
-
-  return [...DEFAULT_TP_COURSE_IDS];
+  return (courseIds ?? []).map((value) => value.trim()).filter(Boolean);
 }
 
 export function buildTPScheduleUrl(options: Pick<TPScheduleFetchOptions, "icalUrl" | "semester" | "courseIds"> = {}): string {
@@ -109,7 +103,7 @@ export function diffScheduleEvents(
   const existingMap = new Map<string, LectureEvent>();
   for (const event of existingEvents) {
     // Only process events created by TP sync.
-    if (event.recurrenceParentId === "tp-import" || event.title.match(/DAT\d{3}/)) {
+    if (event.recurrenceParentId === "tp-import") {
       const key = `tp-${event.title}-${event.startTime}`;
       existingMap.set(key, event);
     }

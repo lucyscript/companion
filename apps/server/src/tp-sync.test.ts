@@ -4,14 +4,15 @@ import { buildTPScheduleUrl, convertTPEventToLecture, diffScheduleEvents, genera
 import { LectureEvent } from "./types.js";
 
 describe("TP EduCloud sync", () => {
-  it("builds default TP schedule URL with configured course list", () => {
+  it("builds default TP schedule URL with no hardcoded course IDs", () => {
     const url = new URL(buildTPScheduleUrl());
     const expectedBase = new URL(config.TP_EDUCLOUD_BASE_URL);
 
     expect(url.origin + url.pathname).toBe(expectedBase.origin + expectedBase.pathname);
     expect(url.searchParams.get("type")).toBe("courseact");
     expect(url.searchParams.get("sem")).toBe("26v");
-    expect(url.searchParams.getAll("id[]")).toEqual(["DAT520,1", "DAT560,1", "DAT600,1"]);
+    // No hardcoded course IDs — users must configure their own
+    expect(url.searchParams.getAll("id[]")).toEqual([]);
   });
 
   it("builds scoped TP schedule URL from semester + course IDs", () => {
@@ -31,7 +32,7 @@ describe("TP EduCloud sync", () => {
     expect(buildTPScheduleUrl({ icalUrl })).toBe(icalUrl);
   });
 
-  it("falls back to default course IDs when scoped IDs are empty", () => {
+  it("returns no course IDs when scoped IDs are empty (no hardcoded fallback)", () => {
     const url = new URL(
       buildTPScheduleUrl({
         semester: "26h",
@@ -40,7 +41,8 @@ describe("TP EduCloud sync", () => {
     );
 
     expect(url.searchParams.get("sem")).toBe("26h");
-    expect(url.searchParams.getAll("id[]")).toEqual(["DAT520,1", "DAT560,1", "DAT600,1"]);
+    // Empty / blank entries are stripped; no hardcoded fallback
+    expect(url.searchParams.getAll("id[]")).toEqual([]);
   });
 
   it("converts TP event to lecture with correct duration", () => {
@@ -135,7 +137,8 @@ describe("TP EduCloud sync", () => {
         title: "DAT520 Forelesning",
         startTime: "2026-03-01T10:00:00.000Z",
         durationMinutes: 60,
-        workload: "low"
+        workload: "low",
+        recurrenceParentId: "tp-import"
       }
     ];
 
@@ -164,7 +167,8 @@ describe("TP EduCloud sync", () => {
         title: "DAT520 Forelesning",
         startTime: "2026-03-01T10:00:00.000Z",
         durationMinutes: 120,
-        workload: "medium"
+        workload: "medium",
+        recurrenceParentId: "tp-import"
       }
     ];
 
@@ -178,14 +182,15 @@ describe("TP EduCloud sync", () => {
     expect(diff.toDelete[0]).toBe("lecture-1");
   });
 
-  it("only diffs TP events (with course codes), not user-created events", () => {
+  it("only diffs TP events (with recurrenceParentId), not user-created events", () => {
     const existingEvents: LectureEvent[] = [
       {
         id: "lecture-1",
         title: "DAT520 Forelesning",
         startTime: "2026-03-01T10:00:00.000Z",
         durationMinutes: 120,
-        workload: "medium"
+        workload: "medium",
+        recurrenceParentId: "tp-import"
       },
       {
         id: "lecture-2",
@@ -200,7 +205,7 @@ describe("TP EduCloud sync", () => {
 
     const diff = diffScheduleEvents(existingEvents, newEvents);
 
-    // Only the TP event (with DAT520) should be deleted
+    // Only the TP event (with recurrenceParentId) should be deleted
     expect(diff.toDelete).toHaveLength(1);
     expect(diff.toDelete[0]).toBe("lecture-1");
   });
@@ -212,14 +217,16 @@ describe("TP EduCloud sync", () => {
         title: "DAT520 Forelesning",
         startTime: "2026-03-01T10:00:00.000Z",
         durationMinutes: 60,
-        workload: "low"
+        workload: "low",
+        recurrenceParentId: "tp-import"
       },
       {
         id: "lecture-2",
         title: "DAT560 Lab",
         startTime: "2026-03-02T14:00:00.000Z",
         durationMinutes: 120,
-        workload: "high"
+        workload: "high",
+        recurrenceParentId: "tp-import"
       }
     ];
 

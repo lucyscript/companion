@@ -5744,6 +5744,21 @@ body:not(.keyboard-open) .app-shell-chat-active .chat-messages {
   gap: 10px;
 }
 
+.connector-category-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.connector-category-label {
+  margin: 4px 0 0 2px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
 .connector-section-head {
   display: flex;
   align-items: flex-end;
