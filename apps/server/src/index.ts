@@ -2883,8 +2883,9 @@ async function broadcastNotification(notification: Notification): Promise<void> 
     return;
   }
 
-  const subscriptions = store.getPushSubscriptions("");
-
+  // Use getAllPushSubscriptions — orchestrator pushes with userId="" but subscriptions
+  // are stored under the real OAuth userId, so a userId-scoped query would miss them.
+  const subscriptions = store.getAllPushSubscriptions();
 
   if (subscriptions.length === 0) {
     console.log(`[push] no subscriptions — notification "${notification.title}" not delivered`);
@@ -4534,7 +4535,7 @@ const server = app.listen(config.PORT, () => {
   // eslint-disable-next-line no-console
   console.log(`[push] VAPID keys=${hasStaticVapidKeys() ? "configured" : "auto-generated (will rotate on restart!)"} subject=${config.VAPID_SUBJECT}`);
   // eslint-disable-next-line no-console
-  console.log(`[push] subscriptions=${store.getPushSubscriptions("").length}`);
+  console.log(`[push] subscriptions=${store.getAllPushSubscriptions().length}`);
 });
 
 let shuttingDown = false;

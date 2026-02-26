@@ -80,7 +80,7 @@ export function RemindersWidget(): JSX.Element | null {
         {reminders.length > 0 && <span className="reminders-badge">{t("{count} upcoming", { count: reminders.length })}</span>}
       </div>
       {reminders.length === 0 ? (
-        <p className="reminders-empty">{t("No active reminders")}</p>
+        <p className="reminders-empty">{t("No active reminders")}<br /><span className="reminders-hint">{t("Ask Gemini to set one for you!")}</span></p>
       ) : (
       <ul className="reminders-list">
         {reminders.map((r) => {

@@ -6225,8 +6225,26 @@ export class RuntimeStore {
     }));
   }
 
-  removePushSubscription(userId: string, endpoint: string): boolean {
-    const result = this.db.prepare("DELETE FROM push_subscriptions WHERE endpoint = ? AND userId = ?").run(endpoint, userId);
+  getAllPushSubscriptions(): PushSubscriptionRecord[] {
+    const rows = this.db.prepare("SELECT * FROM push_subscriptions").all() as Array<{
+      endpoint: string;
+      expirationTime: number | null;
+      p256dh: string;
+      auth: string;
+    }>;
+
+    return rows.map((row) => ({
+      endpoint: row.endpoint,
+      expirationTime: row.expirationTime,
+      keys: {
+        p256dh: row.p256dh,
+        auth: row.auth
+      }
+    }));
+  }
+
+  removePushSubscription(_userId: string, endpoint: string): boolean {
+    const result = this.db.prepare("DELETE FROM push_subscriptions WHERE endpoint = ?").run(endpoint);
     return result.changes > 0;
   }
 
