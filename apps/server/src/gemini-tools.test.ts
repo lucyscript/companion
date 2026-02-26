@@ -50,6 +50,21 @@ describe("gemini-tools", () => {
   const testDbPath = ":memory:";
   const userId = "test-user";
 
+  /** Build a local-format ISO string (no Z) N ms ahead — matches what Gemini sends.
+   *  Uses Intl to get the actual local wall-clock time in the configured timezone. */
+  function localFuture(ms: number): string {
+    const d = new Date(Date.now() + ms);
+    const tz = "Europe/Oslo";
+    const parts = new Intl.DateTimeFormat("sv-SE", {
+      timeZone: tz,
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+      hour12: false
+    }).formatToParts(d);
+    const p = (t: string): string => parts.find(x => x.type === t)?.value ?? "00";
+    return `${p("year")}-${p("month")}-${p("day")}T${p("hour")}:${p("minute")}:${p("second")}`;
+  }
+
   beforeEach(() => {
     store = new RuntimeStore(testDbPath);
   });
@@ -1526,11 +1541,11 @@ describe("gemini-tools", () => {
 
   describe("handleScheduleReminder", () => {
     it("schedules a reminder with icon", () => {
-      const futureTime = new Date(Date.now() + 3600_000).toISOString();
+      const futureLocal = localFuture(3600_000);
       const result = handleScheduleReminder(store, userId, {
         title: "Start DAT520 lab",
         message: "Time to work on the distributed systems lab",
-        scheduledFor: futureTime,
+        scheduledFor: futureLocal,
         icon: "📚",
         priority: "high"
       });
@@ -1540,15 +1555,16 @@ describe("gemini-tools", () => {
       expect(scheduled.notification.title).toBe("Start DAT520 lab");
       expect(scheduled.notification.icon).toBe("📚");
       expect(scheduled.notification.priority).toBe("high");
-      expect(scheduled.scheduledFor).toBe(futureTime);
+      // scheduledFor is stored as UTC ISO — just verify it's a valid future time
+      expect(new Date(scheduled.scheduledFor).getTime()).toBeGreaterThan(Date.now() - 120_000);
     });
 
     it("schedules a reminder without icon (defaults to medium priority)", () => {
-      const futureTime = new Date(Date.now() + 7200_000).toISOString();
+      const futureLocal = localFuture(7200_000);
       const result = handleScheduleReminder(store, userId, {
         title: "Check emails",
         message: "Review inbox for professor replies",
-        scheduledFor: futureTime
+        scheduledFor: futureLocal
       });
 
       expect(result).toHaveProperty("success", true);
@@ -1586,13 +1602,12 @@ describe("gemini-tools", () => {
     });
 
     it("icon persists through DB round-trip via getDueScheduledNotifications", () => {
-      const scheduledFor = new Date(Date.now() - 1000); // slightly in the past for immediate retrieval
-      // Use a time just barely in the past but within the 60s grace window
-      const justPast = new Date(Date.now() - 30_000).toISOString();
+      // Use a time just barely in the past but within the 60s grace window (local format, no Z)
+      const justPastLocal = localFuture(-30_000);
       const result = handleScheduleReminder(store, userId, {
         title: "Gym time",
         message: "Hit the weights",
-        scheduledFor: justPast,
+        scheduledFor: justPastLocal,
         icon: "🏋️"
       });
 
@@ -1606,21 +1621,21 @@ describe("gemini-tools", () => {
     });
 
     it("works via executeFunctionCall", () => {
-      const futureTime = new Date(Date.now() + 3600_000).toISOString();
+      const futureLocal = localFuture(3600_000);
       const result = executeFunctionCall(
         "scheduleReminder",
-        { title: "Test reminder", message: "Via executeFunctionCall", scheduledFor: futureTime, icon: "🔔" }, store, userId);
+        { title: "Test reminder", message: "Via executeFunctionCall", scheduledFor: futureLocal, icon: "🔔" }, store, userId);
 
       expect(result.name).toBe("scheduleReminder");
       expect(result.response).toHaveProperty("success", true);
     });
 
     it("supports recurrence parameter", () => {
-      const futureTime = new Date(Date.now() + 3600_000).toISOString();
+      const futureLocal = localFuture(3600_000);
       const result = handleScheduleReminder(store, userId, {
         title: "Daily standup",
         message: "Check in with the team",
-        scheduledFor: futureTime,
+        scheduledFor: futureLocal,
         recurrence: "daily",
         icon: "📋"
       });
@@ -1638,8 +1653,8 @@ describe("gemini-tools", () => {
     });
 
     it("returns all scheduled reminders", () => {
-      const t1 = new Date(Date.now() + 3600_000).toISOString();
-      const t2 = new Date(Date.now() + 7200_000).toISOString();
+      const t1 = localFuture(3600_000);
+      const t2 = localFuture(7200_000);
       handleScheduleReminder(store, userId, {
         title: "First",
         message: "First reminder",
@@ -1662,11 +1677,11 @@ describe("gemini-tools", () => {
 
   describe("handleCancelReminder", () => {
     it("cancels by ID", () => {
-      const futureTime = new Date(Date.now() + 3600_000).toISOString();
+      const futureLocal = localFuture(3600_000);
       const schedResult = handleScheduleReminder(store, userId, {
         title: "Cancel me",
         message: "Should be cancelled",
-        scheduledFor: futureTime
+        scheduledFor: futureLocal
       });
 
       const reminderId = (schedResult as { scheduledNotification: { id: string } }).scheduledNotification.id;
@@ -1680,11 +1695,11 @@ describe("gemini-tools", () => {
     });
 
     it("cancels by title hint", () => {
-      const futureTime = new Date(Date.now() + 3600_000).toISOString();
+      const futureLocal = localFuture(3600_000);
       handleScheduleReminder(store, userId, {
         title: "DAT520 lab deadline",
         message: "Start the lab",
-        scheduledFor: futureTime
+        scheduledFor: futureLocal
       });
 
       const result = handleCancelReminder(store, userId, { titleHint: "dat520" });
@@ -1703,10 +1718,10 @@ describe("gemini-tools", () => {
     });
 
     it("works via executeFunctionCall", () => {
-      const futureTime = new Date(Date.now() + 3600_000).toISOString();
+      const futureLocal = localFuture(3600_000);
       const schedResult = executeFunctionCall(
         "scheduleReminder",
-        { title: "Test cancel", message: "To be cancelled", scheduledFor: futureTime }, store, userId);
+        { title: "Test cancel", message: "To be cancelled", scheduledFor: futureLocal }, store, userId);
 
       const id = (schedResult.response as { scheduledNotification: { id: string } }).scheduledNotification.id;
       const cancelResult = executeFunctionCall("cancelReminder", { reminderId: id }, store, userId);

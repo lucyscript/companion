@@ -9,7 +9,7 @@
  *   STRIPE_WEBHOOK_SECRET   — whsec_... (from Stripe dashboard → Webhooks)
  *   STRIPE_PRICE_ID_PLUS    — price_... (monthly subscription for Plus plan)
  *   STRIPE_PRICE_ID_PRO     — price_... (monthly subscription for Pro plan)
- *   APP_URL                 — e.g. https://lucyscript.github.io/companion (for redirect URLs)
+ *   APP_URL                 — e.g. https://invaron.github.io/companion (for redirect URLs)
  */
 
 import Stripe from "stripe";

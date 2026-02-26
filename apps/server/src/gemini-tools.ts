@@ -1058,7 +1058,7 @@ export const functionDeclarations: FunctionDeclaration[] = [
         },
         scheduledFor: {
           type: SchemaType.STRING,
-          description: "ISO 8601 datetime when the notification should fire (e.g. 2026-02-22T09:00:00)"
+          description: "ISO 8601 datetime in the user's LOCAL timezone, without Z suffix (e.g. 2026-02-22T09:00:00). The system converts to UTC automatically."
         },
         icon: {
           type: SchemaType.STRING,
@@ -4248,9 +4248,9 @@ export function handleScheduleReminder(
     return { error: "title, message, and scheduledFor are required." };
   }
 
-  const scheduledFor = new Date(scheduledForRaw);
-  if (Number.isNaN(scheduledFor.getTime())) {
-    return { error: `Invalid scheduledFor datetime: ${scheduledForRaw}. Use ISO 8601 format.` };
+  const scheduledFor = parseFlexibleDateTime(scheduledForRaw);
+  if (!scheduledFor || Number.isNaN(scheduledFor.getTime())) {
+    return { error: `Invalid scheduledFor datetime: ${scheduledForRaw}. Use ISO 8601 format in the user's local timezone (no Z suffix).` };
   }
 
   if (scheduledFor.getTime() < Date.now() - 60_000) {

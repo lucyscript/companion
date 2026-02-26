@@ -9,7 +9,7 @@
  *   VIPPS_CLIENT_SECRET            — OAuth client secret
  *   VIPPS_SUBSCRIPTION_KEY         — Ocp-Apim-Subscription-Key (API subscription key)
  *   VIPPS_MERCHANT_SERIAL_NUMBER   — MSN from Vipps portal
- *   APP_URL                        — e.g. https://lucyscript.github.io/companion
+ *   APP_URL                        — e.g. https://invaron.github.io/companion
  *
  * Optional:
  *   VIPPS_API_BASE                 — Override API base URL (default: https://api.vipps.no)
