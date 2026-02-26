@@ -998,7 +998,6 @@ export function ConnectorsView({ planInfo, onUpgrade }: ConnectorsViewProps): JS
     if (cards.length === 0) return null;
     return (
       <div key={category.key} className="connector-category-group">
-        <h4 className="connector-category-label">{t(category.label)}</h4>
         {cards.map(renderConnectorCard)}
       </div>
     );
@@ -1047,7 +1046,6 @@ export function ConnectorsView({ planInfo, onUpgrade }: ConnectorsViewProps): JS
 
       {/* Connected Apps — paid tier */}
       <section className="connector-section">
-        <h4 className="connector-category-label">{t("Connected Apps")}</h4>
         {isPaidPlan ? (
           connectedAppConnectors.map(renderConnectorCard)
         ) : (
