@@ -1527,13 +1527,27 @@ export class GeminiClient {
 export function buildContextWindow(context: ContextWindow): string {
   const parts: string[] = [];
 
+  // Current local time — critical for Gemini to reason about "now" vs schedule
+  const nowLocal = new Date().toLocaleString("en-GB", {
+    timeZone: config.TIMEZONE,
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  });
+  parts.push(`**Current time:** ${nowLocal} (${config.TIMEZONE})`);
+
   if (context.todaySchedule.length > 0) {
-    parts.push("**Today's Schedule:**");
+    parts.push("\n**Today's Schedule:**");
     context.todaySchedule.forEach((event) => {
-      const startTime = new Date(event.startTime).toLocaleTimeString("en-US", {
+      const startTime = new Date(event.startTime).toLocaleTimeString("en-GB", {
         hour: "2-digit",
         minute: "2-digit",
-        timeZone: config.TIMEZONE
+        timeZone: config.TIMEZONE,
+        hour12: false
       });
       parts.push(`- ${startTime}: ${event.title} (${event.durationMinutes} min)`);
     });
@@ -1543,10 +1557,10 @@ export function buildContextWindow(context: ContextWindow): string {
     parts.push("\n**Upcoming Deadlines:**");
     context.upcomingDeadlines.forEach((deadline) => {
       const dueObj = new Date(deadline.dueDate);
-      const dueLocal = dueObj.toLocaleString("en-US", {
+      const dueLocal = dueObj.toLocaleString("en-GB", {
         timeZone: config.TIMEZONE,
-        month: "short",
         day: "numeric",
+        month: "short",
         hour: "2-digit",
         minute: "2-digit",
         hour12: false
@@ -1572,7 +1586,11 @@ export function buildContextWindow(context: ContextWindow): string {
 export function buildSystemPrompt(userName: string, contextWindow: string): string {
   return `You are Companion, a personal AI assistant for ${userName}. You have access to their schedule, deadlines, and personal context — use it to give relevant, grounded answers.
 
+The user's timezone is ${config.TIMEZONE}. All times in the context below and all times you mention in responses should be in this local timezone using 24-hour format (e.g. 17:30, not 5:30 PM). The current local time is shown in the context — use it to reason about "now", "today", "tonight", etc.
+
 ${contextWindow}
+
+**Important: never fabricate data.** Only reference information you received from tool calls or the context window above. If you don't have weather data, don't invent forecasts — tell the user you can't check the weather yet. If you don't have specific data, say so honestly.
 
 Your role is to be encouraging, conversational, and helpful. Help ${userName} reflect on progress, work through problems, and stay on top of deadlines. Keep responses concise and friendly.
 
