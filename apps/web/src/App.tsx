@@ -977,7 +977,7 @@ export default function App(): JSX.Element {
             {activeTab === "nutrition" && (
               <div key="nutrition" className="tab-panel tab-panel-active">
                 {isTabLocked("nutrition")
-                  ? <LockedFeatureOverlay featureName={t("Food")} onUpgradeClick={() => openUpgradeModal(t("Food"))} previewImage={`${import.meta.env.BASE_URL}onboarding/food-preview.png`} />
+                  ? <LockedFeatureOverlay featureName={t("Food")} previewImage={`${import.meta.env.BASE_URL}onboarding/food-preview.png`} onUpgradeClick={() => openUpgradeModal(t("Food"))} />
                   : <NutritionView key={`nutrition-${nutritionRevision}`} />
                 }
               </div>
@@ -985,7 +985,7 @@ export default function App(): JSX.Element {
             {activeTab === "habits" && (
               <div key="habits" className="tab-panel tab-panel-active">
                 {isTabLocked("habits")
-                  ? <LockedFeatureOverlay featureName={t("Growth")} onUpgradeClick={() => openUpgradeModal(t("Growth"))} previewImage={`${import.meta.env.BASE_URL}onboarding/growth-preview.png`} />
+                  ? <LockedFeatureOverlay featureName={t("Growth")} previewImage={`${import.meta.env.BASE_URL}onboarding/growth-preview.png`} onUpgradeClick={() => openUpgradeModal(t("Growth"))} />
                   : <div key={`habits-${habitsRevision}`} className="habits-tab-container habits-analytics-stack">
                       <HabitsGoalsView />
                       <AnalyticsDashboard />

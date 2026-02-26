@@ -232,11 +232,11 @@ export function UpgradePrompt({ feature, onDismiss }: UpgradePromptProps): JSX.E
 
 interface LockedFeatureOverlayProps {
   featureName: string;
-  onUpgradeClick: () => void;
   previewImage?: string;
+  onUpgradeClick: () => void;
 }
 
-export function LockedFeatureOverlay({ featureName, onUpgradeClick, previewImage }: LockedFeatureOverlayProps): JSX.Element {
+export function LockedFeatureOverlay({ featureName, previewImage, onUpgradeClick }: LockedFeatureOverlayProps): JSX.Element {
   const { t } = useI18n();
 
   return (
