@@ -8993,8 +8993,8 @@ label small.muted {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  /* Anchor to top so the tab bar at the bottom of the screenshot gets cropped */
-  object-position: center top;
+  /* Anchor to bottom so the screenshot footer overlaps with the real tab bar */
+  object-position: center bottom;
   opacity: 0.22;
   filter: blur(4px);
   pointer-events: none;
