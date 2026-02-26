@@ -171,20 +171,15 @@ const GEMINI_CARD: GeminiCard = {
 const GITHUB_MCP_ICON = { src: iconPath("icons/integrations/github.svg"), alt: "GitHub" };
 const NOTION_MCP_ICON = { src: iconPath("icons/integrations/notion.svg"), alt: "Notion" };
 
-// ── Connector category grouping ─────────────────────────────────────────
+// ── Connector grouping ──────────────────────────────────────────────────
 
-interface ConnectorCategory {
-  key: string;
-  label: string;
-  services: ConnectorService[];
-}
+/** Services rendered inside the collapsed "University" abstraction pill. */
+const UNIVERSITY_SERVICES: ConnectorService[] = ["canvas", "blackboard", "tp_schedule", "timeedit"];
 
-const FREE_TIER_CATEGORIES: ConnectorCategory[] = [
-  { key: "university", label: "University", services: ["canvas", "blackboard", "tp_schedule", "timeedit"] },
-];
-
-const FREE_TIER_SERVICES: ConnectorService[] = FREE_TIER_CATEGORIES.flatMap(c => c.services);
+/** Services rendered inside the collapsed "Connected Apps" abstraction pill. */
 const CONNECTED_APPS_SERVICES: ConnectorService[] = ["mcp", "teams"];
+
+const UNIVERSITY_PILL_ICON = { src: iconPath("icons/integrations/canvas.svg"), alt: "University" };
 
 function formatRelative(
   timestamp: string | null,
@@ -274,6 +269,7 @@ export function ConnectorsView({ planInfo, onUpgrade }: ConnectorsViewProps): JS
   const [connections, setConnections] = useState<UserConnection[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedService, setExpandedService] = useState<ConnectorService | null>(null);
+  const [expandedUniversity, setExpandedUniversity] = useState(false);
   const [inputValues, setInputValues] = useState<Record<string, string>>(() => getDefaultInputValues());
   const [submitting, setSubmitting] = useState<ConnectorService | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -330,6 +326,7 @@ export function ConnectorsView({ planInfo, onUpgrade }: ConnectorsViewProps): JS
     connections.find((connection) => connection.service === service);
 
   const withingsConnector = CONNECTORS.find((connector) => connector.service === "withings") ?? null;
+  const teamsConnector = CONNECTORS.find((connector) => connector.service === "teams") ?? null;
 
   const getStatusDetail = (service: ConnectorService): string | null => {
     if (service === "canvas" && canvasStatus.lastSyncedAt) {
@@ -338,7 +335,8 @@ export function ConnectorsView({ planInfo, onUpgrade }: ConnectorsViewProps): JS
     }
     if (service === "mcp") {
       const withingsConnected = connections.some((connection) => connection.service === "withings");
-      const connectedApps = mcpServers.length + (withingsConnected ? 1 : 0);
+      const teamsConnected = connections.some((connection) => connection.service === "teams");
+      const connectedApps = mcpServers.length + (withingsConnected ? 1 : 0) + (teamsConnected ? 1 : 0);
       if (connectedApps > 0) {
         return connectedApps === 1
           ? t("1 app connected")
@@ -558,6 +556,9 @@ export function ConnectorsView({ planInfo, onUpgrade }: ConnectorsViewProps): JS
       if (isConnected("withings")) {
         pending.push(disconnectService("withings"));
       }
+      if (isConnected("teams")) {
+        pending.push(disconnectService("teams"));
+      }
       if (pending.length === 0) {
         return;
       }
@@ -579,16 +580,17 @@ export function ConnectorsView({ planInfo, onUpgrade }: ConnectorsViewProps): JS
 
   const renderConnectorCard = (connector: ConnectorMeta): JSX.Element => {
     const withingsConnected = isConnected("withings");
+    const teamsConnected = isConnected("teams");
     const mcpConnected = isConnected("mcp");
     const connected =
       connector.service === "mcp"
-        ? mcpConnected || withingsConnected || mcpServers.length > 0
+        ? mcpConnected || withingsConnected || teamsConnected || mcpServers.length > 0
         : isConnected(connector.service);
     const connection = getConnection(connector.service);
     const expanded = expandedService === connector.service && (!connected || connector.service === "mcp");
     const busy =
       connector.service === "mcp"
-        ? submitting === "mcp" || submitting === "withings"
+        ? submitting === "mcp" || submitting === "withings" || submitting === "teams"
         : submitting === connector.service;
     const statusDetail = connected ? getStatusDetail(connector.service) : null;
 
@@ -897,6 +899,52 @@ export function ConnectorsView({ planInfo, onUpgrade }: ConnectorsViewProps): JS
                       </div>
                     )}
 
+                    {teamsConnector && (
+                      <div className="connector-mcp-addon">
+                        <div className="connector-mcp-addon-head">
+                          <span className="connector-mcp-addon-title-wrap">
+                            <img
+                              className="connector-mcp-addon-icon"
+                              src={teamsConnector.icon.src}
+                              alt={teamsConnector.icon.alt}
+                            />
+                            <span className="connector-mcp-addon-title">{t(teamsConnector.label)}</span>
+                          </span>
+                          {teamsConnected ? (
+                            <span className="connector-badge connector-badge-connected">{t("Connected")}</span>
+                          ) : (
+                            <span className="connector-badge connector-badge-disconnected">{t("Not connected")}</span>
+                          )}
+                        </div>
+                        <p className="connector-help-text">{t(teamsConnector.description)}</p>
+                        <details className="connector-read-more connector-read-more-compact">
+                          <summary>{t("Read more")}</summary>
+                          <ul className="connector-read-more-list">
+                            {teamsConnector.readMoreItems.map((item) => (
+                              <li key={item}>{t(item)}</li>
+                            ))}
+                          </ul>
+                        </details>
+                        {teamsConnected ? (
+                          <button
+                            className="connector-disconnect-btn"
+                            onClick={() => void handleDisconnect("teams")}
+                            disabled={busy}
+                          >
+                            {submitting === "teams" ? t("Disconnecting...") : t("Disconnect")}
+                          </button>
+                        ) : (
+                          <button
+                            className="connector-sync-btn"
+                            onClick={() => void handleConnect(teamsConnector)}
+                            disabled={busy}
+                          >
+                            {submitting === "teams" ? t("Connecting...") : t("Connect")}
+                          </button>
+                        )}
+                      </div>
+                    )}
+
                     <div className="connector-mcp-list">
                       {mcpServers.length === 0 ? (
                         <p className="connector-help-text">{t("No MCP servers connected yet.")}</p>
@@ -991,14 +1039,177 @@ export function ConnectorsView({ planInfo, onUpgrade }: ConnectorsViewProps): JS
     );
   }
 
-  const renderCategoryGroup = (category: ConnectorCategory): JSX.Element | null => {
-    const cards = category.services
-      .map(s => CONNECTORS.find(c => c.service === s))
-      .filter((c): c is ConnectorMeta => c !== undefined);
-    if (cards.length === 0) return null;
+  // ── University abstraction pill ──────────────────────────────────────
+  const universityConnectors = UNIVERSITY_SERVICES
+    .map(s => CONNECTORS.find(c => c.service === s))
+    .filter((c): c is ConnectorMeta => c !== undefined);
+
+  const universityConnectedCount = UNIVERSITY_SERVICES.filter(s => isConnected(s)).length;
+  const universityAnyConnected = universityConnectedCount > 0;
+  const universityBusy = UNIVERSITY_SERVICES.some(s => submitting === s);
+
+  const handleDisconnectAllUniversity = async (): Promise<void> => {
+    setSubmitting("canvas"); // use canvas as representative
+    setError(null);
+    try {
+      const pending = UNIVERSITY_SERVICES
+        .filter(s => isConnected(s))
+        .map(s => disconnectService(s));
+      if (pending.length > 0) {
+        await Promise.all(pending);
+      }
+      await Promise.all([fetchConnections(), fetchConnectorMeta()]);
+    } catch (err) {
+      setError(extractErrorMessage(err, t("Disconnect failed")));
+    } finally {
+      setSubmitting(null);
+    }
+  };
+
+  const renderUniversitySubCard = (connector: ConnectorMeta): JSX.Element => {
+    const connected = isConnected(connector.service);
+    const connection = getConnection(connector.service);
+    const expanded = expandedService === connector.service;
+    const busy = submitting === connector.service;
+    const statusDetail = connected ? getStatusDetail(connector.service) : null;
+
     return (
-      <div key={category.key} className="connector-category-group">
-        {cards.map(renderConnectorCard)}
+      <div key={connector.service} className={`connector-mcp-addon ${connected ? "connector-mcp-addon-connected" : ""}`}>
+        <div
+          className="connector-mcp-addon-head"
+          onClick={() => {
+            if (!connected) {
+              setExpandedService(prev => prev === connector.service ? null : connector.service);
+              setError(null);
+            }
+          }}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => e.key === "Enter" && !connected && setExpandedService(prev => prev === connector.service ? null : connector.service)}
+          style={{ cursor: connected ? "default" : "pointer" }}
+        >
+          <span className="connector-mcp-addon-title-wrap">
+            <img
+              className="connector-mcp-addon-icon"
+              src={connector.icon.src}
+              alt={connector.icon.alt}
+            />
+            <span className="connector-mcp-addon-title">{t(connector.label)}</span>
+          </span>
+          {connected ? (
+            <span className="connector-badge connector-badge-connected">{t("Connected")}</span>
+          ) : (
+            <span className="connector-badge connector-badge-disconnected">{t("Not connected")}</span>
+          )}
+        </div>
+        {connected && statusDetail && (
+          <p className="connector-help-text">{statusDetail}</p>
+        )}
+        {!connected && !expanded && (
+          <p className="connector-help-text">{t(connector.description)}</p>
+        )}
+        <details className="connector-read-more connector-read-more-compact">
+          <summary>{t("Read more")}</summary>
+          <ul className="connector-read-more-list">
+            {connector.readMoreItems.map((item) => (
+              <li key={item}>{t(item)}</li>
+            ))}
+          </ul>
+        </details>
+        {connected && (
+          <div className="connector-actions" style={{ marginTop: "0.25rem" }}>
+            <span className="connector-connected-since">
+              {t("Connected {date}", { date: new Date(connection!.connectedAt).toLocaleDateString(localeTag) })}
+            </span>
+            <button
+              className="connector-disconnect-btn"
+              onClick={() => void handleDisconnect(connector.service)}
+              disabled={busy}
+            >
+              {busy ? t("Disconnecting...") : t("Disconnect")}
+            </button>
+          </div>
+        )}
+        {expanded && !connected && (
+          <div className="connector-setup" style={{ marginTop: "0.5rem" }}>
+            {connector.type === "token" && (
+              <div className={`connector-token-input ${connector.service === "canvas" ? "connector-token-input-canvas" : ""}`}>
+                {connector.service === "canvas" && (
+                  <div className="connector-input-block">
+                    <label className="connector-input-label" htmlFor="canvas-base-url-input">
+                      {t("Canvas base URL")}
+                    </label>
+                    <input
+                      id="canvas-base-url-input"
+                      type="url"
+                      placeholder="https://stavanger.instructure.com"
+                      value={inputValues.canvas_baseUrl ?? ""}
+                      onChange={(event) => handleInputChange("canvas_baseUrl", event.target.value)}
+                      disabled={busy}
+                    />
+                    <p className="connector-input-hint" dangerouslySetInnerHTML={{ __html: t("Use your Canvas root URL (no <code>/courses</code>).") }} />
+                  </div>
+                )}
+                <div className="connector-input-block">
+                  {connector.service === "canvas" && (
+                    <label className="connector-input-label" htmlFor="canvas-token-input">
+                      {t("Canvas API token")}
+                    </label>
+                  )}
+                  <input
+                    id={connector.service === "canvas" ? "canvas-token-input" : undefined}
+                    type="password"
+                    placeholder={connector.placeholder ? t(connector.placeholder) : undefined}
+                    value={inputValues[connector.service] ?? ""}
+                    onChange={(event) => handleInputChange(connector.service, event.target.value)}
+                    disabled={busy}
+                  />
+                </div>
+                {connector.service === "canvas" && (
+                  <p className="connector-help-text" dangerouslySetInnerHTML={{ __html: t("In Canvas go to <strong>Account</strong> → <strong>Settings</strong> → <strong>Approved Integrations</strong> → <strong>+ New Access Token</strong>, then paste the token above.") }} />
+                )}
+                {connector.service === "blackboard" && (
+                  <p className="connector-help-text" dangerouslySetInnerHTML={{ __html: t("In Blackboard go to <strong>System Admin</strong> → <strong>REST API Integrations</strong> to generate and copy your API token.") }} />
+                )}
+                <button
+                  className="connector-connect-btn"
+                  onClick={() => void handleConnect(connector)}
+                  disabled={
+                    busy ||
+                    !inputValues[connector.service]?.trim() ||
+                    (connector.service === "canvas" && !inputValues.canvas_baseUrl?.trim())
+                  }
+                >
+                  {busy ? t("Connecting...") : t("Connect")}
+                </button>
+              </div>
+            )}
+            {connector.type === "url" && (
+              <div className="connector-url-input">
+                <input
+                  type="url"
+                  placeholder={connector.placeholder ? t(connector.placeholder) : undefined}
+                  value={inputValues[connector.service] ?? ""}
+                  onChange={(event) => handleInputChange(connector.service, event.target.value)}
+                  disabled={busy}
+                />
+                {connector.service === "tp_schedule" && (
+                  <p className="connector-help-text" dangerouslySetInnerHTML={{ __html: t("Go to <strong>tp.educloud.no</strong> → find your courses → click <strong>Verktøy</strong> → <strong>Kopier abonnementlenken til timeplanen</strong>. Paste the iCal URL here (starts with https://tp.educloud.no/...).") }} />
+                )}
+                <button
+                  className="connector-connect-btn"
+                  onClick={() => void handleConnect(connector)}
+                  disabled={busy || !inputValues[connector.service]?.trim()}
+                >
+                  {busy ? t("Saving...") : t("Save")}
+                </button>
+              </div>
+            )}
+            {error && expandedService === connector.service && (
+              <p className="connector-error">{error}</p>
+            )}
+          </div>
+        )}
       </div>
     );
   };
@@ -1041,13 +1252,79 @@ export function ConnectorsView({ planInfo, onUpgrade }: ConnectorsViewProps): JS
         </div>
       </section>
 
-      {/* Free-tier connectors grouped by category */}
-      {FREE_TIER_CATEGORIES.map(renderCategoryGroup)}
+      {/* University — single abstraction pill */}
+      <section className="connector-section">
+        <div className={`connector-card ${universityAnyConnected ? "connector-connected" : ""} ${expandedUniversity ? "connector-expanded" : ""}`}>
+          <div
+            className="connector-header"
+            onClick={() => setExpandedUniversity(prev => !prev)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => e.key === "Enter" && setExpandedUniversity(prev => !prev)}
+          >
+            <span className="connector-icon">
+              <img className="connector-icon-image" src={UNIVERSITY_PILL_ICON.src} alt={UNIVERSITY_PILL_ICON.alt} />
+            </span>
+            <div className="connector-info">
+              <span className="connector-label">{t("University")}</span>
+              {universityAnyConnected ? (
+                <span className="connector-display-label">
+                  {universityConnectedCount === 1
+                    ? t("1 source connected")
+                    : t("{count} sources connected", { count: universityConnectedCount })}
+                </span>
+              ) : (
+                <span className="connector-desc">{t("Canvas, Blackboard, TP, and TimeEdit schedule sources.")}</span>
+              )}
+            </div>
+            <div className="connector-status">
+              {universityAnyConnected ? (
+                <span className="connector-badge connector-badge-connected">{t("Connected")}</span>
+              ) : (
+                <span className="connector-badge connector-badge-disconnected">{t("Not connected")}</span>
+              )}
+            </div>
+          </div>
+          <details className="connector-read-more">
+            <summary>{t("Read more")}</summary>
+            <ul className="connector-read-more-list">
+              <li>{t("Import assignments, deadlines, and grades from your LMS.")}</li>
+              <li>{t("Sync lecture schedules from TP EduCloud or TimeEdit iCal feeds.")}</li>
+              <li>{t("All academic data flows into Gemini chat context and schedule views.")}</li>
+            </ul>
+          </details>
+          {universityAnyConnected && !expandedUniversity && (
+            <div className="connector-actions">
+              <button
+                className="connector-sync-btn"
+                onClick={() => setExpandedUniversity(true)}
+                disabled={universityBusy}
+              >
+                {t("Manage")}
+              </button>
+              <button
+                className="connector-disconnect-btn"
+                onClick={() => void handleDisconnectAllUniversity()}
+                disabled={universityBusy}
+              >
+                {universityBusy ? t("Disconnecting...") : t("Disconnect all")}
+              </button>
+            </div>
+          )}
+          {expandedUniversity && (
+            <div className="connector-setup">
+              {universityConnectors.map(renderUniversitySubCard)}
+            </div>
+          )}
+        </div>
+      </section>
 
       {/* Connected Apps — paid tier */}
       <section className="connector-section">
         {isPaidPlan ? (
-          connectedAppConnectors.map(renderConnectorCard)
+          connectedAppConnectors
+            .filter(c => c.service !== "teams")
+            .map(renderConnectorCard)
         ) : (
           <div className="connector-card connector-card-locked">
             <div className="connector-header connector-header-static">
