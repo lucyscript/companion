@@ -69,7 +69,6 @@ export function RemindersWidget(): JSX.Element | null {
   };
 
   if (loading) return null;
-  if (reminders.length === 0) return null;
 
   return (
     <div className="reminders-card">
@@ -78,8 +77,11 @@ export function RemindersWidget(): JSX.Element | null {
           <span className="reminders-card-icon"><IconBell size={18} /></span>
           <h2>{t("Reminders")}</h2>
         </div>
-        <span className="reminders-badge">{t("{count} upcoming", { count: reminders.length })}</span>
+        {reminders.length > 0 && <span className="reminders-badge">{t("{count} upcoming", { count: reminders.length })}</span>}
       </div>
+      {reminders.length === 0 ? (
+        <p className="reminders-empty">{t("No active reminders")}</p>
+      ) : (
       <ul className="reminders-list">
         {reminders.map((r) => {
           const repeat = recurrenceLabel(r.recurrence, t);
@@ -111,6 +113,7 @@ export function RemindersWidget(): JSX.Element | null {
           );
         })}
       </ul>
+      )}
     </div>
   );
 }

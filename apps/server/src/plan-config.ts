@@ -70,7 +70,7 @@ export const PLAN_TIERS: Record<PlanId, PlanTier> = {
       "connectors", "gemini_tools", "chat_history", "custom_moods"
     ]),
     // 3 connectors total, but Gemini counts as 1 — so 2 user-chosen integrations
-    connectors: ["canvas", "mcp", "tp_schedule"] as ConnectorService[],
+    connectors: ["canvas", "mcp", "tp_schedule", "withings"] as ConnectorService[],
     maxChatHistory: 500,
     trialDays: 7,
     badge: "Plus"
@@ -130,6 +130,7 @@ const PLUS_TIER_TOOLS: ReadonlySet<string> = new Set([
   "createNutritionCustomFood",
   "updateNutritionCustomFood",
   "deleteNutritionCustomFood",
+  "getWithingsHealthSummary",
   "logMeal",
   "createNutritionMeal",
   "updateNutritionMeal",
@@ -141,9 +142,8 @@ const PLUS_TIER_TOOLS: ReadonlySet<string> = new Set([
   "deleteMeal"
 ]);
 
-/** Additional tools unlocked at Pro tier — habits, goals, withings */
+/** Additional tools unlocked at Pro tier — habits, goals */
 const PRO_TIER_TOOLS: ReadonlySet<string> = new Set([
-  "getWithingsHealthSummary",
   "getHabitsGoalsStatus",
   "updateHabitCheckIn",
   "checkInGym",

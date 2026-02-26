@@ -165,7 +165,6 @@ export function UpgradePrompt({ feature, onDismiss }: UpgradePromptProps): JSX.E
                 {tier.features.includes("habits" as FeatureId) && <li>{t("Growth & habits")}</li>}
                 {tier.features.includes("analytics" as FeatureId) && <li>{t("Analytics dashboard")}</li>}
                 {tier.features.includes("custom_moods" as FeatureId) && <li>{t("Custom chat themes")}</li>}
-                {tier.connectors.includes("withings" as ConnectorService) && <li>{t("Withings health sync")}</li>}
                 {tier.trialDays > 0 && <li>{t("{days}-day free trial", { days: tier.trialDays })}</li>}
               </ul>
               {planInfo?.plan === tier.id ? (
