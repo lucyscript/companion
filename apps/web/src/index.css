@@ -6606,7 +6606,6 @@ body:not(.keyboard-open) .app-shell-chat-active .chat-messages {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding-bottom: 260px; /* extra scroll room for on-screen keyboard */
 }
 
 .connector-section {
@@ -7298,6 +7297,11 @@ body.keyboard-open .app-shell {
   width: 100%;
   margin: 0;
   padding: 0;
+}
+
+/* Non-chat tabs: keep horizontal padding when keyboard is up */
+body.keyboard-open .app-shell:not(.app-shell-chat-active) {
+  padding: 0 max(20px, calc(20px + env(safe-area-inset-right))) 0 max(20px, calc(20px + env(safe-area-inset-left)));
 }
 
 body.keyboard-open .tab-content-area {

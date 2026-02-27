@@ -289,7 +289,9 @@ export default function App(): JSX.Element {
       const editableFocused = hasEditableFocus();
       const chatTabActive = document.body.classList.contains("chat-tab-active");
       const chatOverlayActive = document.body.classList.contains("chat-overlay-active");
-      const mobileChatInputFocused = editableFocused && (chatTabActive || chatOverlayActive) && (isIOS || isCoarsePointer);
+      const isMobileTouch = isIOS || isCoarsePointer;
+      const mobileChatInputFocused = editableFocused && (chatTabActive || chatOverlayActive) && isMobileTouch;
+      const anyMobileEditableFocused = editableFocused && isMobileTouch;
       if (!mobileChatInputFocused) {
         baselineViewportHeight = Math.max(baselineViewportHeight, viewportHeight);
       }
@@ -304,7 +306,7 @@ export default function App(): JSX.Element {
       const keyboardGap = Math.max(0, Math.round(window.innerHeight - viewportHeight - viewportOffsetTop));
       const viewportDrop = Math.max(0, baselineViewportHeight - viewportHeight);
       const keyboardOpen =
-        mobileChatInputFocused &&
+        anyMobileEditableFocused &&
         (keyboardGap > KEYBOARD_GAP_THRESHOLD_PX || viewportDrop > VIEWPORT_DROP_THRESHOLD_PX);
       const minimumTouchKeyboardGap = isIOS || isCoarsePointer ? 44 : 0;
       const maximumReasonableKeyboardGap = Math.round(window.innerHeight * 0.5);
