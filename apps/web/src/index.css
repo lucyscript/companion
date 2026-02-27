@@ -2103,6 +2103,51 @@ button:disabled {
   background: linear-gradient(90deg, #f6c37f, #e8a84c);
 }
 
+/* Wrapper for progress bar + label */
+.habit-visual-progress-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+.habit-visual-progress-wrapper .habit-visual-progress {
+  margin-bottom: 0;
+}
+
+/* Muted label below progress bars */
+.habit-progress-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+/* Streak-focused display for unbounded habits */
+.habit-streak-display {
+  margin-bottom: 4px;
+}
+.habit-streak-badge {
+  display: inline-block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--accent-text, #f6c37f);
+}
+.habit-streak-badge-empty {
+  font-weight: 400;
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+/* Completed goal card */
+.goal-card-complete {
+  opacity: 0.75;
+  border-color: rgba(125, 211, 168, 0.35);
+}
+.goal-complete-badge {
+  font-size: 1.5rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
 .pill-button {
   border-radius: 999px;
   padding: 8px 12px;
@@ -3165,6 +3210,7 @@ body.keyboard-open .chat-overlay-panel-docked {
 
 .chat-overlay-panel-docked .chat-messages {
   justify-content: flex-start;
+  overscroll-behavior-y: contain;
 }
 
 .chat-overlay-panel-docked .chat-overlay-header {
@@ -3265,6 +3311,7 @@ body.keyboard-open .chat-overlay-docked-close-btn {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overscroll-behavior-y: contain;
   /* Fade messages at top and bottom edges — bottom fades above the composer */
   -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 32px, #000 calc(100% - 32px), transparent 100%);
   mask-image: linear-gradient(to bottom, transparent 0%, #000 32px, #000 calc(100% - 32px), transparent 100%);

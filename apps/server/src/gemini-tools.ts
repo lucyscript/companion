@@ -247,7 +247,7 @@ export const functionDeclarations: FunctionDeclaration[] = [
   {
     name: "createHabit",
     description:
-      "Create a new habit. Use this when the user asks to add/start tracking a habit.",
+      "Create a new habit for ongoing/recurring behavior the user wants to maintain indefinitely (exercise, reading, meditation, journaling). Habits track consistency and streaks — there is no finish line. If the user describes something with a clear endpoint or target number of completions, use createGoal instead.",
     parameters: {
       type: SchemaType.OBJECT,
       properties: {
@@ -297,7 +297,7 @@ export const functionDeclarations: FunctionDeclaration[] = [
   {
     name: "createGoal",
     description:
-      "Create a new goal. Use this when the user asks to add/start tracking a goal.",
+      "Create a goal for a finite achievement the user wants to reach — something with a clear endpoint or target number of check-ins (read 12 books, run 30 times, complete a course). Goals show progress toward completion. If the user describes something ongoing without an endpoint (daily exercise, meditation), use createHabit instead.",
     parameters: {
       type: SchemaType.OBJECT,
       properties: {
@@ -311,11 +311,11 @@ export const functionDeclarations: FunctionDeclaration[] = [
         },
         targetCount: {
           type: SchemaType.NUMBER,
-          description: "Target number of check-ins. Defaults to 1."
+          description: "Total check-ins needed to complete the goal. Choose a meaningful number: for daily goals with a month-long dueDate use ~25, for weekly goals over 3 months use ~12. Do NOT leave at 1 unless the goal truly requires a single action. If unsure, estimate based on cadence and timeframe."
         },
         dueDate: {
           type: SchemaType.STRING,
-          description: "Optional due date as ISO datetime."
+          description: "Optional due date as ISO datetime. Helps calculate a sensible targetCount."
         },
         motivation: {
           type: SchemaType.STRING,
@@ -2510,7 +2510,6 @@ export function handleCreateGoal(
   }
 
   const cadence = parseGoalCadence(args.cadence, "weekly");
-  const targetCount = clampNumber(args.targetCount, 1, 1, 365);
   const dueDateRaw = asTrimmedString(args.dueDate);
   const dueDate = dueDateRaw
     ? (() => {
@@ -2520,6 +2519,23 @@ export function handleCreateGoal(
     : null;
   if (dueDateRaw && dueDate === null) {
     return { error: "dueDate must be a valid ISO datetime when provided." };
+  }
+
+  // Smart targetCount: if Gemini didn't provide one, calculate from cadence + dueDate
+  const rawTarget = typeof args.targetCount === "number" ? args.targetCount : Number.NaN;
+  let targetCount: number;
+  if (!Number.isNaN(rawTarget)) {
+    // Gemini explicitly provided a value — clamp it
+    targetCount = Math.min(365, Math.max(1, Math.round(rawTarget)));
+  } else if (dueDate) {
+    // Derive from dueDate and cadence
+    const weeksUntilDue = Math.max(1, Math.ceil((new Date(dueDate).getTime() - Date.now()) / (7 * 86_400_000)));
+    targetCount = cadence === "daily"
+      ? Math.min(365, Math.max(5, weeksUntilDue * 5))   // ~5 check-ins per week for daily
+      : Math.min(365, Math.max(4, weeksUntilDue));       // 1 check-in per week for weekly
+  } else {
+    // No dueDate, no explicit target — sensible defaults
+    targetCount = cadence === "daily" ? 30 : 12;
   }
   const motivation = asTrimmedString(args.motivation) ?? undefined;
 

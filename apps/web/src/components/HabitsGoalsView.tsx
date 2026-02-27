@@ -100,6 +100,7 @@ export function HabitsGoalsView(): JSX.Element {
   const renderHabit = (habit: Habit): JSX.Element => {
     const isBusy = busy?.type === "habit" && busy.id === habit.id;
     const completionPercent = Math.max(0, Math.min(100, Math.round(habit.completionRate7d)));
+    const isUnbounded = habit.targetPerWeek <= UNBOUNDED_HABIT_TARGET;
 
     return (
       <article key={habit.id} className="habit-card habit-card-compact">
@@ -123,9 +124,24 @@ export function HabitsGoalsView(): JSX.Element {
             {habit.todayCompleted ? "✓" : isBusy ? "…" : "○"}
           </button>
         </header>
-        <div className="habit-visual-progress">
-          <div className={`habit-visual-progress-fill${habit.streakGraceUsed ? " habit-visual-progress-grace" : ""}`} style={{ width: `${completionPercent}%` }} />
-        </div>
+        {isUnbounded ? (
+          /* Unbounded habits: streak is the primary metric, not progress toward a target */
+          <div className="habit-streak-display">
+            {habit.streak > 0 ? (
+              <span className="habit-streak-badge">🔥 {habit.streak} {t("day streak")}</span>
+            ) : (
+              <span className="habit-streak-badge habit-streak-badge-empty">{t("Start your streak today")}</span>
+            )}
+          </div>
+        ) : (
+          /* Bounded habits: show 7-day consistency bar with context label */
+          <div className="habit-visual-progress-wrapper">
+            <div className="habit-visual-progress">
+              <div className={`habit-visual-progress-fill${habit.streakGraceUsed ? " habit-visual-progress-grace" : ""}`} style={{ width: `${completionPercent}%` }} />
+            </div>
+            <span className="habit-progress-label">{t("7-day consistency")} · {completionPercent}%</span>
+          </div>
+        )}
       </article>
     );
   };
@@ -136,35 +152,58 @@ export function HabitsGoalsView(): JSX.Element {
       goal.dueDate &&
       new Date(goal.dueDate).toLocaleDateString(localeTag, { month: "short", day: "numeric" });
     const isBusy = busy?.type === "goal" && busy.id === goal.id;
+    const isComplete = goal.remaining <= 0 && goal.progressCount > 0;
+    const isTrivial = goal.targetCount <= 1;
+
+    // Days remaining until due date
+    const daysRemaining = goal.dueDate
+      ? Math.max(0, Math.ceil((new Date(goal.dueDate).getTime() - Date.now()) / 86_400_000))
+      : null;
 
     return (
-      <article key={goal.id} className="habit-card goal-card habit-card-compact">
+      <article key={goal.id} className={`habit-card goal-card habit-card-compact${isComplete ? " goal-card-complete" : ""}`}>
         <header className="habit-card-header">
           <div>
             <p className="eyebrow">{t("Goal")}</p>
             <h3>{goal.title}</h3>
             <p className="muted">
-              {t("{progress}/{target} check-ins", { progress: goal.progressCount, target: goal.targetCount })}
-              {dueLabel ? t(" • due {date}", { date: dueLabel }) : ""}
-              {goal.streak > 0 ? t(" • {count} day streak", { count: goal.streak }) : ""}
+              {isComplete
+                ? t("✓ Completed — {count} check-ins", { count: goal.progressCount })
+                : isTrivial
+                  ? (dueLabel ? t("due {date}", { date: dueLabel }) : t("Single check-in"))
+                  : t("{progress}/{target} check-ins", { progress: goal.progressCount, target: goal.targetCount })}
+              {!isComplete && dueLabel && !isTrivial ? t(" • due {date}", { date: dueLabel }) : ""}
+              {!isComplete && daysRemaining !== null && daysRemaining <= 7 && daysRemaining > 0
+                ? t(" • {count}d left", { count: daysRemaining })
+                : ""}
+              {goal.streak > 0 && !isComplete ? t(" • {count} day streak", { count: goal.streak }) : ""}
             </p>
             {goal.motivation && <p className="muted">{goal.motivation}</p>}
           </div>
-          <button
-            type="button"
-            className={`habit-checkin-button ${goal.todayCompleted ? "habit-checkin-done" : ""}`}
-            onClick={() => void handleGoalCheckIn(goal)}
-            disabled={isBusy}
-            aria-label={goal.todayCompleted ? t("Undo check-in") : t("Check in")}
-          >
-            {goal.todayCompleted ? "✓" : isBusy ? "…" : "○"}
-          </button>
+          {!isComplete && (
+            <button
+              type="button"
+              className={`habit-checkin-button ${goal.todayCompleted ? "habit-checkin-done" : ""}`}
+              onClick={() => void handleGoalCheckIn(goal)}
+              disabled={isBusy}
+              aria-label={goal.todayCompleted ? t("Undo check-in") : t("Check in")}
+            >
+              {goal.todayCompleted ? "✓" : isBusy ? "…" : "○"}
+            </button>
+          )}
+          {isComplete && (
+            <span className="goal-complete-badge" aria-label={t("Goal complete")}>🏆</span>
+          )}
         </header>
-        <div className="goal-progress">
-          <div className="goal-progress-bar">
-            <div className={`goal-progress-fill${goal.streakGraceUsed ? " goal-progress-grace" : ""}`} style={{ width: `${progressPercent}%` }} />
+        {/* Only show progress bar for multi-step goals that aren't complete */}
+        {!isComplete && !isTrivial && (
+          <div className="goal-progress">
+            <div className="goal-progress-bar">
+              <div className={`goal-progress-fill${goal.streakGraceUsed ? " goal-progress-grace" : ""}`} style={{ width: `${progressPercent}%` }} />
+            </div>
+            <span className="habit-progress-label">{progressPercent}% {t("complete")}</span>
           </div>
-        </div>
+        )}
       </article>
     );
   };
