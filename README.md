@@ -1,84 +1,73 @@
 # Companion
 
-An autonomous, self-improving project powered by GitHub's native AI agents.
+Personal AI companion for university students — a mobile-first PWA powered by Google Gemini with deep schedule, nutrition, and LMS integration.
 
-## How It Works
+## What It Does
 
-```
-Orchestrator (daily + on issue close)
-  │
-  ├─ Scans codebase for TODOs, missing tests, doc gaps
-  ├─ Creates well-scoped GitHub issues
-  ├─ Assigns each to the best agent:
-  │     @copilot  → docs, CI, config, tests
-  │     @codex    → server, backend, API
-  │     @claude   → frontend, UI, components
-  │
-  └─ Creates a new orchestrator issue (recursive ♻️)
-       │
-       Agent works on issue → creates PR → auto-merges
-       │
-       Orchestrator issue closes → triggers next scan
-       │
-       ♻️ Loop continues forever
-```
+- **Chat-first UX** — Talk to Gemini about your day; it manages your schedule, deadlines, meals, habits, and goals
+- **LMS Integration** — Canvas, Blackboard, TP EduCloud, TimeEdit sync your courses automatically
+- **Nutrition Tracking** — Log meals, set macro targets, save meal plans
+- **Growth System** — Habits, goals, streaks with AI coaching insights
+- **Health Data** — Withings weight/sleep integration for context-aware advice
+- **Extensible** — MCP servers, Microsoft Teams, custom tool connectors
 
-### Agents
+## Tech Stack
 
-| Agent | Strength | Assigned Work |
-|-------|----------|--------------|
-| **@copilot** | Native GitHub integration, GPT-5 / Claude Sonnet 4.5 | Docs, CI, config, tests, meta-tasks |
-| **@codex** | Deep code generation, gpt-5.3-codex | Server, backend, runtime, API |
-| **@claude** | UI/UX, reasoning, Claude Sonnet 4.5 | Frontend, components, styling |
-
-### Workflows
-
-| Workflow | Purpose |
-|----------|---------|
-| `orchestrator.yml` | Discover work → create issues → assign agents |
-| `agent-auto-pr.yml` | Auto-create PRs from `agent/*` branches |
-| `agent-pr-automation.yml` | Auto-rebase and auto-merge agent PRs |
-
-### The Recursive Loop
-
-The orchestrator creates a special issue: *"🔄 Orchestrator: discover and assign new work"*. This issue is assigned to `@copilot`. When Copilot completes it (or it's closed), the workflow fires again — creating the next batch of issues and the next orchestrator issue. The loop runs forever.
+| Layer | Tech |
+|-------|------|
+| Frontend | React 18 · Vite 5 · TypeScript · PWA |
+| Backend | Node.js · Express · SQLite · PostgreSQL (snapshots) |
+| AI | Gemini 3 Flash (Vertex AI Live API) · 46+ tools |
+| Payments | Stripe · Vipps MobilePay |
+| Deploy | GitHub Pages (frontend) · Railway (backend) |
 
 ## Quick Start
 
 ```bash
-# Trigger the orchestrator manually
-gh workflow run orchestrator.yml
+# Backend
+cd apps/server
+cp ../../.env.example .env       # Edit with your keys
+npm install && npm run dev       # Starts on :8787
 
-# Or create an issue and assign to an agent
-gh issue create --title "Add health check endpoint" \
-  --body "## Scope\nAdd GET /health\n\n## Deliverable\nReturns {status: ok}" \
-  --label "agent-task" \
-  --assignee "copilot"
+# Frontend
+cd apps/web
+npm install && npm run dev       # Starts on :5173, proxies /api → :8787
 ```
+
+## Documentation
+
+See [`docs/`](docs/README.md) for full documentation:
+
+- [System Overview](docs/system-overview.md) — Architecture, data model, core concepts
+- [API Reference](docs/api-reference.md) — All 113 endpoints
+- [Architecture Diagrams](docs/architecture.md) — Mermaid visual reference
+- [Frontend Guide](docs/frontend.md) — Components, hooks, theming
+- [Environment Variables](docs/environment.md) — Every env var
+- [Deployment](docs/deployment.md) — Railway + GitHub Pages
 
 ## Project Structure
 
 ```
 apps/
-  server/    → Backend (Codex territory)
-  web/       → Frontend (Claude territory)
-docs/        → Documentation (Copilot territory)
-.agents/     → Agent coordination & contracts
-.github/
-  scripts/   → Orchestrator script
-  workflows/ → Automation workflows
+  server/    → Node.js Express API + background services
+  web/       → React PWA (mobile-first)
+docs/        → Current documentation
+  legacy/    → Agent-era docs (preserved for reference)
+.github/     → CI/CD workflows + copilot instructions
+.agents/     → Legacy agent coordination configs
 ```
 
-## Working Model
+## Testing
 
-- **Issues are the source of truth** — all work starts as an issue
-- **Agents are assignees** — `@copilot`, `@codex`, `@claude`
-- **Auto-merge pipeline** — agent branches → PR → rebase → merge
-- **No CLI wrappers** — GitHub handles agent execution natively
-- **Recursive discovery** — the system finds its own work
+```bash
+cd apps/server
+npx vitest run          # 488+ tests
+npx tsc --noEmit        # Type check
 
-### For Manual Contributions
-1. Create issues without `agent-task` label
-2. Work on them manually in feature branches
-3. Create PRs normally
-4. Manual review and merge
+cd apps/web
+npx tsc --noEmit        # Type check
+```
+
+## Origin
+
+This project was originally built through a **recursive self-improvement agent workflow** — AI coding agents autonomously created issues, PRs, and merged code. The legacy orchestration docs are preserved in [`docs/legacy/`](docs/legacy/README.md) for reuse in future projects.
