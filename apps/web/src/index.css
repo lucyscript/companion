@@ -1168,6 +1168,57 @@ button:disabled {
   font-size: 0.78rem !important;
 }
 
+/* ── Nutrition empty state ── */
+.nutrition-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 24px 12px;
+  text-align: center;
+}
+
+.nutrition-empty-title {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.nutrition-empty-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.nutrition-empty-hint strong {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* ── Growth / Habits empty state ── */
+.growth-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 20px 12px;
+  text-align: center;
+}
+
+.growth-empty-state p {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+
+.growth-empty-hint {
+  font-size: 0.76rem !important;
+  color: var(--muted) !important;
+  opacity: 0.8;
+}
+
 
 /* ──────────── Deadline Card ──────────── */
 .deadline-card {
@@ -1941,6 +1992,12 @@ button:disabled {
 .skeleton-visual {
   width: 100%;
   aspect-ratio: 4 / 3;
+}
+
+.skeleton-visual-sm {
+  width: 100%;
+  height: 80px;
+  border-radius: 10px;
 }
 
 .skeleton-text-lg {
@@ -2974,6 +3031,56 @@ button:disabled {
   color: var(--text);
 }
 
+/* Native install prompt (Chrome / Edge / Android) — compact banner */
+.install-prompt-native .install-prompt-native-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.install-prompt-native .install-prompt-native-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.install-prompt-native .install-prompt-native-text h3 {
+  margin: 0 0 2px;
+  font-size: 1rem;
+}
+
+.install-prompt-native .install-prompt-native-text p {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.install-prompt-native-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.install-button {
+  padding: 8px 18px;
+  border-radius: 8px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.install-button:hover {
+  opacity: 0.85;
+}
+
+.install-prompt-native .dismiss-button {
+  width: auto;
+  padding: 8px 14px;
+  font-size: 0.85rem;
+}
+
 /* Notification History View */
 .notification-history-panel {
   margin-bottom: 12px;
@@ -3554,6 +3661,11 @@ body.keyboard-open .chat-overlay-backdrop {
 @keyframes chat-overlay-slide-up {
   from { opacity: 0; transform: translateY(40px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+/* Hidden overlay — stays mounted in React tree to preserve state */
+.chat-overlay-panel-hidden {
+  display: none !important;
 }
 
 /* Keyboard open: expand to full viewport with opaque bg-solid fill.
@@ -4971,6 +5083,41 @@ body:not(.keyboard-open) .app-shell-chat-active .chat-messages {
   border-color: var(--accent-border-strong);
 }
 
+/* ── Theme lock overlay with blur ── */
+.settings-theme-option-wrap {
+  position: relative;
+}
+
+.settings-theme-option-locked .settings-theme-option {
+  opacity: 1;
+  cursor: default;
+}
+
+.settings-theme-lock-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.75);
+  transition: background 0.15s ease, color 0.15s ease;
+  z-index: 2;
+}
+
+.settings-theme-lock-overlay:hover {
+  background: rgba(0, 0, 0, 0.45);
+  color: var(--accent);
+}
+
+.settings-theme-lock-overlay:active {
+  background: rgba(0, 0, 0, 0.55);
+}
+
 .settings-language-card {
   display: grid;
   gap: 12px;
@@ -5898,6 +6045,103 @@ body:not(.keyboard-open) .app-shell-chat-active .chat-messages {
   font-size: 0.85rem;
   color: var(--danger, #e53935);
   margin: 8px 0 0;
+}
+
+/* ── Settings Referral ── */
+
+.settings-referral-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.settings-referral-info {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin: 0 0 12px;
+  line-height: 1.45;
+}
+
+.settings-referral-link-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.settings-referral-input {
+  flex: 1;
+  font-size: 0.8rem;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--card-border);
+  background: var(--bg-secondary, rgba(255,255,255,0.04));
+  color: var(--text-primary);
+  min-width: 0;
+}
+
+.settings-referral-copy-btn {
+  font-size: 0.8rem;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+
+.settings-referral-copy-btn:hover,
+.settings-referral-copy-btn:active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.settings-referral-share-btn {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.85rem;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.settings-referral-share-btn:hover {
+  opacity: 0.85;
+}
+
+.settings-referral-qr-toggle {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 0;
+  margin-top: 4px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.settings-referral-qr {
+  margin-top: 12px;
+  text-align: center;
+}
+
+.settings-referral-qr img {
+  border-radius: 10px;
+  background: #0c1824;
+}
+
+.settings-referral-qr-hint {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin: 6px 0 0;
 }
 
 /* ── Login View ── */

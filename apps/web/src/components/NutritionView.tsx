@@ -28,6 +28,8 @@ import {
 import { hapticSuccess } from "../lib/haptics";
 import { CalorieWeightChart, BodyCompChart } from "./NutritionTrackingChart";
 
+const EMPTY_FOOD_SVG = `${(import.meta.env.BASE_URL ?? "/").replace(/\/+$/, "")}/illustrations/empty-food.svg`;
+
 interface MealDraft {
   name: string;
 }
@@ -1459,7 +1461,11 @@ export function NutritionView(): JSX.Element {
           <article className="nutrition-card">
             <h3>Meals</h3>
             {meals.length === 0 ? (
-              <p>No meals logged yet.</p>
+              <div className="nutrition-empty-state">
+                <img className="empty-state-illustration" src={EMPTY_FOOD_SVG} alt="" width="120" height="120" />
+                <p className="nutrition-empty-title">No meals logged yet</p>
+                <p className="nutrition-empty-hint">Say <strong>"log my lunch"</strong> in Chat to start tracking your nutrition</p>
+              </div>
             ) : (
               <div className="nutrition-list">
                 {meals.map((meal) => (

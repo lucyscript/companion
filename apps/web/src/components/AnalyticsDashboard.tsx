@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { getAnalyticsCoachInsight, getDailyGrowthSummary } from "../lib/api";
 import { useI18n } from "../lib/i18n";
+import { getVisualCache, putVisualCache, pruneVisualCache } from "../lib/visual-cache";
 import { AnalyticsCoachInsight, ChallengePrompt, DailyGrowthSummary } from "../types";
 import {
   IconLink, IconCrystalBall, IconThought, IconFist, IconLightbulb,
@@ -57,6 +58,22 @@ export function AnalyticsDashboard(): JSX.Element {
     setInsight(null);
     setDailySummary(null);
 
+    const today = new Date().toISOString().slice(0, 10);
+    const cacheKey = `growth-${days}d-${today}`;
+
+    // Try cached data first (skip if force-refreshing)
+    if (!options.forceRefresh) {
+      const cached = days === 1
+        ? await getVisualCache<DailyGrowthSummary>(cacheKey)
+        : await getVisualCache<AnalyticsCoachInsight>(cacheKey);
+      if (cached) {
+        if (days === 1) { setDailySummary(cached as DailyGrowthSummary); }
+        else { setInsight(cached as AnalyticsCoachInsight); }
+        setLoading(false);
+        return;
+      }
+    }
+
     if (days === 1) {
       const next = await getDailyGrowthSummary({ forceRefresh: options.forceRefresh });
       if (!next) {
@@ -65,6 +82,7 @@ export function AnalyticsDashboard(): JSX.Element {
         return;
       }
       setDailySummary(next);
+      void putVisualCache(cacheKey, next);
     } else {
       const next = await getAnalyticsCoachInsight(days, options);
       if (!next) {
@@ -73,6 +91,7 @@ export function AnalyticsDashboard(): JSX.Element {
         return;
       }
       setInsight(next);
+      void putVisualCache(cacheKey, next);
     }
 
     setLoading(false);
@@ -80,6 +99,7 @@ export function AnalyticsDashboard(): JSX.Element {
 
   useEffect(() => {
     void loadInsight(periodDays);
+    void pruneVisualCache();
   }, [periodDays, loadInsight]);
 
   return (
@@ -111,6 +131,7 @@ export function AnalyticsDashboard(): JSX.Element {
 
       {loading && (
         <div className="daily-summary-skeleton analytics-fade-in">
+          <div className="skeleton-block skeleton-visual-sm" />
           <div className="skeleton-block skeleton-text-md" />
           <div className="skeleton-block skeleton-text-md" style={{ width: '70%' }} />
           <div className="skeleton-block skeleton-text-sm" style={{ width: '50%' }} />

@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <style>
+    @keyframes gentle-float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
+    @keyframes soft-pulse { 0%,100%{opacity:0.15} 50%{opacity:0.3} }
+    @keyframes sprout { 0%{transform:scaleY(0);transform-origin:bottom} 100%{transform:scaleY(1);transform-origin:bottom} }
+    .plant-float{animation:gentle-float 4s ease-in-out infinite}
+    .glow{animation:soft-pulse 3s ease-in-out infinite}
+    .leaf{animation:sprout 1.2s ease-out 0.3s both}
+  </style>
+  <g class="plant-float">
+    <!-- Pot -->
+    <path d="M75 120 L80 150 Q82 155 88 155 L112 155 Q118 155 120 150 L125 120 Z" fill="rgba(96,165,250,0.05)" stroke="#60a5fa" stroke-width="1" stroke-opacity="0.2"/>
+    <rect x="72" y="115" width="56" height="8" rx="3" fill="rgba(96,165,250,0.08)" stroke="#60a5fa" stroke-width="0.5" stroke-opacity="0.2"/>
+    <!-- Soil -->
+    <ellipse cx="100" cy="120" rx="24" ry="3" fill="rgba(160,130,100,0.15)"/>
+    <!-- Stem -->
+    <line x1="100" y1="120" x2="100" y2="82" stroke="#34d399" stroke-width="2" stroke-opacity="0.35" stroke-linecap="round"/>
+    <!-- Leaves -->
+    <g class="leaf">
+      <path d="M100 100 Q110 92 118 96 Q112 104 100 100" fill="#34d399" fill-opacity="0.2" stroke="#34d399" stroke-width="0.5" stroke-opacity="0.3"/>
+      <path d="M100 92 Q88 84 82 90 Q90 96 100 92" fill="#34d399" fill-opacity="0.15" stroke="#34d399" stroke-width="0.5" stroke-opacity="0.25"/>
+    </g>
+    <!-- Small star / sparkle at top -->
+    <circle cx="100" cy="78" r="3" fill="rgba(96,165,250,0.15)" stroke="#60a5fa" stroke-width="0.5" stroke-opacity="0.3"/>
+    <line x1="100" y1="73" x2="100" y2="83" stroke="#60a5fa" stroke-width="0.5" stroke-opacity="0.2" stroke-linecap="round"/>
+    <line x1="95" y1="78" x2="105" y2="78" stroke="#60a5fa" stroke-width="0.5" stroke-opacity="0.2" stroke-linecap="round"/>
+  </g>
+  <!-- Glow ring -->
+  <circle class="glow" cx="100" cy="115" r="55" stroke="#34d399" stroke-width="0.5" fill="none"/>
+</svg>

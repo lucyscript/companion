@@ -974,9 +974,9 @@ export function ChatView({ mood, onMoodChange, onDataMutated }: ChatViewProps): 
   };
 
   const quickActions = [
-    { label: "What's next?", prompt: "What's next on my schedule today?" },
-    { label: "How's my week?", prompt: "How is my week looking? Any deadlines coming up?" },
-    { label: "Motivation", prompt: "Give me a motivational boost to stay productive today." }
+    { label: "What's my schedule today?", prompt: "What's my schedule today?" },
+    { label: "Set a gym reminder", prompt: "Set a gym reminder for this afternoon" },
+    { label: "How am I doing this week?", prompt: "How am I doing this week? Give me a summary." },
   ];
 
   // Track mood changes to trigger burst only on transitions

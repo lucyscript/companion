@@ -264,4 +264,42 @@
 
 ---
 
+## Desktop App Roadmap
+
+Companion is a mobile-first PWA, but a desktop app serves students who study at their laptop for hours. The path from PWA → desktop:
+
+### Phase D1 — Enhanced PWA (Now)
+- [x] PWA manifest with `display: standalone` — already works as a "desktop app" via Chrome's install
+- [ ] Add a desktop install prompt (banner) on non-mobile viewports
+- [ ] Optimize layout for wider screens (720px+): two-column chat + schedule side-by-side
+- [ ] Keyboard shortcuts (Cmd/Ctrl+K for quick chat, Cmd+1–5 for tab switching)
+
+### Phase D2 — Electron / Tauri Wrapper (Phase 3 timeline)
+- [ ] **Tauri** (preferred — lighter than Electron, Rust backend, ~5 MB binary vs ~150 MB)
+  - Wrap the existing Vite build as a Tauri app
+  - Native system tray icon with deadline countdown
+  - Native push notifications (no browser permission barriers)
+  - Auto-launch on login (opt-in)
+- [ ] **Hotkey overlay**: Global shortcut (e.g., Cmd+Shift+C) opens a focused chat window from anywhere
+- [ ] **Focus mode integration**: Detect full-screen apps and suppress notifications during focus
+
+### Phase D3 — Platform-Specific Features
+- [ ] macOS: Menu bar companion with next-event preview
+- [ ] Windows: Taskbar jump list (Quick chat, Today's schedule, Log a meal)
+- [ ] Linux: Tray icon with GNOME/KDE integration
+- [ ] Cross-device sync: Start a chat on phone, continue on desktop seamlessly (already handled by server-side state)
+
+### Why Tauri Over Electron
+| | Tauri | Electron |
+|---|-------|----------|
+| **Bundle size** | ~5 MB | ~150 MB |
+| **RAM usage** | ~30 MB | ~200 MB |
+| **Security** | Rust backend, sandboxed | Node.js, broader attack surface |
+| **Auto-update** | Built-in | Requires electron-updater |
+| **Platform support** | macOS, Windows, Linux | Same |
+
+The PWA already provides 90% of the desktop experience. The Tauri wrapper adds native OS integration (tray, hotkeys, auto-launch) that students who live on their laptops will appreciate.
+
+---
+
 *Last updated: February 2026*

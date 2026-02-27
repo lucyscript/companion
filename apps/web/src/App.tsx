@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChatFab } from "./components/ChatFab";
 import { ChatTab } from "./components/ChatTab";
@@ -9,7 +9,7 @@ import { ScheduleTab } from "./components/ScheduleTab";
 import { InstallPrompt } from "./components/InstallPrompt";
 import { SettingsView } from "./components/SettingsView";
 import { HabitsGoalsView } from "./components/HabitsGoalsView";
-import { AnalyticsDashboard } from "./components/AnalyticsDashboard";
+const AnalyticsDashboard = lazy(() => import("./components/AnalyticsDashboard").then(m => ({ default: m.AnalyticsDashboard })));
 import { NutritionView } from "./components/NutritionView";
 import { TabBar, TabId } from "./components/TabBar";
 import { LockedFeatureOverlay, UpgradePrompt } from "./components/UpgradePrompt";
@@ -925,23 +925,25 @@ export default function App(): JSX.Element {
     setTimeout(scrollOverlayMessages, 400);
   };
 
-  const dockedOverlayPortal = isOverlayDocked && typeof document !== "undefined"
+  const dockedOverlayPortal = isIosTouchDevice && typeof document !== "undefined"
     ? createPortal(
         <>
-          <div className="chat-overlay-panel chat-overlay-panel-docked" onFocus={handleOverlayPanelFocus}>
+          <div className={`chat-overlay-panel chat-overlay-panel-docked ${isOverlayDocked ? "" : "chat-overlay-panel-hidden"}`} onFocus={handleOverlayPanelFocus}>
             <ChatTab mood={chatMood} onMoodChange={handleMoodChange} onDataMutated={handleDataMutated} />
           </div>
-          <button
-            type="button"
-            className="chat-overlay-docked-close-btn"
-            onClick={closeChatOverlay}
-            aria-label={t("Close chat overlay")}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
+          {isOverlayDocked && (
+            <button
+              type="button"
+              className="chat-overlay-docked-close-btn"
+              onClick={closeChatOverlay}
+              aria-label={t("Close chat overlay")}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          )}
         </>,
         document.body
       )
@@ -988,7 +990,9 @@ export default function App(): JSX.Element {
                   ? <LockedFeatureOverlay featureName={t("Growth")} previewImage={`${import.meta.env.BASE_URL}onboarding/growth-preview.png`} onUpgradeClick={() => openUpgradeModal(t("Growth"))} />
                   : <div key={`habits-${habitsRevision}`} className="habits-tab-container habits-analytics-stack">
                       <HabitsGoalsView />
-                      <AnalyticsDashboard />
+                      <Suspense fallback={<div className="analytics-loading-skeleton"><div className="skeleton-block skeleton-visual-sm" /><div className="skeleton-block" style={{height: 20}} /><div className="skeleton-block" style={{height: 20, width: "60%"}} /></div>}>
+                        <AnalyticsDashboard />
+                      </Suspense>
                     </div>
                 }
               </div>
@@ -1017,31 +1021,32 @@ export default function App(): JSX.Element {
           {/* Chat overlay — docked viewport mode on iOS touch */}
           {dockedOverlayPortal}
 
-          {/* Chat overlay — floating bottom sheet on non-chat tabs */}
+          {/* Chat overlay — floating bottom sheet on non-chat tabs.
+               Always mounted (hidden via CSS) to preserve messages & streaming state across open/close. */}
           {chatOverlayOpen && !isChatTab && !isOverlayDocked && (
-            <>
-              <div className="chat-overlay-backdrop" onClick={closeChatOverlay} />
-              <div
-                className="chat-overlay-panel"
-                onFocus={handleOverlayPanelFocus}
+            <div className="chat-overlay-backdrop" onClick={closeChatOverlay} />
+          )}
+          {!isIosTouchDevice && (
+          <div
+            className={`chat-overlay-panel ${chatOverlayOpen && !isChatTab ? "" : "chat-overlay-panel-hidden"}`}
+            onFocus={handleOverlayPanelFocus}
+          >
+            <div className="chat-overlay-header">
+              <span className="chat-overlay-title">{t("Chat")}</span>
+              <button
+                type="button"
+                className="chat-overlay-close-btn"
+                onClick={closeChatOverlay}
+                aria-label={t("Close chat overlay")}
               >
-                <div className="chat-overlay-header">
-                  <span className="chat-overlay-title">{t("Chat")}</span>
-                  <button
-                    type="button"
-                    className="chat-overlay-close-btn"
-                    onClick={closeChatOverlay}
-                    aria-label={t("Close chat overlay")}
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                  </button>
-                </div>
-                <ChatTab mood={chatMood} onMoodChange={handleMoodChange} onDataMutated={handleDataMutated} />
-              </div>
-            </>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+            <ChatTab mood={chatMood} onMoodChange={handleMoodChange} onDataMutated={handleDataMutated} />
+          </div>
           )}
 
           {/* Floating chat button — visible on non-chat tabs when overlay is closed */}

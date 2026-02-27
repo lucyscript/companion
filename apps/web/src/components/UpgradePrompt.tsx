@@ -11,6 +11,7 @@ import {
 import { useI18n } from "../lib/i18n";
 import type { ConnectorService, FeatureId, PlanId, PlanTierSummary, UserPlanInfo } from "../types";
 import { IconSparkles } from "./Icons";
+import { trackConversion } from "../lib/analytics";
 
 type PaymentMethod = "vipps" | "stripe";
 
@@ -32,6 +33,7 @@ export function UpgradePrompt({ feature, onDismiss }: UpgradePromptProps): JSX.E
   const [selectedPayment, setSelectedPayment] = useState<PaymentMethod>("vipps");
 
   useEffect(() => {
+    trackConversion("view_pricing", { feature: feature ?? undefined });
     void getPlanTiers().then(setTiers).catch(() => {});
     void getUserPlan().then(setPlanInfo).catch(() => {});
     void getStripeStatus().then((s) => {
@@ -46,6 +48,7 @@ export function UpgradePrompt({ feature, onDismiss }: UpgradePromptProps): JSX.E
   }, []);
 
   const handleStartTrial = useCallback(async () => {
+    trackConversion("start_trial");
     setStarting(true);
     setError(null);
     try {
@@ -66,6 +69,7 @@ export function UpgradePrompt({ feature, onDismiss }: UpgradePromptProps): JSX.E
   }, [t]);
 
   const handleStripeCheckout = useCallback(async (plan: PlanId) => {
+    trackConversion("start_checkout", { plan, method: "stripe" });
     setStarting(true);
     setError(null);
     try {
@@ -84,6 +88,7 @@ export function UpgradePrompt({ feature, onDismiss }: UpgradePromptProps): JSX.E
   }, []);
 
   const handleVippsCheckout = useCallback(async (plan: PlanId) => {
+    trackConversion("start_checkout", { plan, method: "vipps" });
     setStarting(true);
     setError(null);
     try {

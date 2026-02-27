@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <style>
+    @keyframes gentle-float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
+    @keyframes soft-pulse { 0%,100%{opacity:0.15} 50%{opacity:0.3} }
+    @keyframes steam-rise { 0%{opacity:0.5;transform:translateY(0)} 100%{opacity:0;transform:translateY(-16px)} }
+    .plate-float{animation:gentle-float 4s ease-in-out infinite}
+    .glow{animation:soft-pulse 3s ease-in-out infinite}
+    .steam{animation:steam-rise 2.5s ease-out infinite}
+    .steam:nth-child(2){animation-delay:0.5s}
+    .steam:nth-child(3){animation-delay:1s}
+  </style>
+  <g class="plate-float">
+    <!-- Plate -->
+    <ellipse cx="100" cy="130" rx="52" ry="12" fill="rgba(96,165,250,0.04)" stroke="#60a5fa" stroke-width="1" stroke-opacity="0.2"/>
+    <ellipse cx="100" cy="126" rx="48" ry="10" fill="rgba(96,165,250,0.06)" stroke="#60a5fa" stroke-width="0.5" stroke-opacity="0.15"/>
+    <!-- Fork -->
+    <g transform="translate(60, 70) rotate(15)">
+      <line x1="0" y1="0" x2="0" y2="40" stroke="#a1a1aa" stroke-width="2" stroke-opacity="0.25" stroke-linecap="round"/>
+      <line x1="0" y1="0" x2="0" y2="14" stroke="#a1a1aa" stroke-width="1.5" stroke-opacity="0.3" stroke-linecap="round"/>
+      <line x1="-4" y1="0" x2="-4" y2="12" stroke="#a1a1aa" stroke-width="1.5" stroke-opacity="0.25" stroke-linecap="round"/>
+      <line x1="4" y1="0" x2="4" y2="12" stroke="#a1a1aa" stroke-width="1.5" stroke-opacity="0.25" stroke-linecap="round"/>
+    </g>
+    <!-- Knife -->
+    <g transform="translate(140, 70) rotate(-15)">
+      <line x1="0" y1="0" x2="0" y2="40" stroke="#a1a1aa" stroke-width="2" stroke-opacity="0.25" stroke-linecap="round"/>
+      <path d="M0 0 C5 3 5 12 0 14" stroke="#a1a1aa" stroke-width="1" stroke-opacity="0.25" fill="none"/>
+    </g>
+    <!-- Steam wisps -->
+    <path class="steam" d="M92 92 Q89 85 92 78" stroke="#60a5fa" stroke-width="1.5" stroke-opacity="0.2" stroke-linecap="round" fill="none"/>
+    <path class="steam" d="M100 88 Q97 81 100 74" stroke="#60a5fa" stroke-width="1.5" stroke-opacity="0.2" stroke-linecap="round" fill="none"/>
+    <path class="steam" d="M108 92 Q105 85 108 78" stroke="#60a5fa" stroke-width="1.5" stroke-opacity="0.2" stroke-linecap="round" fill="none"/>
+    <!-- Plus icon suggesting adding food -->
+    <circle cx="100" cy="118" r="10" fill="rgba(96,165,250,0.06)" stroke="#60a5fa" stroke-width="1" stroke-opacity="0.3"/>
+    <line x1="96" y1="118" x2="104" y2="118" stroke="#60a5fa" stroke-width="1.5" stroke-opacity="0.4" stroke-linecap="round"/>
+    <line x1="100" y1="114" x2="100" y2="122" stroke="#60a5fa" stroke-width="1.5" stroke-opacity="0.4" stroke-linecap="round"/>
+  </g>
+  <!-- Glow ring -->
+  <circle class="glow" cx="100" cy="110" r="60" stroke="#60a5fa" stroke-width="0.5" fill="none"/>
+</svg>

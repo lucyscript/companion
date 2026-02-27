@@ -30,10 +30,11 @@ export function isStandalone(): boolean {
 
 /**
  * Determines if the install prompt should be shown
- * Shows only on iOS Safari when NOT in standalone mode
+ * Shows on iOS Safari (manual instructions) OR when beforeinstallprompt fires (Chrome/Edge/Android)
  */
 export function shouldShowInstallPrompt(): boolean {
-  return isIOSSafari() && !isStandalone();
+  if (isStandalone()) return false;
+  return isIOSSafari() || hasDeferredInstallPrompt();
 }
 
 /**
@@ -56,4 +57,54 @@ export function dismissInstallPrompt(): void {
   } catch {
     // Silently fail if localStorage is not available
   }
+}
+
+/* ── beforeinstallprompt support (Chrome / Edge / Android) ── */
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt(): Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+}
+
+let deferredPrompt: BeforeInstallPromptEvent | null = null;
+const listeners: Array<() => void> = [];
+
+/** Returns true if we captured a beforeinstallprompt event */
+export function hasDeferredInstallPrompt(): boolean {
+  return deferredPrompt !== null;
+}
+
+/** Trigger the native install prompt. Returns the user's choice. */
+export async function triggerNativeInstall(): Promise<"accepted" | "dismissed" | "unavailable"> {
+  if (!deferredPrompt) return "unavailable";
+  try {
+    await deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    return outcome;
+  } catch {
+    return "unavailable";
+  }
+}
+
+/** Subscribe to know when a deferred prompt becomes available */
+export function onInstallPromptAvailable(cb: () => void): () => void {
+  listeners.push(cb);
+  // If already available, fire immediately
+  if (deferredPrompt) {
+    queueMicrotask(cb);
+  }
+  return () => {
+    const idx = listeners.indexOf(cb);
+    if (idx >= 0) listeners.splice(idx, 1);
+  };
+}
+
+// Capture the event globally as early as possible
+if (typeof window !== "undefined") {
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    deferredPrompt = e as BeforeInstallPromptEvent;
+    listeners.forEach((cb) => cb());
+  });
 }

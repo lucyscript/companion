@@ -5,11 +5,12 @@ import { ConnectorsView } from "./ConnectorsView";
 import { deleteAllUserData } from "../lib/api";
 import { clearCompanionSessionData } from "../lib/storage";
 import { useI18n } from "../lib/i18n";
-import { THEME_OPTIONS } from "../lib/theme";
+import { trackConversion } from "../lib/analytics";
+import { THEME_OPTIONS, DEFAULT_THEME } from "../lib/theme";
 import type { ThemePreference, UserPlanInfo } from "../types";
 import {
   IconGear, IconDiamond, IconSparkles, IconPalette, IconLink, IconGlobe,
-  IconTarget, IconBell, IconShield, IconTrash, IconWarning, IconCircleFilled
+  IconTarget, IconBell, IconShield, IconTrash, IconWarning, IconCircleFilled, IconLock
 } from "./Icons";
 
 interface SettingsViewProps {
@@ -56,6 +57,34 @@ export function SettingsView({
   const [deleteConfirmStep, setDeleteConfirmStep] = useState<0 | 1 | 2>(0);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [referralCopied, setReferralCopied] = useState(false);
+  const [showQr, setShowQr] = useState(false);
+
+  const referralUrl = `${window.location.origin}${import.meta.env.BASE_URL}?ref=${encodeURIComponent(userEmail ?? "friend")}`;
+
+  const handleCopyReferral = async (): Promise<void> => {
+    trackConversion("share_referral", { method: "copy" });
+    try {
+      await navigator.clipboard.writeText(referralUrl);
+      setReferralCopied(true);
+      setTimeout(() => setReferralCopied(false), 2000);
+    } catch { /* clipboard may be blocked */ }
+  };
+
+  const handleShareReferral = async (): Promise<void> => {
+    trackConversion("share_referral", { method: "share_api" });
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: "Companion – AI Study Buddy",
+          text: t("I've been using Companion to manage my studies. Try it out!"),
+          url: referralUrl,
+        });
+      } catch { /* user cancelled */ }
+    } else {
+      void handleCopyReferral();
+    }
+  };
 
   const handleDeleteAccount = async (): Promise<void> => {
     setDeleteLoading(true);
@@ -151,25 +180,32 @@ export function SettingsView({
           <div className="settings-theme-grid">
             {THEME_OPTIONS.map((theme) => {
               const selected = themePreference === theme.id;
+              const isLocked = themesLocked && theme.id !== DEFAULT_THEME;
               return (
-                <button
-                  key={theme.id}
-                  type="button"
-                  className={`settings-theme-option ${selected ? "settings-theme-option-active" : ""}`}
-                  onClick={() => onThemeChange(theme.id)}
-                  disabled={themesLocked}
-                  aria-pressed={selected}
-                >
-                  <span className="settings-theme-swatches" aria-hidden="true">
-                    {theme.preview.map((color) => (
-                      <span key={color} className="settings-theme-swatch" style={{ background: color }} />
-                    ))}
-                  </span>
-                  <span className="settings-theme-text">
-                    <span className="settings-theme-label">{theme.label}</span>
-                    <span className="settings-theme-desc">{theme.description}</span>
-                  </span>
-                </button>
+                <div key={theme.id} className={`settings-theme-option-wrap${isLocked ? " settings-theme-option-locked" : ""}`}>
+                  <button
+                    type="button"
+                    className={`settings-theme-option ${selected ? "settings-theme-option-active" : ""}`}
+                    onClick={() => onThemeChange(theme.id)}
+                    disabled={isLocked}
+                    aria-pressed={selected}
+                  >
+                    <span className="settings-theme-swatches" aria-hidden="true">
+                      {theme.preview.map((color) => (
+                        <span key={color} className="settings-theme-swatch" style={{ background: color }} />
+                      ))}
+                    </span>
+                    <span className="settings-theme-text">
+                      <span className="settings-theme-label">{theme.label}</span>
+                      <span className="settings-theme-desc">{theme.description}</span>
+                    </span>
+                  </button>
+                  {isLocked && (
+                    <div className="settings-theme-lock-overlay" onClick={onUpgrade} role="button" tabIndex={0} aria-label={t("Upgrade to unlock {theme}", { theme: theme.label })}>
+                      <IconLock size={18} />
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>
@@ -253,6 +289,52 @@ export function SettingsView({
         </div>
 
         <NotificationSettings />
+      </div>
+
+      {/* Referral section */}
+      <div className="settings-section">
+        <h3 className="settings-section-title"><IconSparkles size={16} style={{ verticalAlign: 'middle', marginRight: 4 }} /> {t("Invite Friends")}</h3>
+        <div className="settings-referral-card">
+          <p className="settings-referral-info">
+            {t("Share Companion with a classmate. The more friends who join, the better the study network.")}
+          </p>
+          <div className="settings-referral-link-row">
+            <input
+              type="text"
+              className="settings-referral-input"
+              value={referralUrl}
+              readOnly
+              onFocus={(e) => { e.target.select(); trackConversion("view_referral"); }}
+            />
+            <button type="button" className="settings-referral-copy-btn" onClick={() => void handleCopyReferral()}>
+              {referralCopied ? t("Copied!") : t("Copy")}
+            </button>
+          </div>
+          {typeof navigator.share === "function" && (
+            <button type="button" className="settings-referral-share-btn" onClick={() => void handleShareReferral()}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: 'middle', marginRight: 4 }}>
+                <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+              </svg>
+              {t("Share with friends")}
+            </button>
+          )}
+          <button type="button" className="settings-referral-qr-toggle" onClick={() => setShowQr(!showQr)}>
+            {showQr ? t("Hide QR code") : t("Show QR code")}
+          </button>
+          {showQr && (
+            <div className="settings-referral-qr">
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(referralUrl)}&bgcolor=0c1824&color=58a6ff&format=svg`}
+                alt={t("QR code to install Companion")}
+                width={160}
+                height={160}
+                loading="lazy"
+              />
+              <p className="settings-referral-qr-hint">{t("Scan to open Companion on another device")}</p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* GDPR / Data section */}

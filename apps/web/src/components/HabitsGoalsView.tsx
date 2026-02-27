@@ -10,6 +10,8 @@ import { Goal, Habit } from "../types";
 import { hapticSuccess } from "../lib/haptics";
 import { AnimatedFlame, AnimatedTrophy } from "./AnimatedIcons";
 
+const EMPTY_GROWTH_SVG = `${(import.meta.env.BASE_URL ?? "/").replace(/\/+$/, "")}/illustrations/empty-growth.svg`;
+
 interface BusyState {
   type: "habit" | "goal";
   id: string;
@@ -239,12 +241,23 @@ export function HabitsGoalsView(): JSX.Element {
 
       <div className="habit-grid">
         {habits.map(renderHabit)}
-        {habits.length === 0 && <p className="muted">{t("No habits yet — ask Gemini to create one.")}</p>}
+        {habits.length === 0 && (
+          <div className="growth-empty-state">
+            <img className="empty-state-illustration" src={EMPTY_GROWTH_SVG} alt="" width="100" height="100" />
+            <p>{t("No habits yet — ask Gemini to create one.")}</p>
+            <p className="growth-empty-hint">{t("Try saying \"Create a gym habit\" in Chat")}</p>
+          </div>
+        )}
       </div>
 
       <div className="habit-grid">
         {goals.map(renderGoal)}
-        {goals.length === 0 && <p className="muted">{t("No goals yet — ask Gemini to create one.")}</p>}
+        {goals.length === 0 && (
+          <div className="growth-empty-state">
+            <p className="muted">{t("No goals yet — ask Gemini to create one.")}</p>
+            <p className="growth-empty-hint">{t("Try saying \"Set a goal to exercise 3x/week\" in Chat")}</p>
+          </div>
+        )}
       </div>
     </section>
   );
