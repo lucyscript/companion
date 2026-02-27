@@ -1092,21 +1092,29 @@ export function ConnectorsView({ planInfo, onUpgrade }: ConnectorsViewProps): JS
     const busy = submitting === connector.service;
     const statusDetail = connected ? getStatusDetail(connector.service) : null;
 
+    const toggleSubExpand = (): void => {
+      setExpandedService(prev => prev === connector.service ? null : connector.service);
+      setError(null);
+    };
+
     return (
-      <div key={connector.service} className={`connector-mcp-addon ${connected ? "connector-mcp-addon-connected" : ""}`}>
-        <div
-          className="connector-mcp-addon-head"
-          onClick={() => {
-            if (!connected) {
-              setExpandedService(prev => prev === connector.service ? null : connector.service);
-              setError(null);
-            }
-          }}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => e.key === "Enter" && !connected && setExpandedService(prev => prev === connector.service ? null : connector.service)}
-          style={{ cursor: connected ? "default" : "pointer" }}
-        >
+      <div
+        key={connector.service}
+        className={`connector-mcp-addon ${connected ? "connector-mcp-addon-connected" : ""} ${expanded ? "connector-mcp-addon-expanded" : ""}`}
+        onClick={(e) => {
+          // Don't toggle when clicking interactive children (buttons, inputs, details)
+          const target = e.target as HTMLElement;
+          if (target.closest("details, button, input, a, .connector-actions")) return;
+          toggleSubExpand();
+        }}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !(e.target as HTMLElement).closest("details, button, input, a")) toggleSubExpand();
+        }}
+        style={{ cursor: "pointer" }}
+      >
+        <div className="connector-mcp-addon-head">
           <span className="connector-mcp-addon-title-wrap">
             <img
               className="connector-mcp-addon-icon"
@@ -1127,7 +1135,7 @@ export function ConnectorsView({ planInfo, onUpgrade }: ConnectorsViewProps): JS
         {!connected && !expanded && (
           <p className="connector-help-text">{t(connector.description)}</p>
         )}
-        <details className="connector-read-more connector-read-more-compact">
+        <details className="connector-read-more connector-read-more-compact" onClick={(e) => e.stopPropagation()}>
           <summary>{t("Read more")}</summary>
           <ul className="connector-read-more-list">
             {connector.readMoreItems.map((item) => (
@@ -1233,8 +1241,18 @@ export function ConnectorsView({ planInfo, onUpgrade }: ConnectorsViewProps): JS
     );
   };
 
+  /** Scroll focused input into view on mobile keyboards so it's not hidden. */
+  const handleConnectorInputFocus = (e: React.FocusEvent<HTMLDivElement>): void => {
+    const target = e.target as HTMLElement;
+    if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+      window.setTimeout(() => {
+        target.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 320); // Wait for mobile keyboard animation
+    }
+  };
+
   return (
-    <div className="connectors-list">
+    <div className="connectors-list" onFocus={handleConnectorInputFocus}>
       {/* AI Assistant — always first */}
       <section className="connector-section">
         <div className={`connector-card ${geminiStatus.apiConfigured ? "connector-connected" : ""}`}>

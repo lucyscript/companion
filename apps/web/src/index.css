@@ -6606,6 +6606,7 @@ body:not(.keyboard-open) .app-shell-chat-active .chat-messages {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  padding-bottom: 260px; /* extra scroll room for on-screen keyboard */
 }
 
 .connector-section {
@@ -7008,6 +7009,17 @@ body:not(.keyboard-open) .app-shell-chat-active .chat-messages {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease;
+}
+
+.connector-mcp-addon:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.connector-mcp-addon-expanded {
+  border-color: var(--accent);
 }
 
 .connector-mcp-addon-head {
