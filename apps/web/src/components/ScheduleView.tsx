@@ -410,11 +410,7 @@ export function ScheduleView({ focusLectureId }: ScheduleViewProps): JSX.Element
 
   return (
     <section
-      className="schedule-card schedule-card-swipeable"
-      onTouchStart={handleScheduleTouchStart}
-      onTouchMove={handleScheduleTouchMove}
-      onTouchEnd={handleScheduleTouchEnd}
-      onTouchCancel={resetScheduleSwipe}
+      className="schedule-card"
     >
       {/* Compact header with integrated day nav */}
       <div className="sched-header">
@@ -481,9 +477,13 @@ export function ScheduleView({ focusLectureId }: ScheduleViewProps): JSX.Element
 
       <div
         key={dayAnimationKey}
-        className={`schedule-day-surface ${
+        className={`schedule-day-surface schedule-card-swipeable ${
           dayTransitionDirection ? `schedule-day-surface-${dayTransitionDirection}` : ""
         }`}
+        onTouchStart={handleScheduleTouchStart}
+        onTouchMove={handleScheduleTouchMove}
+        onTouchEnd={handleScheduleTouchEnd}
+        onTouchCancel={resetScheduleSwipe}
       >
         {/* Timeline */}
         {loading ? (
