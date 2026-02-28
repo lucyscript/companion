@@ -41,16 +41,13 @@ function extractMoodFromToolResponses(responses: ExecutedFunctionResponse[]): Ch
   for (const r of responses) {
     if (r.name === "setResponseMood") {
       const raw = r.rawResponse as { mood?: string };
-      console.log(`[mood] extractMoodFromToolResponses: found setResponseMood, rawResponse=${JSON.stringify(raw)}`);
       if (raw?.mood && VALID_MOODS.has(raw.mood)) {
         return raw.mood as ChatMood;
       }
       // Fallback: if mood was set but not in valid set, default to neutral
-      console.log(`[mood] mood value "${raw?.mood}" not in VALID_MOODS, falling back to neutral`);
       return "neutral";
     }
   }
-  console.log(`[mood] no setResponseMood found in ${responses.length} tool responses`);
   return undefined;
 }
 
@@ -1177,9 +1174,6 @@ export async function flushJournalSessionBuffer(
   }
 
   const turnCount = entries.length;
-  console.log(
-    `[journal] Flushing session: ${turnCount} turn(s), avg salience=${avgSalience.toFixed(2)}, topic="${textSnippet(extracted.event, 60)}"`
-  );
 
   store.upsertReflectionEntry(userId, {
     entryType: extracted.entryType,
@@ -3923,7 +3917,6 @@ export async function sendChatMessage(
 
   const finalReply = rawReply;
   const resolvedMood = extractMoodFromToolResponses(executedFunctionResponses);
-  console.log(`[mood] Final resolved mood: ${resolvedMood ?? "undefined (no tool call)"}`);
 
   if (!useNativeStreaming || streamedTokenChars === 0) {
     emitTextChunks(finalReply, options.onTextChunk);
@@ -3955,6 +3948,8 @@ export async function sendChatMessage(
     ...(pendingActionsFromTooling.length > 0 ? { pendingActions: store.getPendingChatActions(userId, now) } : {}),
     ...(citations.size > 0 ? { citations: Array.from(citations.values()).slice(0, MAX_CHAT_CITATIONS) } : {})
   };
+
+  console.log(`[gemini] message complete: userId=${userId} prompt=${totalUsage?.promptTokens ?? 0} response=${totalUsage?.responseTokens ?? 0} total=${totalUsage?.totalTokens ?? 0} tools=${executedFunctionResponses.length} context=${contextWindow}`);
 
   const assistantMessage = store.recordChatMessage(userId, "assistant", finalReply, assistantMetadata);
   void bufferForJournalBatch(store, userId, userMessage, assistantMessage, gemini);

@@ -982,7 +982,7 @@ export default function App(): JSX.Element {
               <div key="nutrition" className="tab-panel tab-panel-active">
                 {isTabLocked("nutrition")
                   ? <LockedFeatureOverlay featureName={t("Food")} previewImage={`${import.meta.env.BASE_URL}onboarding/food-preview.png`} onUpgradeClick={() => openUpgradeModal(t("Food"))} />
-                  : <NutritionView key={`nutrition-${nutritionRevision}`} />
+                  : <NutritionView key={`nutrition-${nutritionRevision}`} onNavigateToChat={() => setActiveTab("chat")} />
                 }
               </div>
             )}

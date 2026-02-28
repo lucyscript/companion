@@ -481,7 +481,7 @@ function isMealCompleted(meal: NutritionMeal): boolean {
   return typeof meal.notes === "string" && meal.notes.includes(MEAL_DONE_TOKEN);
 }
 
-export function NutritionView(): JSX.Element {
+export function NutritionView({ onNavigateToChat }: { onNavigateToChat?: () => void }): JSX.Element {
   const todayKey = useMemo(() => toDateKey(new Date()), []);
   const amountHoldTimers = useRef<Record<string, number>>({});
   const amountHoldIntervals = useRef<Record<string, number>>({});
@@ -1462,9 +1462,26 @@ export function NutritionView(): JSX.Element {
             <h3>Meals</h3>
             {meals.length === 0 ? (
               <div className="nutrition-empty-state">
-                <img className="empty-state-illustration" src={EMPTY_FOOD_SVG} alt="" width="120" height="120" />
+                <img
+                  className="empty-state-illustration"
+                  src={EMPTY_FOOD_SVG}
+                  alt="Log your first meal"
+                  width="120"
+                  height="120"
+                  onClick={onNavigateToChat}
+                  style={onNavigateToChat ? { cursor: "pointer" } : undefined}
+                  role={onNavigateToChat ? "button" : undefined}
+                  tabIndex={onNavigateToChat ? 0 : undefined}
+                  onKeyDown={onNavigateToChat ? (e) => { if (e.key === "Enter" || e.key === " ") onNavigateToChat(); } : undefined}
+                />
                 <p className="nutrition-empty-title">No meals logged yet</p>
-                <p className="nutrition-empty-hint">Say <strong>"log my lunch"</strong> in Chat to start tracking your nutrition</p>
+                <p className="nutrition-empty-hint">Try saying:</p>
+                <div className="nutrition-empty-suggestions">
+                  <span className="nutrition-suggestion-pill" onClick={onNavigateToChat} role="button" tabIndex={0}>"Log my lunch"</span>
+                  <span className="nutrition-suggestion-pill" onClick={onNavigateToChat} role="button" tabIndex={0}>"I had 2 eggs and toast"</span>
+                  <span className="nutrition-suggestion-pill" onClick={onNavigateToChat} role="button" tabIndex={0}>"Add a coffee with milk"</span>
+                </div>
+                <p className="nutrition-empty-hint">Tap the food icon above to open Chat</p>
               </div>
             ) : (
               <div className="nutrition-list">

@@ -5642,7 +5642,6 @@ export function executeFunctionCall(
       const validMoodSet = new Set(["neutral", "encouraging", "focused", "celebratory", "empathetic", "urgent"]);
       const rawMood = typeof args.mood === "string" ? args.mood.toLowerCase().trim() : "neutral";
       const mood = validMoodSet.has(rawMood) ? rawMood : "neutral";
-      console.log(`[mood] setResponseMood called: raw="${String(args.mood)}" → resolved="${mood}"`);
       response = { mood };
       break;
     }

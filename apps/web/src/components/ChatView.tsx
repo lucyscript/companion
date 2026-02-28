@@ -1,4 +1,4 @@
-import { Fragment, ReactNode, useEffect, useRef, useState } from "react";
+import { Fragment, ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { sendChatMessageStream, getChatHistory } from "../lib/api";
 import { ChatCitation, ChatImageAttachment, ChatMessage, ChatMood, ChatPendingAction } from "../types";
 import {
@@ -456,6 +456,22 @@ export function ChatView({ mood, onMoodChange, onDataMutated }: ChatViewProps): 
   const recognitionCtor = getSpeechRecognitionCtor();
   const speechRecognitionSupported = Boolean(recognitionCtor);
 
+  // Auto-resize textarea: expand by at most 1 extra line when content overflows
+  const autoResizeTextarea = useCallback(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    // Single line height ~36px (min-height). Allow max 2 lines (~54px content).
+    const singleLineHeight = 36;
+    const maxHeight = singleLineHeight + 20; // one extra line
+    el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
+  }, []);
+
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInputText(e.target.value);
+    autoResizeTextarea();
+  }, [autoResizeTextarea]);
+
   const scrollToBottom = (behavior: ScrollBehavior = "smooth"): void => {
     const container = messagesContainerRef.current;
     if (container) {
@@ -856,6 +872,7 @@ export function ChatView({ mood, onMoodChange, onDataMutated }: ChatViewProps): 
     setSendFlying(true);
     setTimeout(() => setSendFlying(false), 400);
     setInputText("");
+    if (inputRef.current) inputRef.current.style.height = "auto";
     setPendingAttachments([]);
     await dispatchMessage(trimmedText, attachmentsToSend);
   };
@@ -1209,7 +1226,7 @@ export function ChatView({ mood, onMoodChange, onDataMutated }: ChatViewProps): 
             className="chat-input"
             placeholder="Ask me anything..."
             value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
+            onChange={handleInputChange}
             onKeyDown={handleComposerKeyDown}
             disabled={isSending}
             rows={1}

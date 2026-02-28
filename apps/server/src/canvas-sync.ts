@@ -127,6 +127,7 @@ export class CanvasSyncService {
 
     const execute = async (): Promise<CanvasSyncResult> => {
       const client = shouldUseOverrideClient ? new CanvasClient(options?.baseUrl, options?.token) : this.client;
+      console.log(`[canvas] sync start: userId=${this.userId} override=${shouldUseOverrideClient} courseFilter=${options?.courseIds?.join(",") ?? "all"}`);
 
       try {
         const courses = await client.getCourses();
@@ -162,6 +163,8 @@ export class CanvasSyncService {
         const deadlineBridge = this.deadlineBridge.syncAssignments(scopedCourses, filteredAssignments);
         publishNewDeadlineReleaseNotifications(this.store, this.userId, "canvas", deadlineBridge.createdDeadlines);
 
+        console.log(`[canvas] sync success: userId=${this.userId} courses=${scopedCourses.length} assignments=${filteredAssignments.length} modules=${modules.length} announcements=${announcements.length} deadlines_created=${deadlineBridge.createdDeadlines.length}`);
+
         return {
           success: true,
           coursesCount: scopedCourses.length,
@@ -172,6 +175,7 @@ export class CanvasSyncService {
         };
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Unknown error";
+        console.error(`[canvas] sync failed: userId=${this.userId} error=${errorMessage}`);
 
         return {
           success: false,
