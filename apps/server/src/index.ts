@@ -37,6 +37,7 @@ import type { CanvasSyncOptions } from "./canvas-sync.js";
 import { CanvasClient } from "./canvas-client.js";
 import { BlackboardSyncService } from "./blackboard-sync.js";
 import { TeamsSyncService } from "./teams-sync.js";
+import { MicrosoftOAuthService } from "./microsoft-oauth.js";
 import { WithingsOAuthService } from "./withings-oauth.js";
 import { WithingsSyncService } from "./withings-sync.js";
 import { buildStudyPlanCalendarIcs } from "./study-plan-export.js";
@@ -257,6 +258,7 @@ const dailySummaryCache = new Map<string, DailyGrowthSummary>();
 const canvasSyncServicesByUser = new Map<string, CanvasSyncService>();
 const blackboardSyncServicesByUser = new Map<string, BlackboardSyncService>();
 const teamsSyncServicesByUser = new Map<string, TeamsSyncService>();
+const microsoftOAuthServicesByUser = new Map<string, MicrosoftOAuthService>();
 const withingsOAuthServicesByUser = new Map<string, WithingsOAuthService>();
 const withingsSyncServicesByUser = new Map<string, WithingsSyncService>();
 
@@ -270,6 +272,7 @@ interface PendingMcpGitHubOAuthState extends PendingOAuthState {
 }
 
 const withingsPendingOAuthStates = new Map<string, PendingOAuthState>();
+const microsoftPendingOAuthStates = new Map<string, PendingOAuthState>();
 const mcpGitHubPendingOAuthStates = new Map<string, PendingMcpGitHubOAuthState>();
 const tpSyncInFlightUsers = new Set<string>();
 
@@ -429,8 +432,16 @@ function getTeamsSyncServiceForUser(userId: string): TeamsSyncService {
     return existing;
   }
 
-  const created = new TeamsSyncService(store, userId);
+  const created = new TeamsSyncService(store, userId, getMicrosoftOAuthServiceForUser(userId));
   teamsSyncServicesByUser.set(userId, created);
+  return created;
+}
+
+function getMicrosoftOAuthServiceForUser(userId: string): MicrosoftOAuthService {
+  const existing = microsoftOAuthServicesByUser.get(userId);
+  if (existing) return existing;
+  const created = new MicrosoftOAuthService(store, userId);
+  microsoftOAuthServicesByUser.set(userId, created);
   return created;
 }
 
@@ -906,6 +917,7 @@ function isPublicApiRoute(method: string, path: string): boolean {
     (method === "GET" && path === "/api/auth/github/callback") ||
     (method === "GET" && path === "/api/auth/withings") ||
     (method === "GET" && path === "/api/auth/withings/callback") ||
+    (method === "GET" && path === "/api/auth/microsoft/callback") ||
     (method === "GET" && path === "/api/plan/tiers") ||
     (method === "POST" && path === "/api/stripe/webhook") ||
     (method === "POST" && path === "/api/vipps/webhook")
@@ -1094,7 +1106,7 @@ function getOAuthFrontendRedirect(token: string): string {
 }
 
 function getIntegrationFrontendRedirect(
-  connector: "withings" | "mcp",
+  connector: "withings" | "mcp" | "teams",
   status: "connected" | "failed",
   message?: string,
 ): string {
@@ -1591,13 +1603,21 @@ app.post("/api/connectors/:service/connect", async (req, res) => {
     return res.json({ ok: true, service: "blackboard", autoSync: syncResult });
   }
 
-  // Microsoft Teams — OAuth stub (Graph API integration)
+  // Microsoft Teams — OAuth flow (Graph API integration)
   if (service === "teams") {
-    // Teams OAuth is not yet implemented — store as placeholder
-    return res.status(501).json({
-      error: "Microsoft Teams OAuth integration is coming soon",
-      service: "teams"
-    });
+    const msOAuth = getMicrosoftOAuthServiceForUser(authReq.authUser.id);
+    try {
+      const authUrl = msOAuth.getAuthUrl();
+      const state = extractStateFromUrl(authUrl);
+      if (!state) {
+        return res.status(500).json({ error: "Failed to initialize Microsoft OAuth state" });
+      }
+      registerPendingOAuthState(microsoftPendingOAuthStates, state, authReq.authUser.id);
+      return res.json({ redirectUrl: authUrl });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Microsoft OAuth error";
+      return res.status(500).json({ error: message });
+    }
   }
 
   return res.status(400).json({ error: "Unknown connector service" });
@@ -1628,6 +1648,8 @@ app.delete("/api/connectors/:service", (req, res) => {
       tmService.stop();
       teamsSyncServicesByUser.delete(authReq.authUser.id);
     }
+    microsoftOAuthServicesByUser.delete(authReq.authUser.id);
+    clearPendingOAuthStatesForUser(microsoftPendingOAuthStates, authReq.authUser.id);
   }
   if (parsed.data === "mcp") {
     clearMcpServers(store, authReq.authUser.id);
@@ -4609,6 +4631,47 @@ app.get("/api/auth/withings/callback", async (req, res) => {
   } catch (oauthError) {
     const errorMessage = oauthError instanceof Error ? oauthError.message : "Unknown error";
     return res.redirect(getIntegrationFrontendRedirect("withings", "failed", errorMessage));
+  }
+});
+
+// ── Microsoft OAuth callback (Teams / Graph API) ──
+
+app.get("/api/auth/microsoft/callback", async (req, res) => {
+  const error = typeof req.query.error === "string" ? req.query.error : null;
+  if (error) {
+    const errorDescription = typeof req.query.error_description === "string"
+      ? req.query.error_description : error;
+    return res.redirect(getIntegrationFrontendRedirect("teams", "failed", errorDescription));
+  }
+
+  const code = typeof req.query.code === "string" ? req.query.code : null;
+  const state = typeof req.query.state === "string" ? req.query.state : null;
+
+  if (!code || !state) {
+    return res.redirect(getIntegrationFrontendRedirect("teams", "failed", "Missing authorization code or state"));
+  }
+
+  const userId = consumePendingOAuthStateUserId(microsoftPendingOAuthStates, state);
+  if (!userId) {
+    return res.redirect(getIntegrationFrontendRedirect("teams", "failed", "Invalid or expired Microsoft OAuth state"));
+  }
+
+  try {
+    const msOAuth = getMicrosoftOAuthServiceForUser(userId);
+    await msOAuth.handleCallback(code, state);
+
+    // Kick off Teams sync now that we have valid tokens
+    const teamsService = getTeamsSyncServiceForUser(userId);
+    if (!teamsSyncServicesByUser.has(userId)) {
+      teamsSyncServicesByUser.set(userId, teamsService);
+      teamsService.start();
+    }
+    void teamsService.triggerSync().catch(() => {});
+
+    return res.redirect(getIntegrationFrontendRedirect("teams", "connected"));
+  } catch (oauthError) {
+    const errorMessage = oauthError instanceof Error ? oauthError.message : "Unknown error";
+    return res.redirect(getIntegrationFrontendRedirect("teams", "failed", errorMessage));
   }
 });
 

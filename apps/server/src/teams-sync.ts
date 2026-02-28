@@ -9,6 +9,7 @@
 
 import { RuntimeStore } from "./store.js";
 import { TeamsClient } from "./teams-client.js";
+import { MicrosoftOAuthService } from "./microsoft-oauth.js";
 import { TeamsData, Deadline, Priority } from "./types.js";
 import { publishNewDeadlineReleaseNotifications } from "./deadline-release-notifications.js";
 import { SyncAutoHealingPolicy, SyncAutoHealingState } from "./sync-auto-healing.js";
@@ -34,6 +35,7 @@ export interface TeamsDeadlineBridgeResult {
 export class TeamsSyncService {
   private readonly store: RuntimeStore;
   private readonly userId: string;
+  private readonly msOAuth: MicrosoftOAuthService | null;
   private syncInterval: ReturnType<typeof setInterval> | null = null;
   private retryTimeout: ReturnType<typeof setTimeout> | null = null;
   private autoSyncInProgress = false;
@@ -48,15 +50,28 @@ export class TeamsSyncService {
     circuitOpenMs: 20 * 60 * 1000
   });
 
-  constructor(store: RuntimeStore, userId: string) {
+  constructor(store: RuntimeStore, userId: string, msOAuth?: MicrosoftOAuthService) {
     this.store = store;
     this.userId = userId;
+    this.msOAuth = msOAuth ?? null;
   }
 
   /**
    * Resolve OAuth access token from the user's stored connection.
+   * Uses MicrosoftOAuthService for automatic token refresh when available.
    */
-  private resolveClient(): TeamsClient | null {
+  private async resolveClient(): Promise<TeamsClient | null> {
+    // Prefer the OAuth service for automatic token refresh
+    if (this.msOAuth) {
+      try {
+        const accessToken = await this.msOAuth.getValidAccessToken();
+        return new TeamsClient(accessToken);
+      } catch {
+        return null;
+      }
+    }
+
+    // Fallback: read raw access token from connection credentials
     const connection = this.store.getUserConnection(this.userId, "teams");
     if (!connection?.credentials) return null;
 
@@ -70,7 +85,15 @@ export class TeamsSyncService {
   }
 
   isConfigured(): boolean {
-    return this.resolveClient()?.isConfigured() ?? false;
+    if (this.msOAuth) return this.msOAuth.isConnected();
+    const connection = this.store.getUserConnection(this.userId, "teams");
+    if (!connection?.credentials) return false;
+    try {
+      const parsed = JSON.parse(connection.credentials) as { accessToken?: string };
+      return Boolean(parsed.accessToken);
+    } catch {
+      return false;
+    }
   }
 
   start(intervalMs: number = 30 * 60 * 1000): void {
@@ -97,7 +120,7 @@ export class TeamsSyncService {
     if (this.syncInFlight) return this.syncInFlight;
 
     const execute = async (): Promise<TeamsSyncResult> => {
-      const client = this.resolveClient();
+      const client = await this.resolveClient();
       if (!client || !client.isConfigured()) {
         return {
           success: true,

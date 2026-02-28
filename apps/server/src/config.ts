@@ -85,6 +85,9 @@ const schema = z.object({
   GOOGLE_OAUTH_CLIENT_SECRET: z.string().optional(),
   GITHUB_OAUTH_CLIENT_ID: z.string().optional(),
   GITHUB_OAUTH_CLIENT_SECRET: z.string().optional(),
+  MICROSOFT_CLIENT_ID: z.string().optional(),
+  MICROSOFT_CLIENT_SECRET: z.string().optional(),
+  MICROSOFT_OAUTH_CALLBACK_URL: z.string().url().default("http://localhost:8787/api/auth/microsoft/callback"),
   OAUTH_REDIRECT_BASE_URL: z.string().url().optional(),
   FRONTEND_URL: z.string().url().default("http://localhost:5173")
 });
