@@ -159,9 +159,10 @@ function buildDayTimeline(
 
 interface ScheduleViewProps {
   focusLectureId?: string;
+  hasScheduleIntegration?: boolean;
 }
 
-export function ScheduleView({ focusLectureId }: ScheduleViewProps): JSX.Element {
+export function ScheduleView({ focusLectureId, hasScheduleIntegration }: ScheduleViewProps): JSX.Element {
   const { locale, t } = useI18n();
   const localeTag = locale === "no" ? "nb-NO" : "en-US";
   const [schedule, setSchedule] = useState<LectureEvent[]>([]);
@@ -569,7 +570,9 @@ export function ScheduleView({ focusLectureId }: ScheduleViewProps): JSX.Element
             <img className="empty-state-illustration" src={EMPTY_SCHEDULE_SVG} alt="" width="120" height="120" />
             <p>{dayOffset === 0 ? t("Nothing scheduled today") : t("Nothing scheduled this day")}</p>
             <p className="schedule-empty-hint">{t("Enjoy your free time, or ask Gemini to plan something")}</p>
-            <p className="schedule-empty-hint connector-hint">{t("Connect Canvas or TimeEdit in Settings → Integrations to auto-import lectures")}</p>
+            {!hasScheduleIntegration && (
+              <p className="schedule-empty-hint connector-hint">{t("Connect Canvas or TimeEdit in Settings → Integrations to auto-import lectures")}</p>
+            )}
           </div>
         )}
       </div>

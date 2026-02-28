@@ -9,6 +9,7 @@ const EMPTY_DEADLINES_SVG = `${(import.meta.env.BASE_URL ?? "/").replace(/\/+$/,
 
 interface DeadlineListProps {
   focusDeadlineId?: string;
+  hasDeadlineIntegration?: boolean;
 }
 
 const INITIAL_DEADLINE_BATCH_SIZE = 6;
@@ -37,7 +38,7 @@ function normalizeCourseCode(course: string): string {
   return course.replace(/[-–]\d+\s+\d{2}[VHvh]$/, "").trim();
 }
 
-export function DeadlineList({ focusDeadlineId }: DeadlineListProps): JSX.Element {
+export function DeadlineList({ focusDeadlineId, hasDeadlineIntegration }: DeadlineListProps): JSX.Element {
   const { locale, t } = useI18n();
   const localeTag = locale === "no" ? "nb-NO" : "en-US";
   const [deadlines, setDeadlines] = useState<Deadline[]>([]);
@@ -294,7 +295,9 @@ export function DeadlineList({ focusDeadlineId }: DeadlineListProps): JSX.Elemen
             <img className="empty-state-illustration" src={EMPTY_DEADLINES_SVG} alt="" width="120" height="120" />
             <p>{t("No deadlines tracked")}</p>
             <p className="deadline-empty-hint">{t("Add assignments to stay on top of your work")}</p>
-            <p className="deadline-empty-hint connector-hint">{t("Connect Canvas or Blackboard in Settings → Integrations to auto-import deadlines")}</p>
+            {!hasDeadlineIntegration && (
+              <p className="deadline-empty-hint connector-hint">{t("Connect Canvas or Blackboard in Settings → Integrations to auto-import deadlines")}</p>
+            )}
           </div>
         )}
       </div>
