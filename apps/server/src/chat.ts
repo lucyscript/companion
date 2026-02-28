@@ -3626,6 +3626,8 @@ export async function sendChatMessage(
   );
 
   const messages = toGeminiMessages(history, userInput, attachments);
+  console.log(`[gemini] system prompt: userId=${userId} length=${systemInstruction.length} tools=${activeToolDeclarations.length} messages=${messages.length}`);
+  console.log(`[gemini] system instruction:\n${systemInstruction}`);
   const userMessage = store.recordChatMessage(userId, "user", userInput, userMetadata);
   let response: Awaited<ReturnType<GeminiClient["generateChatResponse"]>> | null = null;
   let totalUsage: ChatUsage | undefined = undefined;

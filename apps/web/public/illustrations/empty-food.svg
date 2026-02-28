@@ -1,39 +1,96 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
   <style>
-    @keyframes gentle-float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
-    @keyframes soft-pulse { 0%,100%{opacity:0.15} 50%{opacity:0.3} }
-    @keyframes steam-rise { 0%{opacity:0.5;transform:translateY(0)} 100%{opacity:0;transform:translateY(-16px)} }
+    @keyframes gentle-float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
+    @keyframes soft-pulse { 0%,100%{opacity:0.12} 50%{opacity:0.28} }
+    @keyframes steam-rise { 0%{opacity:0.45;transform:translateY(0) scaleX(1)} 50%{opacity:0.2;transform:translateY(-10px) scaleX(1.15)} 100%{opacity:0;transform:translateY(-20px) scaleX(0.8)} }
+    @keyframes sparkle { 0%,100%{opacity:0;transform:scale(0.5)} 50%{opacity:0.7;transform:scale(1)} }
+    @keyframes ring-rotate { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
     .plate-float{animation:gentle-float 4s ease-in-out infinite}
     .glow{animation:soft-pulse 3s ease-in-out infinite}
-    .steam{animation:steam-rise 2.5s ease-out infinite}
-    .steam:nth-child(2){animation-delay:0.5s}
-    .steam:nth-child(3){animation-delay:1s}
+    .steam{animation:steam-rise 2.8s ease-out infinite;transform-origin:center bottom}
+    .steam-2{animation-delay:0.7s}
+    .steam-3{animation-delay:1.4s}
+    .sparkle-1{animation:sparkle 3s ease-in-out infinite}
+    .sparkle-2{animation:sparkle 3s ease-in-out 1s infinite}
+    .sparkle-3{animation:sparkle 3s ease-in-out 2s infinite}
+    .orbit{animation:ring-rotate 20s linear infinite;transform-origin:100px 108px}
   </style>
-  <g class="plate-float">
-    <!-- Plate -->
-    <ellipse cx="100" cy="130" rx="52" ry="12" fill="rgba(96,165,250,0.04)" stroke="#60a5fa" stroke-width="1" stroke-opacity="0.2"/>
-    <ellipse cx="100" cy="126" rx="48" ry="10" fill="rgba(96,165,250,0.06)" stroke="#60a5fa" stroke-width="0.5" stroke-opacity="0.15"/>
-    <!-- Fork -->
-    <g transform="translate(60, 70) rotate(15)">
-      <line x1="0" y1="0" x2="0" y2="40" stroke="#a1a1aa" stroke-width="2" stroke-opacity="0.25" stroke-linecap="round"/>
-      <line x1="0" y1="0" x2="0" y2="14" stroke="#a1a1aa" stroke-width="1.5" stroke-opacity="0.3" stroke-linecap="round"/>
-      <line x1="-4" y1="0" x2="-4" y2="12" stroke="#a1a1aa" stroke-width="1.5" stroke-opacity="0.25" stroke-linecap="round"/>
-      <line x1="4" y1="0" x2="4" y2="12" stroke="#a1a1aa" stroke-width="1.5" stroke-opacity="0.25" stroke-linecap="round"/>
-    </g>
-    <!-- Knife -->
-    <g transform="translate(140, 70) rotate(-15)">
-      <line x1="0" y1="0" x2="0" y2="40" stroke="#a1a1aa" stroke-width="2" stroke-opacity="0.25" stroke-linecap="round"/>
-      <path d="M0 0 C5 3 5 12 0 14" stroke="#a1a1aa" stroke-width="1" stroke-opacity="0.25" fill="none"/>
-    </g>
-    <!-- Steam wisps -->
-    <path class="steam" d="M92 92 Q89 85 92 78" stroke="#60a5fa" stroke-width="1.5" stroke-opacity="0.2" stroke-linecap="round" fill="none"/>
-    <path class="steam" d="M100 88 Q97 81 100 74" stroke="#60a5fa" stroke-width="1.5" stroke-opacity="0.2" stroke-linecap="round" fill="none"/>
-    <path class="steam" d="M108 92 Q105 85 108 78" stroke="#60a5fa" stroke-width="1.5" stroke-opacity="0.2" stroke-linecap="round" fill="none"/>
-    <!-- Plus icon suggesting adding food -->
-    <circle cx="100" cy="118" r="10" fill="rgba(96,165,250,0.06)" stroke="#60a5fa" stroke-width="1" stroke-opacity="0.3"/>
-    <line x1="96" y1="118" x2="104" y2="118" stroke="#60a5fa" stroke-width="1.5" stroke-opacity="0.4" stroke-linecap="round"/>
-    <line x1="100" y1="114" x2="100" y2="122" stroke="#60a5fa" stroke-width="1.5" stroke-opacity="0.4" stroke-linecap="round"/>
+
+  <!-- Outer glow ring (rotating) -->
+  <g class="orbit">
+    <circle cx="100" cy="108" r="72" stroke="url(#grad-ring)" stroke-width="0.6" fill="none" stroke-dasharray="6 10" opacity="0.35"/>
   </g>
-  <!-- Glow ring -->
-  <circle class="glow" cx="100" cy="110" r="60" stroke="#60a5fa" stroke-width="0.5" fill="none"/>
+
+  <!-- Soft background glow -->
+  <circle class="glow" cx="100" cy="108" r="58" fill="url(#grad-glow)" />
+
+  <g class="plate-float">
+    <!-- Plate shadow -->
+    <ellipse cx="100" cy="142" rx="48" ry="8" fill="rgba(0,0,0,0.06)"/>
+
+    <!-- Plate rim -->
+    <ellipse cx="100" cy="128" rx="50" ry="13" fill="rgba(96,165,250,0.04)" stroke="url(#grad-plate)" stroke-width="1.2"/>
+    <!-- Plate inner -->
+    <ellipse cx="100" cy="125" rx="42" ry="10" fill="rgba(96,165,250,0.03)" stroke="#60a5fa" stroke-width="0.5" stroke-opacity="0.12"/>
+
+    <!-- Food items on plate -->
+    <!-- Leaf / salad -->
+    <path d="M82 118 Q86 108 94 112 Q90 104 96 100 Q88 100 84 106 Q80 112 82 118Z" fill="#34d399" fill-opacity="0.25" stroke="#34d399" stroke-width="0.7" stroke-opacity="0.35"/>
+    <!-- Berry -->
+    <circle cx="108" cy="114" r="5" fill="#f472b6" fill-opacity="0.2" stroke="#f472b6" stroke-width="0.7" stroke-opacity="0.35"/>
+    <!-- Bread slice -->
+    <rect x="96" y="119" width="16" height="8" rx="3" fill="#fbbf24" fill-opacity="0.15" stroke="#fbbf24" stroke-width="0.7" stroke-opacity="0.3"/>
+    <!-- Small tomato -->
+    <circle cx="90" cy="122" r="3.5" fill="#fb7185" fill-opacity="0.2" stroke="#fb7185" stroke-width="0.6" stroke-opacity="0.3"/>
+
+    <!-- Fork -->
+    <g transform="translate(55, 80) rotate(12)">
+      <line x1="0" y1="4" x2="0" y2="42" stroke="#a1a1aa" stroke-width="1.8" stroke-opacity="0.22" stroke-linecap="round"/>
+      <line x1="0" y1="0" x2="0" y2="14" stroke="#a1a1aa" stroke-width="1.2" stroke-opacity="0.28" stroke-linecap="round"/>
+      <line x1="-3.5" y1="0" x2="-3.5" y2="12" stroke="#a1a1aa" stroke-width="1.2" stroke-opacity="0.22" stroke-linecap="round"/>
+      <line x1="3.5" y1="0" x2="3.5" y2="12" stroke="#a1a1aa" stroke-width="1.2" stroke-opacity="0.22" stroke-linecap="round"/>
+    </g>
+
+    <!-- Knife -->
+    <g transform="translate(145, 80) rotate(-12)">
+      <line x1="0" y1="4" x2="0" y2="42" stroke="#a1a1aa" stroke-width="1.8" stroke-opacity="0.22" stroke-linecap="round"/>
+      <path d="M0 0 C5 3 5 13 0 15" stroke="#a1a1aa" stroke-width="0.8" stroke-opacity="0.22" fill="none"/>
+    </g>
+
+    <!-- Steam wisps (more organic curves) -->
+    <path class="steam" d="M90 96 Q87 88 90 82 Q93 76 90 70" stroke="url(#grad-steam)" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+    <path class="steam steam-2" d="M100 92 Q97 84 100 78 Q103 72 100 66" stroke="url(#grad-steam)" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+    <path class="steam steam-3" d="M110 96 Q107 88 110 82 Q113 76 110 70" stroke="url(#grad-steam)" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+
+    <!-- Plus icon (center, inviting click) -->
+    <circle cx="100" cy="113" r="11" fill="rgba(96,165,250,0.08)" stroke="#60a5fa" stroke-width="1.2" stroke-opacity="0.35"/>
+    <line x1="95" y1="113" x2="105" y2="113" stroke="#60a5fa" stroke-width="2" stroke-opacity="0.5" stroke-linecap="round"/>
+    <line x1="100" y1="108" x2="100" y2="118" stroke="#60a5fa" stroke-width="2" stroke-opacity="0.5" stroke-linecap="round"/>
+  </g>
+
+  <!-- Sparkle accents -->
+  <circle class="sparkle-1" cx="60" cy="78" r="2" fill="#60a5fa" opacity="0"/>
+  <circle class="sparkle-2" cx="145" cy="85" r="1.8" fill="#a78bfa" opacity="0"/>
+  <circle class="sparkle-3" cx="72" cy="140" r="1.5" fill="#34d399" opacity="0"/>
+
+  <!-- Gradient defs -->
+  <defs>
+    <radialGradient id="grad-glow" cx="50%" cy="45%" r="55%">
+      <stop offset="0%" stop-color="#60a5fa" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#60a5fa" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="grad-plate" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#60a5fa" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#a78bfa" stop-opacity="0.15"/>
+    </linearGradient>
+    <linearGradient id="grad-steam" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#60a5fa" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#60a5fa" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="grad-ring" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#60a5fa" stop-opacity="0.4"/>
+      <stop offset="50%" stop-color="#a78bfa" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#34d399" stop-opacity="0.2"/>
+    </linearGradient>
+  </defs>
 </svg>

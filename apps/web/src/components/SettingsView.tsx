@@ -296,7 +296,7 @@ export function SettingsView({
         <h3 className="settings-section-title"><IconSparkles size={16} style={{ verticalAlign: 'middle', marginRight: 4 }} /> {t("Invite Friends")}</h3>
         <div className="settings-referral-card">
           <p className="settings-referral-info">
-            {t("Share Companion with a classmate. The more friends who join, the better the study network.")}
+            {t("Share Companion with your friends. The more people who join, the better the experience.")}
           </p>
           <div className="settings-referral-link-row">
             <input

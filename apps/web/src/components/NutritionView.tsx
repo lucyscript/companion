@@ -1486,7 +1486,6 @@ export function NutritionView({ onNavigateToChat, onOpenChatOverlay }: { onNavig
                   <span className="nutrition-suggestion-pill" onClick={onOpenChatOverlay} role="button" tabIndex={0}>Snap a photo of your food</span>
                   <span className="nutrition-suggestion-pill" onClick={onOpenChatOverlay} role="button" tabIndex={0}>Ask Gemini to log your meal</span>
                 </div>
-                <p className="nutrition-empty-hint">Tap the icon to start logging</p>
               </div>
             ) : (
               <div className="nutrition-list">

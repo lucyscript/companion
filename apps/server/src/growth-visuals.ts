@@ -63,10 +63,15 @@ async function generateVisual(
   }
 
   try {
+    console.log(`[growth-visual] generating image: alt="${alt}" prompt_length=${prompt.length}`);
+    console.log(`[growth-visual] prompt:\n${prompt}`);
     const generated = await maybeGenerator.generateGrowthImage(prompt);
     if (!generated) {
+      console.log(`[growth-visual] generation returned null (no image produced): alt="${alt}"`);
       return undefined;
     }
+
+    console.log(`[growth-visual] success: alt="${alt}" model=${generated.model} mime=${generated.mimeType} dataUrl_length=${generated.dataUrl.length}`);
 
     return {
       dataUrl: generated.dataUrl,
@@ -75,7 +80,8 @@ async function generateVisual(
       alt,
       generatedAt: nowIso()
     };
-  } catch {
+  } catch (err) {
+    console.error(`[growth-visual] generation failed: alt="${alt}" error=${err instanceof Error ? err.message : String(err)}`);
     return undefined;
   }
 }
