@@ -9274,6 +9274,12 @@ label small.muted {
   object-fit: cover;
 }
 
+.analytics-visual-skeleton {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 0;
+}
+
 .analytics-summary-card p {
   margin: 0;
   line-height: 1.45;
@@ -9321,11 +9327,6 @@ label small.muted {
 @media (min-width: 768px) {
   .analytics-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .analytics-summary-hero {
-    grid-template-columns: minmax(280px, 0.9fr) minmax(0, 1.1fr);
-    align-items: stretch;
   }
 }
 

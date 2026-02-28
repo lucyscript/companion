@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { getAnalyticsCoachInsight, getDailyGrowthSummary } from "../lib/api";
 import { useI18n } from "../lib/i18n";
 import { getVisualCache, putVisualCache, pruneVisualCache } from "../lib/visual-cache";
@@ -42,22 +42,20 @@ const CHALLENGE_LABELS: Record<ChallengePrompt["type"], string> = {
 
 const CHALLENGE_TYPES: ChallengePrompt["type"][] = ["reflect", "predict", "commit", "connect"];
 
-/** Deferred image: waits a tick then fades in smoothly so text renders first. */
-function DeferredImage({ src, alt }: { src: string; alt: string }): JSX.Element | null {
-  const [mounted, setMounted] = useState(false);
+/** Image with skeleton placeholder — renders immediately, fades in when loaded. */
+function DeferredImage({ src, alt }: { src: string; alt: string }): JSX.Element {
   const [loaded, setLoaded] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
-
-  useEffect(() => {
-    timerRef.current = setTimeout(() => setMounted(true), 80);
-    return () => clearTimeout(timerRef.current);
-  }, []);
-
-  if (!mounted) return null;
 
   return (
-    <figure className="analytics-visual" style={{ opacity: loaded ? 1 : 0, transition: "opacity 0.4s ease" }}>
-      <img src={src} alt={alt} loading="eager" onLoad={() => setLoaded(true)} />
+    <figure className="analytics-visual">
+      {!loaded && <div className="skeleton-block analytics-visual-skeleton" />}
+      <img
+        src={src}
+        alt={alt}
+        loading="eager"
+        onLoad={() => setLoaded(true)}
+        style={{ opacity: loaded ? 1 : 0, transition: 'opacity 0.4s ease', display: loaded ? undefined : 'none' }}
+      />
     </figure>
   );
 }
@@ -165,6 +163,9 @@ export function AnalyticsDashboard(): JSX.Element {
       {/* Daily reflection view (1d) */}
       {dailySummary && periodDays === 1 && !loading && (
         <div className="analytics-fade-in">
+          {dailySummary.visual && (
+            <DeferredImage src={dailySummary.visual.dataUrl} alt={dailySummary.visual.alt} />
+          )}
           <section className="analytics-summary-card analytics-summary-hero">
             <div className="analytics-summary-content">
               <p>{dailySummary.summary}</p>
@@ -177,9 +178,6 @@ export function AnalyticsDashboard(): JSX.Element {
               </ul>
             )}
           </section>
-          {dailySummary.visual && (
-            <DeferredImage src={dailySummary.visual.dataUrl} alt={dailySummary.visual.alt} />
-          )}
           {dailySummary.challenges && dailySummary.challenges.length > 0 && (
             <div className="analytics-swipe-stack">
               {CHALLENGE_TYPES.map((type) => {
@@ -210,6 +208,9 @@ export function AnalyticsDashboard(): JSX.Element {
 
       {insight && !loading && (
         <div className="analytics-fade-in">
+          {insight.visual && (
+            <DeferredImage src={insight.visual.dataUrl} alt={insight.visual.alt} />
+          )}
           <section className="analytics-summary-card analytics-summary-hero">
             <div className="analytics-summary-content">
               <div className="analytics-summary-meta">
@@ -218,9 +219,6 @@ export function AnalyticsDashboard(): JSX.Element {
               </div>
               <p>{insight.summary}</p>
             </div>
-            {insight.visual && (
-              <DeferredImage src={insight.visual.dataUrl} alt={insight.visual.alt} />
-            )}
           </section>
 
           <div className="analytics-swipe-stack">
