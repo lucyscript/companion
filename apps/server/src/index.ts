@@ -1669,12 +1669,15 @@ app.post("/api/connectors/:service/connect", async (req, res) => {
 
   // For OAuth connectors, redirect to their OAuth flow
   if (service === "withings") {
+    console.log(`[withings-oauth] Connect requested for user=${authReq.authUser.id}`);
     const authUrl = getWithingsOAuthServiceForUser(authReq.authUser.id).getAuthUrl();
     const state = extractStateFromUrl(authUrl);
     if (!state) {
+      console.log(`[withings-oauth] FAIL: Could not extract state from auth URL`);
       return res.status(500).json({ error: "Failed to initialize Withings OAuth state" });
     }
     registerPendingOAuthState(withingsPendingOAuthStates, state, authReq.authUser.id);
+    console.log(`[withings-oauth] Redirecting to Withings OAuth: state=${state.slice(0, 12)}...`);
     return res.json({ redirectUrl: authUrl });
   }
 
@@ -4743,23 +4746,29 @@ app.get("/api/auth/withings", (req, res) => {
   }
 
   try {
+    console.log(`[withings-oauth] GET /api/auth/withings for user=${userId}`);
     const authUrl = getWithingsOAuthServiceForUser(userId).getAuthUrl();
     const state = extractStateFromUrl(authUrl);
     if (!state) {
+      console.log(`[withings-oauth] FAIL: Could not extract state from auth URL`);
       return res.status(500).json({ error: "Withings OAuth flow did not return a state value" });
     }
     registerPendingOAuthState(withingsPendingOAuthStates, state, userId);
+    console.log(`[withings-oauth] Redirecting to Withings: state=${state.slice(0, 12)}...`);
     return res.redirect(authUrl);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error(`[withings-oauth] Error in /api/auth/withings:`, error);
     return res.status(500).json({ error: `Withings OAuth error: ${errorMessage}` });
   }
 });
 
 app.get("/api/auth/withings/callback", async (req, res) => {
   const error = typeof req.query.error === "string" ? req.query.error : null;
+  console.log(`[withings-oauth] Callback hit: code=${req.query.code ? "present" : "MISSING"} state=${typeof req.query.state === "string" ? req.query.state.slice(0, 12) + "..." : "null"} error=${error ?? "none"}`);
   if (error) {
     const errorDescription = typeof req.query.error_description === "string" ? req.query.error_description : error;
+    console.log(`[withings-oauth] OAuth error from provider: ${errorDescription}`);
     return res.redirect(getIntegrationFrontendRedirect("withings", "failed", errorDescription));
   }
 
@@ -4767,25 +4776,32 @@ app.get("/api/auth/withings/callback", async (req, res) => {
   const state = typeof req.query.state === "string" ? req.query.state : null;
 
   if (!code || !state) {
+    console.log(`[withings-oauth] FAIL: Missing code or state`);
     return res.redirect(getIntegrationFrontendRedirect("withings", "failed", "Missing authorization code or state"));
   }
 
   const userId = consumePendingOAuthStateUserId(withingsPendingOAuthStates, state);
   if (!userId) {
+    console.log(`[withings-oauth] FAIL: No pending state match (expired or already consumed)`);
     return res.redirect(getIntegrationFrontendRedirect("withings", "failed", "Invalid or expired Withings OAuth state"));
   }
+  console.log(`[withings-oauth] State matched user=${userId}, exchanging code...`);
 
   try {
-    await getWithingsOAuthServiceForUser(userId).handleCallback(code, state);
+    await getWithingsOAuthServiceForUser(userId).handleCallback(code, state, { skipStateValidation: true });
+    console.log(`[withings-oauth] Token exchange OK, storing user_connection...`);
     store.upsertUserConnection({
       userId,
       service: "withings",
       credentials: JSON.stringify({ source: "oauth" }),
       displayLabel: "Withings Health"
     });
-    return res.redirect(getIntegrationFrontendRedirect("withings", "connected"));
+    const redirectTarget = getIntegrationFrontendRedirect("withings", "connected");
+    console.log(`[withings-oauth] SUCCESS: Redirecting to frontend`);
+    return res.redirect(redirectTarget);
   } catch (oauthError) {
     const errorMessage = oauthError instanceof Error ? oauthError.message : "Unknown error";
+    console.error(`[withings-oauth] ERROR in callback:`, oauthError);
     return res.redirect(getIntegrationFrontendRedirect("withings", "failed", errorMessage));
   }
 });

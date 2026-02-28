@@ -7255,6 +7255,11 @@ body:not(.keyboard-open) .app-shell-chat-active .chat-messages {
   width: 100%;
 }
 
+.connector-mcp-template-actions .connector-disconnect-btn {
+  width: 100%;
+  font-size: 0.78rem;
+}
+
 .connector-mcp-template-docs {
   font-size: 0.78rem;
   color: #93c5fd;

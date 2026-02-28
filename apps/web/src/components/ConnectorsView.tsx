@@ -450,6 +450,7 @@ export function ConnectorsView({ planInfo, onUpgrade }: ConnectorsViewProps): JS
 
       await Promise.all([fetchConnections(), fetchConnectorMeta()]);
       setExpandedService("mcp");
+      setSelectedMcpTemplateId(null);
       setInputValues((prev) => ({
         ...prev,
         mcp_token: ""
@@ -862,9 +863,10 @@ export function ConnectorsView({ planInfo, onUpgrade }: ConnectorsViewProps): JS
                           {mcpTemplates.map((template) => {
                             const selected = selectedMcpTemplateId === template.id;
                             const templateIcon = getMcpTemplateIcon(template);
-                            const templateConnected = mcpServers.some(
+                            const matchingServer = mcpServers.find(
                               (server) => server.serverUrl === template.serverUrl || server.label === template.label
                             );
+                            const templateConnected = !!matchingServer;
                             return (
                               <div
                                 key={template.id}
@@ -901,10 +903,11 @@ export function ConnectorsView({ planInfo, onUpgrade }: ConnectorsViewProps): JS
                                   {templateConnected ? (
                                     <button
                                       type="button"
-                                      className="connector-sync-btn connector-sync-btn-connected"
-                                      disabled
+                                      className="connector-disconnect-btn"
+                                      onClick={() => void handleDeleteMcpServer(matchingServer!.id)}
+                                      disabled={busy}
                                     >
-                                      ✓ {t("Connected")}
+                                      {busy ? t("Disconnecting...") : t("Disconnect")}
                                     </button>
                                   ) : (
                                     <button
@@ -921,51 +924,6 @@ export function ConnectorsView({ planInfo, onUpgrade }: ConnectorsViewProps): JS
                             );
                           })}
                         </div>
-                      </div>
-                    )}
-
-                    {selectedMcpTemplate && (
-                      <div className="connector-mcp-quick-connect">
-                        <p className="connector-input-label">{selectedMcpTemplate.label}</p>
-                        <p className="connector-help-text">{selectedMcpTemplate.description}</p>
-                        {selectedMcpTemplate.authType === "oauth" ? (
-                          <>
-                            <button
-                              className="connector-sync-btn"
-                              onClick={() => void handleConnectMcpTemplate(selectedMcpTemplate)}
-                              disabled={busy || selectedMcpTemplate.oauthEnabled === false}
-                            >
-                              {busy
-                                ? t("Connecting...")
-                                : selectedMcpTemplate.oauthEnabled === false
-                                  ? t("OAuth unavailable on this server")
-                                  : t("Connect")}
-                            </button>
-                            <p className="connector-help-text">
-                              {selectedMcpTemplate.oauthEnabled === false
-                                ? t("This deployment has no OAuth client configured for this provider. Paste a token below instead.")
-                                : t("OAuth is preferred. You can still paste a token below if needed.")}
-                            </p>
-                          </>
-                        ) : null}
-                        <div className="connector-config-field">
-                          <label>{selectedMcpTemplate.tokenLabel}</label>
-                          <input
-                            type="password"
-                            placeholder={selectedMcpTemplate.tokenPlaceholder}
-                            value={inputValues.mcp_token ?? ""}
-                            onChange={(event) => handleInputChange("mcp_token", event.target.value)}
-                            disabled={busy}
-                          />
-                        </div>
-                        <p className="connector-help-text">{selectedMcpTemplate.tokenHelp}</p>
-                        <button
-                          className="connector-sync-btn"
-                          onClick={() => void handleConnectMcpTemplate(selectedMcpTemplate, inputValues.mcp_token)}
-                          disabled={busy || !inputValues.mcp_token?.trim()}
-                        >
-                          {busy ? t("Connecting...") : t("Connect")}
-                        </button>
                       </div>
                     )}
 
@@ -1061,36 +1019,43 @@ export function ConnectorsView({ planInfo, onUpgrade }: ConnectorsViewProps): JS
                       </div>
                     )}
 
-                    <div className="connector-mcp-list">
-                      {mcpServers.length === 0 ? (
-                        <p className="connector-help-text">{t("No MCP servers connected yet.")}</p>
-                      ) : (
-                        mcpServers.map((server) => {
-                          const serverIcon = getMcpServerIcon(server);
-                          return (
-                            <div key={server.id} className="connector-actions">
-                              <span className="connector-mcp-server-label">
-                                {serverIcon && (
-                                  <img
-                                    className="connector-mcp-provider-icon"
-                                    src={serverIcon.src}
-                                    alt={serverIcon.alt}
-                                  />
-                                )}
-                                <span className="connector-display-label">{formatConnectedAppLabel(server.label)}</span>
-                              </span>
-                              <button
-                                className="connector-disconnect-btn"
-                                onClick={() => void handleDeleteMcpServer(server.id)}
-                                disabled={busy}
-                              >
-                                {t("Remove")}
-                              </button>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
+                    {/* Show only MCP servers that don't match any catalog template */}
+                    {(() => {
+                      const customServers = mcpServers.filter(
+                        (server) => !mcpTemplates.some(
+                          (t2) => t2.serverUrl === server.serverUrl || t2.label === server.label
+                        )
+                      );
+                      if (customServers.length === 0) return null;
+                      return (
+                        <div className="connector-mcp-list">
+                          {customServers.map((server) => {
+                            const serverIcon = getMcpServerIcon(server);
+                            return (
+                              <div key={server.id} className="connector-actions">
+                                <span className="connector-mcp-server-label">
+                                  {serverIcon && (
+                                    <img
+                                      className="connector-mcp-provider-icon"
+                                      src={serverIcon.src}
+                                      alt={serverIcon.alt}
+                                    />
+                                  )}
+                                  <span className="connector-display-label">{formatConnectedAppLabel(server.label)}</span>
+                                </span>
+                                <button
+                                  className="connector-disconnect-btn"
+                                  onClick={() => void handleDeleteMcpServer(server.id)}
+                                  disabled={busy}
+                                >
+                                  {t("Remove")}
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
                   </>
                 ) : (
                   <>
@@ -1485,6 +1450,66 @@ export function ConnectorsView({ planInfo, onUpgrade }: ConnectorsViewProps): JS
           </div>
         )}
       </section>
+
+      {/* MCP Template Token Connect Overlay */}
+      {selectedMcpTemplate && (
+        <div className="canvas-course-picker-overlay" onClick={() => setSelectedMcpTemplateId(null)} role="presentation">
+          <div className="canvas-course-picker" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={selectedMcpTemplate.label}>
+            <h3 className="canvas-course-picker-title">{selectedMcpTemplate.label}</h3>
+            <p className="canvas-course-picker-desc">{selectedMcpTemplate.description}</p>
+            {selectedMcpTemplate.authType === "oauth" ? (
+              <>
+                <button
+                  className="connector-sync-btn"
+                  onClick={() => void handleConnectMcpTemplate(selectedMcpTemplate)}
+                  disabled={submitting === "mcp" || selectedMcpTemplate.oauthEnabled === false}
+                >
+                  {submitting === "mcp"
+                    ? t("Connecting...")
+                    : selectedMcpTemplate.oauthEnabled === false
+                      ? t("OAuth unavailable on this server")
+                      : t("Connect with {provider}", { provider: selectedMcpTemplate.provider })}
+                </button>
+                <p className="connector-help-text">
+                  {selectedMcpTemplate.oauthEnabled === false
+                    ? t("This deployment has no OAuth client configured for this provider. Paste a token below instead.")
+                    : t("OAuth is preferred. You can still paste a token below if needed.")}
+                </p>
+              </>
+            ) : null}
+            <div className="connector-config-field">
+              <label>{selectedMcpTemplate.tokenLabel}</label>
+              <input
+                type="password"
+                placeholder={selectedMcpTemplate.tokenPlaceholder}
+                value={inputValues.mcp_token ?? ""}
+                onChange={(event) => handleInputChange("mcp_token", event.target.value)}
+                disabled={submitting === "mcp"}
+                autoFocus
+              />
+            </div>
+            <p className="connector-help-text">{selectedMcpTemplate.tokenHelp}</p>
+            {error && <p className="connector-error">{error}</p>}
+            <div className="canvas-course-picker-footer">
+              <button
+                type="button"
+                className="connector-disconnect-btn"
+                onClick={() => setSelectedMcpTemplateId(null)}
+                disabled={submitting === "mcp"}
+              >
+                {t("Cancel")}
+              </button>
+              <button
+                className="connector-connect-btn"
+                onClick={() => void handleConnectMcpTemplate(selectedMcpTemplate, inputValues.mcp_token)}
+                disabled={submitting === "mcp" || !inputValues.mcp_token?.trim()}
+              >
+                {submitting === "mcp" ? t("Connecting...") : t("Connect")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Canvas Course Picker Overlay */}
       {canvasCoursePicker && canvasCoursePicker.length > 0 && (

@@ -183,12 +183,16 @@ export class WithingsOAuthService {
     return `${WITHINGS_AUTHORIZE_URL}?${params.toString()}`;
   }
 
-  async handleCallback(code: string, state: string | null): Promise<{ connectedAt: string; userId?: string; scope?: string }> {
+  async handleCallback(
+    code: string,
+    state: string | null,
+    opts?: { skipStateValidation?: boolean }
+  ): Promise<{ connectedAt: string; userId?: string; scope?: string }> {
     if (!this.hasOAuthCredentials()) {
       throw new Error("Withings OAuth credentials not configured");
     }
 
-    if (!this.consumeState(state)) {
+    if (!opts?.skipStateValidation && !this.consumeState(state)) {
       throw new Error("Invalid or expired Withings OAuth state");
     }
 
