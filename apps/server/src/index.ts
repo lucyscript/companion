@@ -1192,11 +1192,12 @@ app.get("/api/auth/google/callback", async (req, res) => {
         expiresAt: exchange.expiresAt
       });
 
-      console.log(`[google-cal-oauth] Validating MCP server connection (listTools) for ${template.label}...`);
+      console.log(`[google-cal-oauth] Saving MCP server for ${template.label} (skipping validation — OAuth tokens are fresh)...`);
       const { server } = await upsertMcpTemplateServerWithToken(
         pendingMcpGoogleOAuth.userId,
         template.id,
-        tokenBlob
+        tokenBlob,
+        { skipValidation: true }
       );
       console.log(`[google-cal-oauth] SUCCESS: Server ${server.id} stored. Redirecting to frontend with connected status.`);
       const redirectTarget = getIntegrationFrontendRedirect("mcp", "connected", `${template.label} connected`);
@@ -1265,7 +1266,8 @@ app.get("/api/auth/github/callback", async (req, res) => {
       const { server } = await upsertMcpTemplateServerWithToken(
         pendingMcpOAuth.userId,
         template.id,
-        exchange.accessToken
+        exchange.accessToken,
+        { skipValidation: true }
       );
       if (isGithubMcpServer(server)) {
         maybeTriggerTpGithubDeadlineSubAgent(pendingMcpOAuth.userId, server.id);
@@ -1364,7 +1366,8 @@ const mcpTemplateConnectSchema = z.object({
 async function upsertMcpTemplateServerWithToken(
   userId: string,
   templateId: string,
-  token: string
+  token: string,
+  opts?: { skipValidation?: boolean }
 ): Promise<{
   server: ReturnType<typeof upsertMcpServer>;
   publicServers: ReturnType<typeof getMcpServersPublic>;
@@ -1381,7 +1384,11 @@ async function upsertMcpTemplateServerWithToken(
     toolAllowlist: template.suggestedToolAllowlist
   };
 
-  await validateMcpServerConnection(mcpInput);
+  if (opts?.skipValidation) {
+    console.log(`[mcp] Skipping validation for ${template.label} (OAuth flow — will validate on first tool call)`);
+  } else {
+    await validateMcpServerConnection(mcpInput);
+  }
   const server = upsertMcpServer(store, userId, mcpInput);
   const publicServers = getMcpServersPublic(store, userId);
   return { server, publicServers };
