@@ -1271,16 +1271,18 @@ function buildFunctionCallingSystemInstruction(
   longTermMemoryNudge: string,
   mcpToolNudge: string,
   allowedToolNames: ReadonlySet<string> | null,
-  connectedServices?: { withings?: boolean; hasGitHubMcp?: boolean }
+  connectedServices?: { withings?: boolean; hasGitHubMcp?: boolean; hasGoogleCalendarMcp?: boolean }
 ): string {
   const hasNutrition = !allowedToolNames || allowedToolNames.has("getNutritionSummary");
   const hasHabits = !allowedToolNames || allowedToolNames.has("getHabitsGoalsStatus");
   const hasWithings = !allowedToolNames || allowedToolNames.has("getWithingsHealthSummary");
   const withingsConnected = connectedServices?.withings ?? false;
   const hasGitHubMcp = connectedServices?.hasGitHubMcp ?? false;
+  const hasGoogleCalendarMcp = connectedServices?.hasGoogleCalendarMcp ?? false;
 
   const coreBehavior = [
     `- For factual questions about schedule, deadlines, or connected external systems, use tools before answering.`,
+    `- Companion has a built-in schedule ("in-app schedule") managed by createScheduleBlock/updateScheduleBlock/deleteScheduleBlock/getSchedule/clearScheduleWindow. This always works — it does not require any external calendar integration.`,
     `- For simple greetings/small talk (for example "hi", "hello", "yo"), reply naturally without tool calls.`,
   ];
   if (hasHabits) {
@@ -1308,6 +1310,10 @@ function buildFunctionCallingSystemInstruction(
     ...(hasGitHubMcp ? [
       `- For GitHub repository ingestion tasks, prefer direct file reads via get_file_contents on known files (for example README.md) before using search_code.`,
       `- Avoid brute-force search_code loops. If a search_code call returns rate-limit errors, stop further search_code calls in this turn and continue with already retrieved content.`,
+    ] : []),
+    ...(hasGoogleCalendarMcp ? [
+      `- Google Calendar is connected as an external integration via MCP tools (list_calendars, list_events, create_event, etc.). Use these MCP tools for requests about the user's Google Calendar.`,
+      `- The in-app Companion schedule and Google Calendar are separate systems. Use Companion schedule tools for in-app planning, and Google Calendar MCP tools for the user's Google Calendar.`,
     ] : []),
     `- Do not hallucinate user-specific data. If data is unavailable, say so explicitly and suggest the next sync step.`,
     `- For deadline completion or rescheduling/extension requests, use queueDeadlineAction with action 'complete' or 'reschedule' (with newDueDate in ISO 8601 UTC). Apply immediately (no confirmation step).`,
@@ -3630,7 +3636,8 @@ export async function sendChatMessage(
     allowedTools,
     {
       withings: !!store.getUserConnection(userId, "withings"),
-      hasGitHubMcp: mcpToolContext.summary.toLowerCase().includes("github")
+      hasGitHubMcp: mcpToolContext.summary.toLowerCase().includes("github"),
+      hasGoogleCalendarMcp: mcpToolContext.declarations.some(d => d.name.includes("google_calendar"))
     }
   );
 
