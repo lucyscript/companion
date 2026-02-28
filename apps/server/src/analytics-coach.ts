@@ -22,6 +22,8 @@ interface GenerateAnalyticsCoachOptions {
   geminiClient?: GeminiClient;
   /** Per-user display name for the coach prompt. */
   userName?: string;
+  /** Skip visual generation (caller will handle it separately). */
+  skipVisual?: boolean;
 }
 
 interface ParsedCoachInsight {
@@ -602,6 +604,10 @@ export async function generateAnalyticsCoachInsight(
     insight = fallback;
   }
 
+  if (options.skipVisual) {
+    return insight;
+  }
+
   const visual = await maybeGenerateAnalyticsVisual(gemini, insight);
   if (!visual) {
     return insight;
@@ -612,3 +618,4 @@ export async function generateAnalyticsCoachInsight(
     visual
   };
 }
+

@@ -50,7 +50,7 @@ import {
   generateWeeklyGrowthReview,
   isSundayInOslo
 } from "./weekly-growth-review.js";
-import { maybeGenerateDailySummaryVisual } from "./growth-visuals.js";
+import { maybeGenerateDailySummaryVisual, maybeGenerateAnalyticsVisual } from "./growth-visuals.js";
 import { PostgresRuntimeSnapshotStore } from "./postgres-persistence.js";
 import { isGithubMcpServer, scheduleTpGithubDeadlineSubAgent } from "./tp-github-deadlines.js";
 import { TPExamDeadlineBridge, type TPExamDeadlineBridgeResult } from "./tp-exam-deadline-bridge.js";
@@ -255,8 +255,9 @@ interface AnalyticsCoachCacheEntry {
 
 const analyticsCoachCache = new Map<string, AnalyticsCoachCacheEntry>();
 
-import type { DailyGrowthSummary } from "./types.js";
+import type { DailyGrowthSummary, GrowthNarrativeVisual } from "./types.js";
 const dailySummaryCache = new Map<string, DailyGrowthSummary>();
+const growthVisualCache = new Map<string, { visual: GrowthNarrativeVisual; generatedAt: number }>();
 const canvasSyncServicesByUser = new Map<string, CanvasSyncService>();
 const blackboardSyncServicesByUser = new Map<string, BlackboardSyncService>();
 const teamsSyncServicesByUser = new Map<string, TeamsSyncService>();
@@ -2106,12 +2107,31 @@ app.get("/api/analytics/coach", async (req, res) => {
   const insight = await generateAnalyticsCoachInsight(store, userId, {
     periodDays,
     now,
-    userName: (req as AuthenticatedRequest).authUser?.name
+    userName: (req as AuthenticatedRequest).authUser?.name,
+    skipVisual: true
   });
   setCachedAnalyticsCoachInsight(cacheKey, {
     signature,
     insight
   });
+
+  // Fire visual generation in background — don't block the response
+  const geminiForVisual = getGeminiClient();
+  if (geminiForVisual.isConfigured()) {
+    void (async () => {
+      try {
+        const visual = await maybeGenerateAnalyticsVisual(geminiForVisual, insight);
+        if (visual) {
+          insight.visual = visual;
+          setCachedAnalyticsCoachInsight(cacheKey, { signature, insight });
+          const dateKey = now.toISOString().slice(0, 10);
+          growthVisualCache.set(`coach:${userId}:${periodDays}d:${dateKey}`, { visual, generatedAt: Date.now() });
+        }
+      } catch {
+        // visual generation failed
+      }
+    })();
+  }
 
   return res.json({ insight });
 });
@@ -2327,28 +2347,62 @@ Journal (${reflections.length}): ${reflectionLines || "none"}`;
     chatMessageCount: chats.length
   };
 
-  // Generate visual
-  try {
-    const gemini = getGeminiClient();
-    if (gemini.isConfigured()) {
-      const visual = await maybeGenerateDailySummaryVisual(gemini, result);
-      if (visual) {
-        result.visual = visual;
-      }
-    }
-  } catch {
-    // visual generation failed — continue without it
-  }
-
-  // Cache result
+  // Cache result (without visual) and return text immediately
   dailySummaryCache.set(dateKey, result);
-  // Evict old entries
   if (dailySummaryCache.size > 10) {
     const oldestKey = dailySummaryCache.keys().next().value;
     if (oldestKey) dailySummaryCache.delete(oldestKey);
   }
 
+  // Fire visual generation in background — don't block the response
+  const geminiForVisual = getGeminiClient();
+  if (geminiForVisual.isConfigured()) {
+    void (async () => {
+      try {
+        const visual = await maybeGenerateDailySummaryVisual(geminiForVisual, result);
+        if (visual) {
+          result.visual = visual;
+          // Update the cache entry with the visual
+          dailySummaryCache.set(dateKey, result);
+          // Also store in the visual poll cache
+          growthVisualCache.set(`daily:${userId}:${dateKey}`, { visual, generatedAt: Date.now() });
+        }
+      } catch {
+        // visual generation failed — nothing to do
+      }
+    })();
+  }
+
   return res.json({ summary: result });
+});
+
+/**
+ * Poll endpoint for growth visuals that are generated in the background.
+ * The text endpoints return immediately while image generation continues async.
+ * Frontend polls this to get the image once it's ready.
+ */
+app.get("/api/growth/visual", (req, res) => {
+  const userId = (req as AuthenticatedRequest).authUser?.id ?? "";
+  const type = typeof req.query.type === "string" ? req.query.type : "daily";
+  const periodDays = typeof req.query.periodDays === "string" ? req.query.periodDays : "1";
+  const today = new Date().toISOString().slice(0, 10);
+
+  const cacheKey = type === "daily" || periodDays === "1"
+    ? `daily:${userId}:${today}`
+    : `coach:${userId}:${periodDays}d:${today}`;
+
+  const cached = growthVisualCache.get(cacheKey);
+  if (!cached) {
+    return res.json({ visual: null, status: "pending" });
+  }
+
+  // Evict stale visuals (older than 30 min)
+  if (Date.now() - cached.generatedAt > 30 * 60 * 1000) {
+    growthVisualCache.delete(cacheKey);
+    return res.json({ visual: null, status: "expired" });
+  }
+
+  return res.json({ visual: cached.visual, status: "ready" });
 });
 
 function buildFallbackSummary(

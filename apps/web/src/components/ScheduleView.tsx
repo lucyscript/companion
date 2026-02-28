@@ -515,6 +515,7 @@ export function ScheduleView({ focusLectureId }: ScheduleViewProps): JSX.Element
             <img className="empty-state-illustration" src={EMPTY_SCHEDULE_SVG} alt="" width="120" height="120" />
             <p>{dayOffset === 0 ? t("Nothing scheduled today") : t("Nothing scheduled this day")}</p>
             <p className="schedule-empty-hint">{t("Enjoy your free time, or ask Gemini to plan something")}</p>
+            <p className="schedule-empty-hint connector-hint">{t("Connect Canvas or TimeEdit in Settings → Integrations to auto-import lectures")}</p>
           </div>
         )}
       </div>

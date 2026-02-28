@@ -48,7 +48,8 @@ import {
   IntegrationSyncAttemptStatus,
   IntegrationSyncName,
   DailyGrowthSummary,
-  AnalyticsCoachInsight
+  AnalyticsCoachInsight,
+  GrowthNarrativeVisual
 } from "../types";
 import {
   SyncQueueItem,
@@ -270,6 +271,21 @@ export async function getAnalyticsCoachInsight(
   try {
     const response = await jsonOrThrow<{ insight: AnalyticsCoachInsight }>(endpoint);
     return response.insight;
+  } catch {
+    return null;
+  }
+}
+
+export async function pollGrowthVisual(
+  type: "daily" | "coach",
+  periodDays: number = 1
+): Promise<GrowthNarrativeVisual | null> {
+  try {
+    const params = new URLSearchParams({ type, periodDays: String(periodDays) });
+    const response = await jsonOrThrow<{ visual: GrowthNarrativeVisual | null; status: string }>(
+      `/api/growth/visual?${params.toString()}`
+    );
+    return response.visual;
   } catch {
     return null;
   }

@@ -1174,6 +1174,12 @@ button:disabled {
   font-size: 0.78rem !important;
 }
 
+.connector-hint {
+  opacity: 0.6;
+  font-size: 0.74rem !important;
+  margin-top: 2px;
+}
+
 /* ── Nutrition empty state ── */
 .nutrition-empty-state {
   display: flex;
@@ -4276,6 +4282,13 @@ body.chat-tab-active .chat-view {
 .chat-welcome p {
   margin: 8px 0;
   font-size: 1rem;
+}
+
+.chat-welcome-hint {
+  font-size: 0.82rem;
+  color: var(--muted);
+  opacity: 0.7;
+  margin-top: 12px;
 }
 
 .chat-bubble {

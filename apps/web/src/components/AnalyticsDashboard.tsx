@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { getAnalyticsCoachInsight, getDailyGrowthSummary } from "../lib/api";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { getAnalyticsCoachInsight, getDailyGrowthSummary, pollGrowthVisual } from "../lib/api";
 import { useI18n } from "../lib/i18n";
 import { getVisualCache, putVisualCache, pruneVisualCache } from "../lib/visual-cache";
-import { AnalyticsCoachInsight, ChallengePrompt, DailyGrowthSummary } from "../types";
+import { AnalyticsCoachInsight, ChallengePrompt, DailyGrowthSummary, GrowthNarrativeVisual } from "../types";
 import {
   IconLink, IconCrystalBall, IconThought, IconFist, IconLightbulb,
   IconTarget, IconBrain, IconStrength, IconWarning
@@ -68,10 +68,37 @@ export function AnalyticsDashboard(): JSX.Element {
   const [dailySummary, setDailySummary] = useState<DailyGrowthSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deferredVisual, setDeferredVisual] = useState<GrowthNarrativeVisual | null>(null);
+  const visualPollRef = useRef<ReturnType<typeof setInterval>>();
+
+  // Poll for visual when text arrives without one
+  const startVisualPoll = useCallback((type: "daily" | "coach", pDays: number) => {
+    if (visualPollRef.current) clearInterval(visualPollRef.current);
+    setDeferredVisual(null);
+    let attempts = 0;
+    const MAX_ATTEMPTS = 20; // ~60s at 3s intervals
+    visualPollRef.current = setInterval(async () => {
+      attempts += 1;
+      if (attempts > MAX_ATTEMPTS) {
+        clearInterval(visualPollRef.current);
+        return;
+      }
+      const visual = await pollGrowthVisual(type, pDays);
+      if (visual) {
+        setDeferredVisual(visual);
+        clearInterval(visualPollRef.current);
+      }
+    }, 3000);
+  }, []);
+
+  // Clean up poll on unmount
+  useEffect(() => () => { if (visualPollRef.current) clearInterval(visualPollRef.current); }, []);
 
   const loadInsight = useCallback(async (days: PeriodDays, options: { forceRefresh?: boolean } = {}): Promise<void> => {
     setLoading(true);
     setError(null);
+    setDeferredVisual(null);
+    if (visualPollRef.current) clearInterval(visualPollRef.current);
     // Clear previous data so skeleton shows during load
     setInsight(null);
     setDailySummary(null);
@@ -100,6 +127,10 @@ export function AnalyticsDashboard(): JSX.Element {
         return;
       }
       setDailySummary(next);
+      // If text arrived without a visual, poll for it in the background
+      if (!next.visual) {
+        startVisualPoll("daily", 1);
+      }
       void putVisualCache(cacheKey, next);
     } else {
       const next = await getAnalyticsCoachInsight(days, options);
@@ -109,11 +140,14 @@ export function AnalyticsDashboard(): JSX.Element {
         return;
       }
       setInsight(next);
+      if (!next.visual) {
+        startVisualPoll("coach", days);
+      }
       void putVisualCache(cacheKey, next);
     }
 
     setLoading(false);
-  }, [t]);
+  }, [t, startVisualPoll]);
 
   useEffect(() => {
     void loadInsight(periodDays);
@@ -161,10 +195,16 @@ export function AnalyticsDashboard(): JSX.Element {
       )}
 
       {/* Daily reflection view (1d) */}
-      {dailySummary && periodDays === 1 && !loading && (
+      {dailySummary && periodDays === 1 && !loading && (() => {
+        const visual = dailySummary.visual ?? deferredVisual;
+        return (
         <div className="analytics-fade-in">
-          {dailySummary.visual && (
-            <DeferredImage src={dailySummary.visual.dataUrl} alt={dailySummary.visual.alt} />
+          {visual ? (
+            <DeferredImage src={visual.dataUrl} alt={visual.alt} />
+          ) : (
+            <figure className="analytics-visual">
+              <div className="skeleton-block analytics-visual-skeleton" />
+            </figure>
           )}
           <section className="analytics-summary-card analytics-summary-hero">
             <div className="analytics-summary-content">
@@ -202,14 +242,21 @@ export function AnalyticsDashboard(): JSX.Element {
             </div>
           )}
         </div>
-      )}
+        );
+      })()}
 
       {/* Multi-day analytics view (7d/14d/30d) */}
 
-      {insight && !loading && (
+      {insight && !loading && (() => {
+        const visual = insight.visual ?? deferredVisual;
+        return (
         <div className="analytics-fade-in">
-          {insight.visual && (
-            <DeferredImage src={insight.visual.dataUrl} alt={insight.visual.alt} />
+          {visual ? (
+            <DeferredImage src={visual.dataUrl} alt={visual.alt} />
+          ) : (
+            <figure className="analytics-visual">
+              <div className="skeleton-block analytics-visual-skeleton" />
+            </figure>
           )}
           <section className="analytics-summary-card analytics-summary-hero">
             <div className="analytics-summary-content">
@@ -285,7 +332,8 @@ export function AnalyticsDashboard(): JSX.Element {
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

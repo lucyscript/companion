@@ -1044,6 +1044,7 @@ export function ChatView({ mood, onMoodChange, onDataMutated }: ChatViewProps): 
             <h2><IconWave size={24} style={{ verticalAlign: 'middle', marginRight: 6 }} />Hi there!</h2>
             <p>I'm your AI companion. I know your schedule, deadlines, and goals.</p>
             <p>Ask me anything about your day, plans, and goals!</p>
+            <p className="chat-welcome-hint">Tip: Connect Canvas, Teams, or Google Calendar in Settings → Integrations for personalized advice.</p>
             <div className="chat-quick-actions">
               {quickActions.map((action) => (
                 <button
