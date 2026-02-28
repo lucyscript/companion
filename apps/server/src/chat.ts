@@ -71,7 +71,7 @@ function buildCanvasContextSummary(store: RuntimeStore, userId: string, now: Dat
   const canvasData = store.getCanvasData(userId);
   
   if (!canvasData || canvasData.announcements.length === 0) {
-    return "Canvas data: no synced courses yet. Connect Canvas to enrich responses with assignments, modules, and announcements.";
+    return "";
   }
 
   const recentAnnouncements = canvasData.announcements
