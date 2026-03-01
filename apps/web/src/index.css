@@ -4504,6 +4504,24 @@ body.chat-tab-active .chat-view {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.22);
 }
 
+/* Keyboard-down (half-sheet quick-action): frosted glass bubbles.
+   The panel is translucent so backdrop-filter on individual bubbles
+   blurs through to the underlying app content. Skip when keyboard is
+   open because the panel switches to opaque bg-solid (nothing to blur). */
+body.chat-overlay-active:not(.keyboard-open) .chat-overlay-panel .chat-bubble-user .chat-bubble-content,
+body.chat-overlay-docked:not(.keyboard-open) .chat-overlay-panel-docked .chat-bubble-user .chat-bubble-content {
+  background: var(--chat-user-bg);
+  backdrop-filter: blur(20px) saturate(120%);
+  -webkit-backdrop-filter: blur(20px) saturate(120%);
+}
+
+body.chat-overlay-active:not(.keyboard-open) .chat-overlay-panel .chat-bubble-assistant .chat-bubble-content,
+body.chat-overlay-docked:not(.keyboard-open) .chat-overlay-panel-docked .chat-bubble-assistant .chat-bubble-content {
+  background: var(--chat-ai-bg);
+  backdrop-filter: blur(20px) saturate(120%);
+  -webkit-backdrop-filter: blur(20px) saturate(120%);
+}
+
 /* Streaming text with blinking cursor */
 .chat-stream-text::after {
   content: '▊';
