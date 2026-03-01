@@ -975,6 +975,7 @@ function isPublicApiRoute(method: string, path: string): boolean {
     (method === "GET" && path === "/api/auth/github/callback") ||
     (method === "GET" && path === "/api/auth/withings") ||
     (method === "GET" && path === "/api/auth/withings/callback") ||
+    (method === "GET" && path === "/api/auth/notion/callback") ||
     (method === "GET" && path === "/api/auth/microsoft/callback") ||
     (method === "GET" && path === "/api/plan/tiers") ||
     (method === "POST" && path === "/api/stripe/webhook") ||
@@ -5078,6 +5079,11 @@ const server = app.listen(config.PORT, () => {
   console.log(`[push] VAPID keys=${hasStaticVapidKeys() ? "configured" : "auto-generated (will rotate on restart!)"} subject=${config.VAPID_SUBJECT}`);
   // eslint-disable-next-line no-console
   console.log(`[push] subscriptions=${store.getAllPushSubscriptions().length}`);
+
+  // Start orchestrator to process scheduled notifications (reminders, nudges)
+  runtime.start();
+  // eslint-disable-next-line no-console
+  console.log(`[orchestrator] started — polling every 30s for due notifications`);
 });
 
 let shuttingDown = false;

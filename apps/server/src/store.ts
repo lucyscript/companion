@@ -949,6 +949,10 @@ export class RuntimeStore {
     if (!hasWithingsLastSyncedAtColumn) {
       this.db.prepare("ALTER TABLE withings_data ADD COLUMN lastSyncedAt TEXT").run();
     }
+    const hasTokenSourceColumn = withingsColumns.some((col) => col.name === "tokenSource");
+    if (!hasTokenSourceColumn) {
+      this.db.prepare("ALTER TABLE withings_data ADD COLUMN tokenSource TEXT").run();
+    }
 
     const studyPlanColumns = this.db.prepare("PRAGMA table_info(study_plan_sessions)").all() as Array<{ name: string }>;
     const hasEnergyLevelColumn = studyPlanColumns.some((col) => col.name === "energyLevel");

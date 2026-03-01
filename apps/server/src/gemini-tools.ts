@@ -4377,7 +4377,7 @@ export function handleCreateScheduleBlock(
   const title = asTrimmedString(args.title);
   const startTime = asTrimmedString(args.startTime);
   const workloadRaw = asTrimmedString(args.workload)?.toLowerCase();
-  const durationMinutes = clampNumber(args.durationMinutes, 60, 15, 240);
+  const durationMinutes = clampNumber(args.durationMinutes, 60, 15, 480);
 
   if (!title || !startTime) {
     return { error: "title and startTime are required." };
@@ -4417,7 +4417,7 @@ export function handleUpdateScheduleBlock(
   const nextTitle = asTrimmedString(args.title);
   const nextStartTime = asTrimmedString(args.startTime);
   const nextDurationMinutes = typeof args.durationMinutes === "number"
-    ? clampNumber(args.durationMinutes, resolved.durationMinutes, 15, 240)
+    ? clampNumber(args.durationMinutes, resolved.durationMinutes, 15, 480)
     : undefined;
   const workloadRaw = asTrimmedString(args.workload)?.toLowerCase();
   const nextWorkload: LectureEvent["workload"] | undefined =
@@ -4563,7 +4563,7 @@ export function handleQueueScheduleBlock(
   const title = asTrimmedString(args.title);
   const startTime = asTrimmedString(args.startTime);
   const workloadRaw = asTrimmedString(args.workload)?.toLowerCase();
-  const durationMinutes = clampNumber(args.durationMinutes, 60, 15, 240);
+  const durationMinutes = clampNumber(args.durationMinutes, 60, 15, 480);
 
   if (!title || !startTime) {
     return { error: "title and startTime are required." };
@@ -4603,7 +4603,7 @@ export function handleQueueUpdateScheduleBlock(
   const nextTitle = asTrimmedString(args.title);
   const nextStartTime = asTrimmedString(args.startTime);
   const nextDurationMinutes = typeof args.durationMinutes === "number"
-    ? clampNumber(args.durationMinutes, resolved.durationMinutes, 15, 240)
+    ? clampNumber(args.durationMinutes, resolved.durationMinutes, 15, 480)
     : undefined;
   const workloadRaw = asTrimmedString(args.workload)?.toLowerCase();
   const nextWorkload: LectureEvent["workload"] | undefined =
@@ -4728,7 +4728,7 @@ export function handleQueueCreateRoutinePreset(
 ): ImmediateRoutinePresetActionResponse | { error: string } {
   const title = asTrimmedString(args.title);
   const preferredStartTime = parseRoutinePreferredStartTime(args.preferredStartTime);
-  const durationMinutes = clampNumber(args.durationMinutes, 60, 15, 240);
+  const durationMinutes = clampNumber(args.durationMinutes, 60, 15, 480);
   const weekdays = parseRoutineWeekdays(args.weekdays) ?? [0, 1, 2, 3, 4, 5, 6];
   const workloadRaw = asTrimmedString(args.workload)?.toLowerCase();
   const workload: RoutinePreset["workload"] =
@@ -4772,7 +4772,7 @@ export function handleQueueUpdateRoutinePreset(
   const nextTitle = asTrimmedString(args.title);
   const nextPreferredStartTime = parseRoutinePreferredStartTime(args.preferredStartTime);
   const nextDurationMinutes = typeof args.durationMinutes === "number"
-    ? clampNumber(args.durationMinutes, resolved.durationMinutes, 15, 240)
+    ? clampNumber(args.durationMinutes, resolved.durationMinutes, 15, 480)
     : undefined;
   const nextWeekdays = parseRoutineWeekdays(args.weekdays) ?? undefined;
   const workloadRaw = asTrimmedString(args.workload)?.toLowerCase();
@@ -4921,7 +4921,7 @@ export function executePendingChatAction(
         };
       }
 
-      const durationMinutes = clampNumber(pendingAction.payload.durationMinutes, 60, 15, 240);
+      const durationMinutes = clampNumber(pendingAction.payload.durationMinutes, 60, 15, 480);
       const workloadRaw = asTrimmedString(pendingAction.payload.workload)?.toLowerCase();
       const workload: LectureEvent["workload"] =
         workloadRaw === "low" || workloadRaw === "medium" || workloadRaw === "high" ? workloadRaw : "medium";
@@ -4984,7 +4984,7 @@ export function executePendingChatAction(
       }
 
       if (typeof pendingAction.payload.durationMinutes === "number") {
-        patch.durationMinutes = clampNumber(pendingAction.payload.durationMinutes, existing.durationMinutes, 15, 240);
+        patch.durationMinutes = clampNumber(pendingAction.payload.durationMinutes, existing.durationMinutes, 15, 480);
       }
 
       const workloadRaw = asTrimmedString(pendingAction.payload.workload)?.toLowerCase();
@@ -5120,7 +5120,7 @@ export function executePendingChatAction(
         };
       }
 
-      const durationMinutes = clampNumber(pendingAction.payload.durationMinutes, 60, 15, 240);
+      const durationMinutes = clampNumber(pendingAction.payload.durationMinutes, 60, 15, 480);
       const weekdays = parseRoutineWeekdays(pendingAction.payload.weekdays) ?? [0, 1, 2, 3, 4, 5, 6];
       const workloadRaw = asTrimmedString(pendingAction.payload.workload)?.toLowerCase();
       const workload: RoutinePreset["workload"] =
@@ -5170,7 +5170,7 @@ export function executePendingChatAction(
       }
 
       if (typeof pendingAction.payload.durationMinutes === "number") {
-        patch.durationMinutes = clampNumber(pendingAction.payload.durationMinutes, 60, 15, 240);
+        patch.durationMinutes = clampNumber(pendingAction.payload.durationMinutes, 60, 15, 480);
       }
 
       const weekdays = parseRoutineWeekdays(pendingAction.payload.weekdays);

@@ -2003,16 +2003,16 @@ function isMcpRateLimitedResponse(response: unknown): boolean {
 }
 
 function maxCallsPerToolInTurn(toolName: string, binding: McpToolBinding | undefined): number {
-  if (binding?.remoteToolName === "search_code") {
-    return 2;
-  }
-  if (binding?.remoteToolName === "search_repositories") {
-    return 4;
-  }
-  if (toolName === "setResponseMood") {
-    return 8;
-  }
-  return 6;
+  // External / quota-sensitive MCP tools — keep tight limits
+  if (binding?.remoteToolName === "search_code") return 2;
+  if (binding?.remoteToolName === "search_repositories") return 4;
+  // MCP tools (generic) — moderate limit to avoid burning remote quotas
+  if (binding) return 10;
+  // Local tools: high default. True loop protection is already handled by
+  // MAX_IDENTICAL_TOOL_CALLS_PER_TURN (same-signature dedup) and
+  // maxFunctionRounds (total round-trip cap). This per-name limit is just
+  // a safety net for pathological non-identical retry storms.
+  return 20;
 }
 
 function citationKey(citation: ChatCitation): string {
@@ -3642,6 +3642,7 @@ export async function sendChatMessage(
   );
 
   const messages = toGeminiMessages(history, userInput, attachments);
+  console.log(`[chat] user message: userId=${userId} text=${JSON.stringify(userInput).slice(0, 500)}${attachments?.length ? ` attachments=${attachments.length}` : ""}`);
   console.log(`[gemini] system prompt: userId=${userId} length=${systemInstruction.length} tools=${activeToolDeclarations.length} messages=${messages.length}`);
   console.log(`[gemini] system instruction:\n${systemInstruction}`);
   const userMessage = store.recordChatMessage(userId, "user", userInput, userMetadata);
@@ -3975,6 +3976,7 @@ export async function sendChatMessage(
   };
 
   console.log(`[gemini] message complete: userId=${userId} prompt=${totalUsage?.promptTokens ?? 0} response=${totalUsage?.responseTokens ?? 0} total=${totalUsage?.totalTokens ?? 0} tools=${executedFunctionResponses.length} context=${contextWindow}`);
+  console.log(`[chat] assistant reply: userId=${userId} text=${JSON.stringify(finalReply).slice(0, 500)} mood=${resolvedMood ?? "none"} tools=[${executedFunctionResponses.map((r) => r.name).join(", ")}]`);
 
   const assistantMessage = store.recordChatMessage(userId, "assistant", finalReply, assistantMetadata);
   void bufferForJournalBatch(store, userId, userMessage, assistantMessage, gemini);
