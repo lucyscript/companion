@@ -20,7 +20,7 @@ const MCP_SERVER_TEMPLATES: readonly McpServerTemplate[] = [
     id: "github_repos_readonly",
     provider: "GitHub",
     label: "GitHub (read-only repos)",
-    description: "Read repository files, history, and releases with read-only access.",
+    description: "Read repository files, history, and releases. Search finds public repos only; direct file access works on private repos too.",
     serverUrl: "https://api.githubcopilot.com/mcp/x/repos/readonly",
     docsUrl: "https://github.com/github/github-mcp-server/blob/main/docs/remote-server.md",
     verified: true,
