@@ -50,7 +50,7 @@ const schema = z.object({
       (value) => (typeof value === "string" ? value.trim().toUpperCase() : value),
       z.enum(["MINIMAL", "LOW", "MEDIUM", "HIGH"])
     )
-    .default("MEDIUM"),
+    .default("LOW"),
   GEMINI_GROWTH_IMAGE_MODEL: z.string().default("nano-banana-pro"),
   GEMINI_LIVE_ENDPOINT: z.string().url().optional(),
   GEMINI_VERTEX_PROJECT_ID: z.string().optional(),

@@ -61,7 +61,7 @@ describe("config", () => {
       const { config } = await import("./config.js");
       expect(config.GEMINI_USE_LIVE_API).toBe(true);
       expect(config.GEMINI_LIVE_MODEL).toBe("gemini-3-flash-preview");
-      expect(config.GEMINI_THINKING_LEVEL).toBe("MEDIUM");
+      expect(config.GEMINI_THINKING_LEVEL).toBe("LOW");
       expect(config.GEMINI_VERTEX_LOCATION).toBe("global");
     });
 
