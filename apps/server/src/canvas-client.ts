@@ -42,11 +42,15 @@ export class CanvasClient {
       throw new Error("Canvas API token not configured");
     }
 
+    // Sanitize token: replace non-ASCII characters (e.g. em-dash from copy-paste)
+    // with their closest ASCII equivalents. HTTP headers require ByteString values.
+    const safeToken = this.token.replace(/[\u2013\u2014]/g, "-").replace(/[^\x00-\x7F]/g, "");
+
     let response: Response;
     try {
       response = await fetch(url, {
         headers: {
-          Authorization: `Bearer ${this.token}`,
+          Authorization: `Bearer ${safeToken}`,
           Accept: "application/json"
         }
       });

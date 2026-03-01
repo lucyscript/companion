@@ -3931,6 +3931,10 @@ export async function sendChatMessage(
     throw error;
   }
 
+  if (!response || response.text.trim().length === 0) {
+    console.warn(`[gemini] empty response from model: executedTools=${executedFunctionResponses.length} pendingActions=${pendingActionsFromTooling.length} usage=${JSON.stringify(totalUsage)}`);
+  }
+
   const rawReply = response && response.text.trim().length > 0
     ? response.text
     : executedFunctionResponses.length > 0
@@ -3939,7 +3943,9 @@ export async function sendChatMessage(
           pendingActionsFromTooling,
           "I pulled this from your connected tools:"
         )
-      : buildPendingActionFallbackReply(pendingActionsFromTooling);
+      : pendingActionsFromTooling.length > 0
+        ? buildPendingActionFallbackReply(pendingActionsFromTooling)
+        : "Sorry, I wasn't able to generate a response. Could you try rephrasing your request?";
 
   const finalReply = rawReply;
   const resolvedMood = extractMoodFromToolResponses(executedFunctionResponses);

@@ -565,7 +565,10 @@ export async function buildMcpToolContext(store: RuntimeStore, userId: string): 
         summaryParts.push(`${server.label}: no tools exposed`);
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : "unknown error";
+      const rawMessage = error instanceof Error ? error.message : "unknown error";
+      // Truncate error messages — HTML error pages from broken endpoints
+      // can be thousands of chars and pollute the system prompt.
+      const message = rawMessage.length > 120 ? rawMessage.slice(0, 120) + "…" : rawMessage;
       summaryParts.push(`${server.label}: unavailable (${message})`);
     }
   }
