@@ -661,6 +661,14 @@ export default function App(): JSX.Element {
     window.addEventListener("hashchange", handleNavigation);
     applyDeepLinkFromUrl();
 
+    // Strip consumed query params so the URL stays clean after redirects
+    // (e.g. OAuth callbacks). This prevents iOS Safari from keeping the address
+    // bar expanded due to a long URL, which reduces the visual viewport and
+    // causes the fixed tab-bar to appear floating above the bottom edge.
+    if (window.location.search) {
+      window.history.replaceState(null, "", window.location.pathname + window.location.hash);
+    }
+
     return () => {
       window.removeEventListener("popstate", handleNavigation);
       window.removeEventListener("hashchange", handleNavigation);

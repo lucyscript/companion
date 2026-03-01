@@ -217,7 +217,7 @@ export function SettingsView({
         </div>
       </div>
 
-      <div className="settings-section">
+      <div id="integration-status-panel" className="settings-section">
         <h3 className="settings-section-title"><IconLink size={16} style={{ verticalAlign: 'middle', marginRight: 4 }} /> {t("Integrations")}</h3>
         <ConnectorsView planInfo={planInfo} onUpgrade={onUpgrade} />
       </div>
