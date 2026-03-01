@@ -4449,6 +4449,21 @@ body.chat-tab-active .chat-view {
   display: block;
 }
 
+.chat-inline-link {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-all;
+}
+
+.chat-inline-link:hover {
+  opacity: 0.8;
+}
+
+.chat-bubble-user .chat-inline-link {
+  color: inherit;
+}
+
 .chat-markdown-paragraph {
   margin: 0;
 }

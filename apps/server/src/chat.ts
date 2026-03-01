@@ -1509,6 +1509,7 @@ function buildFunctionCallingSystemInstruction(
     `- Use only lightweight Markdown that the chat UI supports:`,
     `  - **bold** for key facts and warnings`,
     `  - *italic* for gentle emphasis`,
+    `  - [text](url) for clickable links`,
     `  - '-' or '*' bullet lists for schedules and checklists`,
     `  - plain paragraphs separated by blank lines`,
     `- Do not use HTML, tables, headings (#), blockquotes, or code fences.`,

@@ -168,7 +168,7 @@ function deduplicateCitations(citations: ChatCitation[]): ChatCitation[] {
 
 function renderInlineMarkdown(text: string): ReactNode[] {
   const nodes: ReactNode[] = [];
-  const tokenPattern = /(\*\*[^*\n]+?\*\*|\*[^*\n]+?\*)/g;
+  const tokenPattern = /(\*\*[^*\n]+?\*\*|\*[^*\n]+?\*|\[[^\]]+?\]\(https?:\/\/[^)\s]+\))/g;
   let cursor = 0;
   let match: RegExpExecArray | null;
   let key = 0;
@@ -181,6 +181,13 @@ function renderInlineMarkdown(text: string): ReactNode[] {
     const token = match[0];
     if (token.startsWith("**") && token.endsWith("**")) {
       nodes.push(<strong key={`strong-${key++}`}>{token.slice(2, -2)}</strong>);
+    } else if (token.startsWith("[")) {
+      const linkMatch = token.match(/^\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)$/);
+      if (linkMatch) {
+        nodes.push(<a key={`link-${key++}`} href={linkMatch[2]} target="_blank" rel="noopener noreferrer" className="chat-inline-link">{linkMatch[1]}</a>);
+      } else {
+        nodes.push(<Fragment key={`token-${key++}`}>{token}</Fragment>);
+      }
     } else if (token.startsWith("*") && token.endsWith("*")) {
       nodes.push(<em key={`em-${key++}`}>{token.slice(1, -1)}</em>);
     } else {
