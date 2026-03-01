@@ -11,8 +11,9 @@ import { FunctionDeclaration, Part, SchemaType } from "@google/generative-ai";
 import { functionDeclarations, executeFunctionCall, executePendingChatAction } from "./gemini-tools.js";
 import { getAllowedToolNames, type PlanId } from "./plan-config.js";
 import { RuntimeStore } from "./store.js";
-import { buildMcpToolContext, executeMcpToolCall } from "./mcp.js";
+import { buildMcpToolContext, executeMcpToolCall, getMcpServers } from "./mcp.js";
 import type { McpToolBinding } from "./mcp.js";
+import { isGithubMcpServer } from "./tp-github-deadlines.js";
 import {
   ChatCitation,
   ChatHistoryPage,
@@ -29,6 +30,120 @@ import {
 interface ChatContextResult {
   contextWindow: string;
   history: ChatMessage[];
+}
+
+// ── GitHub org repos native tool (supplements MCP which has no list_org_repos) ──
+
+const GITHUB_ORG_REPOS_TOOL: FunctionDeclaration = {
+  name: "listGitHubOrgRepos",
+  description: "List repositories that the user can access in a GitHub organization. Use this to discover private repos in university or course organizations that search_repositories cannot find.",
+  parameters: {
+    type: SchemaType.OBJECT,
+    properties: {
+      org: {
+        type: SchemaType.STRING,
+        description: "GitHub organization login name (e.g. 'dat560-2026')"
+      },
+      type: {
+        type: SchemaType.STRING,
+        description: "Filter by repo relation to the org: all, public, private, forks, sources, or member. Default: 'all'"
+      }
+    },
+    required: ["org"]
+  }
+};
+
+const GITHUB_LIST_ORGS_TOOL: FunctionDeclaration = {
+  name: "listGitHubUserOrgs",
+  description: "List GitHub organizations that the authenticated user belongs to. Call this to discover which organizations the user is a member of before searching for repos.",
+  parameters: {
+    type: SchemaType.OBJECT,
+    properties: {},
+    required: []
+  }
+};
+
+async function handleListGitHubOrgRepos(
+  store: RuntimeStore,
+  userId: string,
+  args: Record<string, unknown>
+): Promise<unknown> {
+  const org = typeof args.org === "string" ? args.org.trim() : "";
+  if (!org) return { error: "Missing required 'org' parameter" };
+  const type = typeof args.type === "string" ? args.type : "all";
+
+  const token = getGitHubMcpToken(store, userId);
+  if (!token) return { error: "GitHub is not connected. Ask the user to connect GitHub in Settings → Integrations." };
+
+  try {
+    const res = await fetch(
+      `https://api.github.com/orgs/${encodeURIComponent(org)}/repos?type=${encodeURIComponent(type)}&per_page=100&sort=updated`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28"
+        }
+      }
+    );
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      return { error: `GitHub API error ${res.status}: ${body.slice(0, 200)}` };
+    }
+    const repos = (await res.json()) as Array<{ name: string; full_name: string; private: boolean; description: string | null; updated_at: string; default_branch: string }>;
+    return {
+      org,
+      count: repos.length,
+      repos: repos.map((r) => ({
+        name: r.name,
+        full_name: r.full_name,
+        private: r.private,
+        description: r.description,
+        updated_at: r.updated_at,
+        default_branch: r.default_branch
+      }))
+    };
+  } catch (err) {
+    return { error: `Failed to fetch org repos: ${err instanceof Error ? err.message : String(err)}` };
+  }
+}
+
+async function handleListGitHubUserOrgs(
+  store: RuntimeStore,
+  userId: string
+): Promise<unknown> {
+  const token = getGitHubMcpToken(store, userId);
+  if (!token) return { error: "GitHub is not connected. Ask the user to connect GitHub in Settings → Integrations." };
+
+  try {
+    const res = await fetch(
+      "https://api.github.com/user/orgs?per_page=100",
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28"
+        }
+      }
+    );
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      return { error: `GitHub API error ${res.status}: ${body.slice(0, 200)}` };
+    }
+    const orgs = (await res.json()) as Array<{ login: string; description: string | null }>;
+    return {
+      count: orgs.length,
+      orgs: orgs.map((o) => ({ login: o.login, description: o.description }))
+    };
+  } catch (err) {
+    return { error: `Failed to fetch user orgs: ${err instanceof Error ? err.message : String(err)}` };
+  }
+}
+
+function getGitHubMcpToken(store: RuntimeStore, userId: string): string | undefined {
+  const servers = getMcpServers(store, userId);
+  const github = servers.find((s) => s.enabled && isGithubMcpServer(s) && s.token);
+  return github?.token;
 }
 
 const VALID_MOODS: Set<string> = new Set<string>(["neutral", "encouraging", "focused", "celebratory", "empathetic", "urgent"]);
@@ -1309,10 +1424,9 @@ function buildFunctionCallingSystemInstruction(
     `- For external systems such as docs, project tools, productivity apps, and provider APIs, call available MCP tools when relevant.`,
     `- If the user asks to import/migrate external deadlines or schedule entries into Companion, read the source via MCP tools and then write the concrete items with createDeadline/createScheduleBlock tools.`,
     ...(hasGitHubMcp ? [
-      `- The first time the user asks about GitHub repos, call get_me to learn their username, then ask which GitHub organizations they belong to (e.g. university course orgs) so you can access repos in those orgs. Remember their answer for future turns.`,
-      `- IMPORTANT: GitHub search_repositories only finds PUBLIC repos. Private repos (especially course repos inside university organizations) will NOT appear in search results.`,
-      `- When the user mentions a GitHub repo by name, first try search_repositories. If search returns 0 results, the repo is likely private — try accessing it directly via get_file_contents with the owner/repo path (e.g. "dat560-2026/repo-name") instead of telling the user it doesn't exist.`,
-      `- To find repos across organizations, search with the org qualifier (e.g. "org:dat560-2026") in addition to the user qualifier.`,
+      `- When the user asks about GitHub repos, first call listGitHubUserOrgs to discover which organizations they belong to. Then use listGitHubOrgRepos to list repos in those orgs. This is the ONLY reliable way to discover private org repos.`,
+      `- GitHub search_repositories (MCP tool) only finds PUBLIC repos. Private repos (especially course repos inside university organizations) will NOT appear in search results.`,
+      `- When the user mentions a specific GitHub repo by name, try get_file_contents directly with the owner/repo path — it works on private repos even when search can't find them.`,
       `- For GitHub repository ingestion tasks, prefer direct file reads via get_file_contents on known files (for example README.md) before using search_code.`,
       `- Avoid brute-force search_code loops. If a search_code call returns rate-limit errors, stop further search_code calls in this turn and continue with already retrieved content.`,
     ] : []),
@@ -3808,6 +3922,10 @@ export async function sendChatMessage(
     ...filteredDeclarations,
     ...mcpToolContext.declarations
   ];
+  const hasGitHubMcpConnected = mcpToolContext.summary.toLowerCase().includes("github");
+  if (hasGitHubMcpConnected) {
+    activeToolDeclarations.push(GITHUB_LIST_ORGS_TOOL, GITHUB_ORG_REPOS_TOOL);
+  }
   const systemInstruction = buildFunctionCallingSystemInstruction(
     options.userName || config.USER_NAME,
     allowedTools && !allowedTools.has("getHabitsGoalsStatus") ? "(Habits/goals not available on current plan)" : buildHabitGoalNudgeContext(store, userId),
@@ -3953,7 +4071,9 @@ export async function sendChatMessage(
         toolCallNameCount.set(toolLimitKey, callCount + 1);
         console.log(`[tool] Round ${round + 1}/${callIndex + 1}: ${call.name}(${JSON.stringify(args).slice(0, 200)})`);
         // Server-side plan guard: reject tool calls not in the allowed set
-        if (allowedTools && !mcpBinding && !allowedTools.has(call.name)) {
+        // (GitHub org tools are always allowed when GitHub MCP is connected)
+        const isGitHubOrgTool = call.name === "listGitHubOrgRepos" || call.name === "listGitHubUserOrgs";
+        if (allowedTools && !mcpBinding && !isGitHubOrgTool && !allowedTools.has(call.name)) {
           console.log(`[tool] BLOCKED ${call.name} — not allowed on plan ${planId}`);
           roundResponses.push({
             name: call.name,
@@ -3969,6 +4089,10 @@ export async function sendChatMessage(
               name: call.name,
               response: await executeMcpToolCall(mcpBinding, args, store, userId)
             };
+          } else if (call.name === "listGitHubOrgRepos") {
+            result = { name: call.name, response: await handleListGitHubOrgRepos(store, userId, args) };
+          } else if (call.name === "listGitHubUserOrgs") {
+            result = { name: call.name, response: await handleListGitHubUserOrgs(store, userId) };
           } else {
             result = executeFunctionCall(call.name, args, store, userId);
           }
@@ -4194,4 +4318,4 @@ export async function sendChatMessage(
   };
 }
 
-export { GeminiError, RateLimitError };
+export { GeminiError, RateLimitError, handleListGitHubOrgRepos, handleListGitHubUserOrgs, getGitHubMcpToken };
