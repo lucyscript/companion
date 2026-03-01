@@ -342,65 +342,192 @@ function getGitHubRedirectUri(): string {
   return `${base}/api/auth/github/callback`;
 }
 
-// ── Notion OAuth ──
+// ── Notion MCP OAuth ──
+// The remote Notion MCP server at mcp.notion.com uses its own OAuth system
+// (MCP OAuth with PKCE + dynamic client registration per RFC 7591/9470/8414),
+// NOT the Notion REST API OAuth at api.notion.com.
 
-export function notionOAuthEnabled(): boolean {
-  return Boolean(config.NOTION_OAUTH_CLIENT_ID && config.NOTION_OAUTH_CLIENT_SECRET);
+import { randomBytes, createHash } from "crypto";
+
+interface NotionMcpClientRegistration {
+  clientId: string;
+  registeredAt: number;
 }
 
-function getNotionRedirectUri(): string {
+// Cache dynamic client registration per redirect URI
+const notionMcpRegistrationCache = new Map<string, NotionMcpClientRegistration>();
+
+export function notionOAuthEnabled(): boolean {
+  // MCP OAuth uses dynamic client registration — no env vars needed
+  return true;
+}
+
+function getNotionMcpRedirectUri(): string {
   const base = config.OAUTH_REDIRECT_BASE_URL ?? `http://localhost:${config.PORT}`;
   return `${base}/api/auth/notion/callback`;
 }
 
-export function getNotionOAuthUrl(state: string): string {
-  const params = new URLSearchParams({
-    client_id: config.NOTION_OAUTH_CLIENT_ID!,
-    redirect_uri: getNotionRedirectUri(),
-    response_type: "code",
-    owner: "user",
-    state
-  });
-  return `https://api.notion.com/v1/oauth/authorize?${params.toString()}`;
+function generateCodeVerifier(): string {
+  return randomBytes(32).toString("base64url");
 }
 
-export async function exchangeNotionCode(code: string): Promise<string> {
-  const credentials = Buffer.from(
-    `${config.NOTION_OAUTH_CLIENT_ID}:${config.NOTION_OAUTH_CLIENT_SECRET}`
-  ).toString("base64");
+function generateCodeChallenge(verifier: string): string {
+  return createHash("sha256").update(verifier).digest("base64url");
+}
 
-  const tokenResponse = await fetch("https://api.notion.com/v1/oauth/token", {
+async function ensureNotionMcpClientRegistration(): Promise<string> {
+  const redirectUri = getNotionMcpRedirectUri();
+  const cached = notionMcpRegistrationCache.get(redirectUri);
+  // Re-register every 24 hours or on first use
+  if (cached && Date.now() - cached.registeredAt < 24 * 60 * 60 * 1000) {
+    return cached.clientId;
+  }
+
+  console.log(`[notion-mcp-oauth] Registering dynamic client at mcp.notion.com/register...`);
+  const response = await fetch("https://mcp.notion.com/register", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Basic ${credentials}`,
-      "Notion-Version": "2022-06-28"
+      Accept: "application/json",
     },
     body: JSON.stringify({
-      grant_type: "authorization_code",
-      code,
-      redirect_uri: getNotionRedirectUri()
-    })
+      client_name: "Companion AI",
+      client_uri: config.OAUTH_REDIRECT_BASE_URL ?? `http://localhost:${config.PORT}`,
+      redirect_uris: [redirectUri],
+      grant_types: ["authorization_code", "refresh_token"],
+      response_types: ["code"],
+      token_endpoint_auth_method: "none",
+    }),
   });
 
-  if (!tokenResponse.ok) {
-    const body = await tokenResponse.text();
-    console.error(`[notion-oauth] Token exchange HTTP error: ${tokenResponse.status} body=${body.slice(0, 500)}`);
-    throw new Error(`Notion token exchange failed: ${tokenResponse.status} ${body}`);
+  if (!response.ok) {
+    const body = await response.text();
+    console.error(`[notion-mcp-oauth] Client registration failed: ${response.status} body=${body.slice(0, 500)}`);
+    throw new Error(`Notion MCP client registration failed: ${response.status} ${body}`);
   }
 
-  const data = (await tokenResponse.json()) as {
-    access_token?: string;
-    error?: string;
-    error_description?: string;
-    workspace_name?: string;
+  const data = (await response.json()) as { client_id: string };
+  console.log(`[notion-mcp-oauth] Client registered: client_id=${data.client_id.slice(0, 12)}...`);
+  notionMcpRegistrationCache.set(redirectUri, {
+    clientId: data.client_id,
+    registeredAt: Date.now(),
+  });
+
+  return data.client_id;
+}
+
+export interface NotionMcpOAuthInit {
+  redirectUrl: string;
+  codeVerifier: string;
+  clientId: string;
+}
+
+/**
+ * Initiates the Notion MCP OAuth flow:
+ * 1. Performs dynamic client registration (cached)
+ * 2. Generates PKCE code verifier + challenge
+ * 3. Returns the authorization URL, code verifier, and client ID
+ */
+export async function initNotionMcpOAuth(state: string): Promise<NotionMcpOAuthInit> {
+  const clientId = await ensureNotionMcpClientRegistration();
+  const codeVerifier = generateCodeVerifier();
+  const codeChallenge = generateCodeChallenge(codeVerifier);
+  const redirectUri = getNotionMcpRedirectUri();
+
+  const params = new URLSearchParams({
+    response_type: "code",
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    code_challenge: codeChallenge,
+    code_challenge_method: "S256",
+    state,
+  });
+
+  return {
+    redirectUrl: `https://mcp.notion.com/authorize?${params.toString()}`,
+    codeVerifier,
+    clientId,
   };
+}
 
-  if (!data.access_token || data.error) {
-    console.error(`[notion-oauth] Token exchange error: ${data.error ?? "no access_token"}`);
-    throw new Error(`Notion OAuth error: ${data.error_description ?? data.error ?? "no access_token"}`);
+export interface NotionMcpTokenResponse {
+  access_token: string;
+  refresh_token?: string;
+  expires_in?: number;
+  token_type: string;
+}
+
+/**
+ * Exchanges an authorization code for tokens at mcp.notion.com/token (with PKCE).
+ */
+export async function exchangeNotionMcpCode(
+  code: string,
+  codeVerifier: string,
+  clientId: string
+): Promise<NotionMcpTokenResponse> {
+  const redirectUri = getNotionMcpRedirectUri();
+
+  const params = new URLSearchParams({
+    grant_type: "authorization_code",
+    code,
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    code_verifier: codeVerifier,
+  });
+
+  const response = await fetch("https://mcp.notion.com/token", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Accept: "application/json",
+    },
+    body: params.toString(),
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    console.error(`[notion-mcp-oauth] Token exchange error: ${response.status} body=${body.slice(0, 500)}`);
+    throw new Error(`Notion MCP token exchange failed: ${response.status} ${body}`);
   }
 
-  console.log(`[notion-oauth] Token exchange success: workspace=${data.workspace_name ?? "unknown"}`);
-  return data.access_token;
+  const tokens = (await response.json()) as NotionMcpTokenResponse;
+  if (!tokens.access_token) {
+    throw new Error("Notion MCP token exchange: missing access_token");
+  }
+
+  console.log(`[notion-mcp-oauth] Token exchange success (expires_in=${tokens.expires_in ?? "unknown"}s)`);
+  return tokens;
+}
+
+/**
+ * Refreshes an expired Notion MCP access token using the refresh token.
+ */
+export async function refreshNotionMcpToken(
+  refreshToken: string,
+  clientId: string
+): Promise<NotionMcpTokenResponse> {
+  const params = new URLSearchParams({
+    grant_type: "refresh_token",
+    refresh_token: refreshToken,
+    client_id: clientId,
+  });
+
+  const response = await fetch("https://mcp.notion.com/token", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Accept: "application/json",
+    },
+    body: params.toString(),
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    console.error(`[notion-mcp-oauth] Token refresh error: ${response.status} body=${body.slice(0, 500)}`);
+    throw new Error(`Notion MCP token refresh failed: ${response.status} ${body}`);
+  }
+
+  const tokens = (await response.json()) as NotionMcpTokenResponse;
+  console.log(`[notion-mcp-oauth] Token refresh success (expires_in=${tokens.expires_in ?? "unknown"}s)`);
+  return tokens;
 }

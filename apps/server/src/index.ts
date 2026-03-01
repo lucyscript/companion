@@ -17,8 +17,8 @@ import {
   exchangeGitHubCode,
   exchangeGitHubCodeWithToken,
   notionOAuthEnabled,
-  getNotionOAuthUrl,
-  exchangeNotionCode
+  initNotionMcpOAuth,
+  exchangeNotionMcpCode
 } from "./oauth-login.js";
 import { buildDeadlineDedupResult } from "./deadline-dedup.js";
 import { generateDeadlineSuggestions } from "./deadline-suggestions.js";
@@ -283,6 +283,8 @@ interface PendingMcpGoogleOAuthState extends PendingOAuthState {
 
 interface PendingMcpNotionOAuthState extends PendingOAuthState {
   templateId: string;
+  codeVerifier: string;
+  clientId: string;
 }
 
 const withingsPendingOAuthStates = new Map<string, PendingOAuthState>();
@@ -595,11 +597,13 @@ function consumePendingMcpGoogleOAuthState(state: string | null): PendingMcpGoog
   return entry;
 }
 
-function registerPendingMcpNotionOAuthState(state: string, userId: string, templateId: string): void {
+function registerPendingMcpNotionOAuthState(state: string, userId: string, templateId: string, codeVerifier: string, clientId: string): void {
   cleanupPendingOAuthStates(mcpNotionPendingOAuthStates);
   mcpNotionPendingOAuthStates.set(state, {
     userId,
     templateId,
+    codeVerifier,
+    clientId,
     expiresAt: Date.now() + OAUTH_STATE_TTL_MS
   });
 }
@@ -1335,12 +1339,12 @@ app.get("/api/auth/github/callback", async (req, res) => {
   }
 });
 
-// ── Notion OAuth Callback ──
+// ── Notion MCP OAuth Callback ──
 
 app.get("/api/auth/notion/callback", async (req, res) => {
   const state = typeof req.query.state === "string" ? req.query.state : null;
   const pendingMcpNotion = consumePendingMcpNotionOAuthState(state);
-  console.log(`[notion-oauth] Callback hit: state=${state?.slice(0, 16) ?? "null"} code=${req.query.code ? "present" : "MISSING"} error=${req.query.error ?? "none"} pendingMatch=${!!pendingMcpNotion}`);
+  console.log(`[notion-mcp-oauth] Callback hit: state=${state?.slice(0, 16) ?? "null"} code=${req.query.code ? "present" : "MISSING"} error=${req.query.error ?? "none"} pendingMatch=${!!pendingMcpNotion}`);
 
   if (!pendingMcpNotion) {
     return res.redirect(getIntegrationFrontendRedirect("mcp", "failed", "Invalid or expired Notion OAuth state"));
@@ -1349,30 +1353,44 @@ app.get("/api/auth/notion/callback", async (req, res) => {
   try {
     const code = req.query.code as string;
     if (!code) {
-      console.log(`[notion-oauth] FAIL: Missing OAuth code in callback`);
+      console.log(`[notion-mcp-oauth] FAIL: Missing OAuth code in callback`);
       return res.redirect(getIntegrationFrontendRedirect("mcp", "failed", "Missing OAuth code"));
     }
 
     const template = getMcpServerTemplateById(pendingMcpNotion.templateId);
     if (!template) {
-      console.log(`[notion-oauth] FAIL: Template ${pendingMcpNotion.templateId} not found`);
+      console.log(`[notion-mcp-oauth] FAIL: Template ${pendingMcpNotion.templateId} not found`);
       return res.redirect(getIntegrationFrontendRedirect("mcp", "failed", "MCP template no longer exists"));
     }
 
-    console.log(`[notion-oauth] Exchanging code for user=${pendingMcpNotion.userId} template=${template.id}...`);
-    const accessToken = await exchangeNotionCode(code);
+    console.log(`[notion-mcp-oauth] Exchanging code for user=${pendingMcpNotion.userId} template=${template.id}...`);
+    const tokens = await exchangeNotionMcpCode(
+      code,
+      pendingMcpNotion.codeVerifier,
+      pendingMcpNotion.clientId
+    );
+
+    // Store as a JSON blob (like Google OAuth) so resolveOAuthBearerToken can
+    // auto-refresh when the access token expires (1 hour).
+    const tokenBlob = JSON.stringify({
+      type: "notion_mcp_oauth",
+      accessToken: tokens.access_token,
+      refreshToken: tokens.refresh_token ?? "",
+      clientId: pendingMcpNotion.clientId,
+      expiresAt: new Date(Date.now() + (tokens.expires_in ?? 3600) * 1000).toISOString(),
+    });
 
     const { server } = await upsertMcpTemplateServerWithToken(
       pendingMcpNotion.userId,
       template.id,
-      accessToken,
+      tokenBlob,
       { skipValidation: true }
     );
-    console.log(`[notion-oauth] SUCCESS: Server ${server.id} stored. Redirecting to frontend.`);
+    console.log(`[notion-mcp-oauth] SUCCESS: Server ${server.id} stored with MCP OAuth token. Redirecting to frontend.`);
     return res.redirect(getIntegrationFrontendRedirect("mcp", "connected", `${template.label} connected`));
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Notion OAuth failed";
-    console.error(`[notion-oauth] ERROR in callback:`, error);
+    const message = error instanceof Error ? error.message : "Notion MCP OAuth failed";
+    console.error(`[notion-mcp-oauth] ERROR in callback:`, error);
     return res.redirect(getIntegrationFrontendRedirect("mcp", "failed", message));
   }
 });
@@ -1605,11 +1623,17 @@ app.post("/api/mcp/templates/:templateId/connect", async (req, res) => {
       });
     }
 
-    const state = `mcp_notion_${Math.random().toString(36).slice(2)}`;
-    registerPendingMcpNotionOAuthState(state, authReq.authUser.id, template.id);
-    const redirectUrl = getNotionOAuthUrl(state);
-    console.log(`[notion-oauth] Generated OAuth redirect for user=${authReq.authUser.id} template=${template.id}`);
-    return res.json({ redirectUrl });
+    try {
+      const state = `mcp_notion_${Math.random().toString(36).slice(2)}`;
+      const mcpInit = await initNotionMcpOAuth(state);
+      registerPendingMcpNotionOAuthState(state, authReq.authUser.id, template.id, mcpInit.codeVerifier, mcpInit.clientId);
+      console.log(`[notion-mcp-oauth] Generated OAuth redirect for user=${authReq.authUser.id} template=${template.id}`);
+      return res.json({ redirectUrl: mcpInit.redirectUrl });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Notion MCP OAuth init failed";
+      console.error(`[notion-mcp-oauth] Init error:`, error);
+      return res.status(500).json({ error: message });
+    }
   }
 
   return res.status(400).json({

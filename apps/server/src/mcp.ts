@@ -3,7 +3,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { FunctionDeclaration, SchemaType } from "@google/generative-ai";
 import { RuntimeStore } from "./store.js";
-import { refreshGoogleAccessToken } from "./oauth-login.js";
+import { refreshGoogleAccessToken, refreshNotionMcpToken } from "./oauth-login.js";
 
 const MCP_MIN_TOOLS_PER_SERVER = 4;
 const MCP_MAX_TOOLS_PER_SERVER = 16;
@@ -96,10 +96,31 @@ function isGoogleOAuthTokenBlob(obj: unknown): obj is GoogleOAuthTokenBlob {
   );
 }
 
+interface NotionMcpOAuthTokenBlob {
+  type: "notion_mcp_oauth";
+  accessToken: string;
+  refreshToken: string;
+  clientId: string;
+  expiresAt: string;
+}
+
+function isNotionMcpOAuthTokenBlob(obj: unknown): obj is NotionMcpOAuthTokenBlob {
+  return (
+    typeof obj === "object" &&
+    obj !== null &&
+    (obj as NotionMcpOAuthTokenBlob).type === "notion_mcp_oauth" &&
+    typeof (obj as NotionMcpOAuthTokenBlob).accessToken === "string" &&
+    typeof (obj as NotionMcpOAuthTokenBlob).refreshToken === "string" &&
+    typeof (obj as NotionMcpOAuthTokenBlob).clientId === "string" &&
+    typeof (obj as NotionMcpOAuthTokenBlob).expiresAt === "string"
+  );
+}
+
 /**
  * Resolves the effective bearer token for an MCP server.
  * For plain strings, returns as-is.
  * For Google OAuth JSON blobs, checks expiry and auto-refreshes.
+ * For Notion MCP OAuth JSON blobs, checks expiry and auto-refreshes.
  * If store+userId are provided, persists the refreshed token back to the DB.
  */
 async function resolveOAuthBearerToken(
@@ -117,50 +138,84 @@ async function resolveOAuthBearerToken(
     return server.token;
   }
 
-  if (!isGoogleOAuthTokenBlob(parsed)) {
-    // JSON but not our OAuth blob — return raw
-    return server.token;
-  }
+  // ── Google OAuth blob ──
+  if (isGoogleOAuthTokenBlob(parsed)) {
+    const expiresAt = new Date(parsed.expiresAt).getTime();
+    const now = Date.now();
+    const MARGIN_MS = 60_000; // refresh 60s before expiry
 
-  const expiresAt = new Date(parsed.expiresAt).getTime();
-  const now = Date.now();
-  const MARGIN_MS = 60_000; // refresh 60s before expiry
-
-  if (expiresAt - now > MARGIN_MS) {
-    // Still valid
-    return parsed.accessToken;
-  }
-
-  // Token expired or about to expire — refresh
-  try {
-    const refreshed = await refreshGoogleAccessToken(parsed.refreshToken);
-    const updatedBlob: GoogleOAuthTokenBlob = {
-      type: "google_oauth",
-      accessToken: refreshed.accessToken,
-      refreshToken: refreshed.refreshToken ?? parsed.refreshToken,
-      expiresAt: refreshed.expiresAt
-    };
-    const updatedToken = JSON.stringify(updatedBlob);
-
-    // Update server object in-place for current request
-    server.token = updatedToken;
-
-    // Persist to DB if store context is available
-    if (store && userId) {
-      const servers = getMcpServers(store, userId);
-      const target = servers.find((s) => s.id === server.id);
-      if (target) {
-        target.token = updatedToken;
-        writeMcpServers(store, userId, servers);
-      }
+    if (expiresAt - now > MARGIN_MS) {
+      return parsed.accessToken;
     }
 
-    return refreshed.accessToken;
-  } catch (err) {
-    console.error(`[mcp] Failed to refresh Google OAuth token for server ${server.id}:`, err);
-    // Fall back to existing (possibly expired) access token
-    return parsed.accessToken;
+    try {
+      const refreshed = await refreshGoogleAccessToken(parsed.refreshToken);
+      const updatedBlob: GoogleOAuthTokenBlob = {
+        type: "google_oauth",
+        accessToken: refreshed.accessToken,
+        refreshToken: refreshed.refreshToken ?? parsed.refreshToken,
+        expiresAt: refreshed.expiresAt
+      };
+      const updatedToken = JSON.stringify(updatedBlob);
+      server.token = updatedToken;
+      if (store && userId) {
+        const servers = getMcpServers(store, userId);
+        const target = servers.find((s) => s.id === server.id);
+        if (target) {
+          target.token = updatedToken;
+          writeMcpServers(store, userId, servers);
+        }
+      }
+      return refreshed.accessToken;
+    } catch (err) {
+      console.error(`[mcp] Failed to refresh Google OAuth token for server ${server.id}:`, err);
+      return parsed.accessToken;
+    }
   }
+
+  // ── Notion MCP OAuth blob ──
+  if (isNotionMcpOAuthTokenBlob(parsed)) {
+    const expiresAt = new Date(parsed.expiresAt).getTime();
+    const now = Date.now();
+    const MARGIN_MS = 60_000;
+
+    if (expiresAt - now > MARGIN_MS) {
+      return parsed.accessToken;
+    }
+
+    if (!parsed.refreshToken) {
+      console.warn(`[mcp] Notion MCP token expired and no refresh token for server ${server.id}`);
+      return parsed.accessToken;
+    }
+
+    try {
+      const refreshed = await refreshNotionMcpToken(parsed.refreshToken, parsed.clientId);
+      const updatedBlob: NotionMcpOAuthTokenBlob = {
+        type: "notion_mcp_oauth",
+        accessToken: refreshed.access_token,
+        refreshToken: refreshed.refresh_token ?? parsed.refreshToken,
+        clientId: parsed.clientId,
+        expiresAt: new Date(Date.now() + (refreshed.expires_in ?? 3600) * 1000).toISOString(),
+      };
+      const updatedToken = JSON.stringify(updatedBlob);
+      server.token = updatedToken;
+      if (store && userId) {
+        const servers = getMcpServers(store, userId);
+        const target = servers.find((s) => s.id === server.id);
+        if (target) {
+          target.token = updatedToken;
+          writeMcpServers(store, userId, servers);
+        }
+      }
+      return refreshed.access_token;
+    } catch (err) {
+      console.error(`[mcp] Failed to refresh Notion MCP token for server ${server.id}:`, err);
+      return parsed.accessToken;
+    }
+  }
+
+  // JSON but not a recognized OAuth blob — return raw
+  return server.token;
 }
 
 export function calculateMcpToolBudgets(serverCount: number): {
@@ -466,10 +521,6 @@ async function withMcpClient<T>(
   const bearerToken = await resolveOAuthBearerToken(server, store, userId);
   if (bearerToken) {
     headers.Authorization = `Bearer ${bearerToken}`;
-  }
-  // Notion's MCP endpoint requires Notion-Version header alongside the bearer token
-  if (server.serverUrl.includes("mcp.notion.com")) {
-    headers["Notion-Version"] = "2022-06-28";
   }
 
   const transport = new StreamableHTTPClientTransport(new URL(server.serverUrl), {
