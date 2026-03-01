@@ -4504,21 +4504,25 @@ body.chat-tab-active .chat-view {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.22);
 }
 
-/* Keyboard-down (half-sheet quick-action): frosted glass bubbles.
-   backdrop-filter on each bubble blurs the app content visible through
-   the transparent overlay panel. */
+/* Keyboard-down (half-sheet quick-action): frosted glass panel.
+   backdrop-filter on individual bubbles can NOT blur through scroll
+   containers on iOS Safari / WebKit, so we apply the blur at the
+   panel level instead.  Bubbles keep translucent backgrounds so the
+   blurred app content shows through them. */
+body.chat-overlay-active:not(.keyboard-open) .chat-overlay-panel,
+body.chat-overlay-docked:not(.keyboard-open) .chat-overlay-panel-docked {
+  backdrop-filter: blur(24px) saturate(130%);
+  -webkit-backdrop-filter: blur(24px) saturate(130%);
+}
+
 body.chat-overlay-active:not(.keyboard-open) .chat-overlay-panel .chat-bubble-user .chat-bubble-content,
 body.chat-overlay-docked:not(.keyboard-open) .chat-overlay-panel-docked .chat-bubble-user .chat-bubble-content {
   background: var(--chat-user-bg);
-  backdrop-filter: blur(24px) saturate(130%);
-  -webkit-backdrop-filter: blur(24px) saturate(130%);
 }
 
 body.chat-overlay-active:not(.keyboard-open) .chat-overlay-panel .chat-bubble-assistant .chat-bubble-content,
 body.chat-overlay-docked:not(.keyboard-open) .chat-overlay-panel-docked .chat-bubble-assistant .chat-bubble-content {
   background: var(--chat-ai-bg);
-  backdrop-filter: blur(24px) saturate(130%);
-  -webkit-backdrop-filter: blur(24px) saturate(130%);
 }
 
 /* Streaming text with blinking cursor */
