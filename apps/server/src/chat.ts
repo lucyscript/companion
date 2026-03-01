@@ -1271,7 +1271,7 @@ function buildFunctionCallingSystemInstruction(
   longTermMemoryNudge: string,
   mcpToolNudge: string,
   allowedToolNames: ReadonlySet<string> | null,
-  connectedServices?: { withings?: boolean; hasGitHubMcp?: boolean; hasGoogleCalendarMcp?: boolean }
+  connectedServices?: { withings?: boolean; hasGitHubMcp?: boolean; hasGoogleCalendarMcp?: boolean; hasNotionMcp?: boolean }
 ): string {
   const hasNutrition = !allowedToolNames || allowedToolNames.has("getNutritionSummary");
   const hasHabits = !allowedToolNames || allowedToolNames.has("getHabitsGoalsStatus");
@@ -1279,6 +1279,7 @@ function buildFunctionCallingSystemInstruction(
   const withingsConnected = connectedServices?.withings ?? false;
   const hasGitHubMcp = connectedServices?.hasGitHubMcp ?? false;
   const hasGoogleCalendarMcp = connectedServices?.hasGoogleCalendarMcp ?? false;
+  const hasNotionMcp = connectedServices?.hasNotionMcp ?? false;
 
   const coreBehavior = [
     `- For factual questions about schedule, deadlines, or connected external systems, use tools before answering.`,
@@ -1314,6 +1315,13 @@ function buildFunctionCallingSystemInstruction(
     ...(hasGoogleCalendarMcp ? [
       `- Google Calendar is connected as an external integration via MCP tools (list_calendars, list_events, create_event, etc.). Use these MCP tools for requests about the user's Google Calendar.`,
       `- The in-app Companion schedule and Google Calendar are separate systems. Use Companion schedule tools for in-app planning, and Google Calendar MCP tools for the user's Google Calendar.`,
+    ] : []),
+    ...(hasNotionMcp ? [
+      `- Notion is connected via MCP tools (notion-search, notion-fetch, notion-create-pages, notion-update-page).`,
+      `- CRITICAL: Before calling notion-update-page, ALWAYS call notion-fetch first to see the page's exact current text content.`,
+      `- The notion-update-page "selection_with_ellipsis" field uses "..." (three literal dots) as a wildcard between two text anchors. The anchors must be EXACT substrings copied from the fetched page content with enough surrounding text to be UNIQUE (match exactly one location). Example: "Meeting notes...action items" matches the region from "Meeting notes" through "action items".`,
+      `- NEVER put literal "\\n", "<empty-block/>", or other markup in selection_with_ellipsis. Use only plain visible text as it appears in the notion-fetch output.`,
+      `- If the first notion-update-page call fails with a validation error, do NOT retry with different escaping — tell the user the update couldn't be applied automatically and suggest they edit the page directly in Notion.`,
     ] : []),
     `- Do not hallucinate user-specific data. If data is unavailable, say so explicitly and suggest the next sync step.`,
     `- For deadline completion or rescheduling/extension requests, use queueDeadlineAction with action 'complete' or 'reschedule' (with newDueDate in ISO 8601 UTC). Apply immediately (no confirmation step).`,
@@ -3762,7 +3770,8 @@ export async function sendChatMessage(
     {
       withings: !!store.getUserConnection(userId, "withings"),
       hasGitHubMcp: mcpToolContext.summary.toLowerCase().includes("github"),
-      hasGoogleCalendarMcp: mcpToolContext.declarations.some(d => d.name.includes("google_calendar"))
+      hasGoogleCalendarMcp: mcpToolContext.declarations.some(d => d.name.includes("google_calendar")),
+      hasNotionMcp: mcpToolContext.declarations.some(d => d.name.includes("notion"))
     }
   );
 
