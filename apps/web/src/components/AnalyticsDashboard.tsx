@@ -286,6 +286,13 @@ export function AnalyticsDashboard(): JSX.Element {
               </div>
               <p>{insight.summary}</p>
             </div>
+            {insight.strengths.length > 0 && (
+              <ul className="daily-summary-list">
+                {insight.strengths.slice(0, 3).map((item, index) => (
+                  <li key={`${item}-${index}`}>{item}</li>
+                ))}
+              </ul>
+            )}
           </section>
 
           <div className="analytics-swipe-stack">

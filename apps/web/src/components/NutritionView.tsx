@@ -1622,7 +1622,7 @@ export function NutritionView({ onNavigateToChat, onOpenChatOverlay }: { onNavig
                         onClick={() => void handleToggleMealCompleted(meal.id)}
                         aria-label={isMealCompleted(meal) ? "Mark meal as not eaten" : "Mark meal as eaten"}
                       >
-                        {isMealCompleted(meal) ? "✓ Eaten" : "○ Ate this"}
+                        {isMealCompleted(meal) ? "✓ Eaten" : "○ Mark eaten"}
                       </button>
                     </div>
 
