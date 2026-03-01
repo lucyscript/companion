@@ -1319,8 +1319,8 @@ function buildFunctionCallingSystemInstruction(
     ...(hasNotionMcp ? [
       `- Notion is connected via MCP tools (notion-search, notion-fetch, notion-create-pages, notion-update-page).`,
       `- CRITICAL: Before calling notion-update-page, ALWAYS call notion-fetch first to see the page's exact current text content.`,
-      `- The notion-update-page "selection_with_ellipsis" field uses "..." (three literal dots) as a wildcard between two text anchors. The anchors must be EXACT substrings copied from the fetched page content with enough surrounding text to be UNIQUE (match exactly one location). Example: "Meeting notes...action items" matches the region from "Meeting notes" through "action items".`,
-      `- NEVER put literal "\\n", "<empty-block/>", or other markup in selection_with_ellipsis. Use only plain visible text as it appears in the notion-fetch output.`,
+      `- The notion-update-page "selection_with_ellipsis" field uses "..." (three literal dots) as a wildcard between two text anchors. The anchors must be EXACT substrings copied verbatim from the notion-fetch plain text output, long enough to be UNIQUE (match exactly one location). Example: "Meeting notes...action items" matches the region from "Meeting notes" through "action items".`,
+      `- Use anchors that are full phrases or sentences — short fragments like single words or punctuation will match multiple places and fail.`,
       `- If the first notion-update-page call fails with a validation error, do NOT retry with different escaping — tell the user the update couldn't be applied automatically and suggest they edit the page directly in Notion.`,
     ] : []),
     `- Do not hallucinate user-specific data. If data is unavailable, say so explicitly and suggest the next sync step.`,
@@ -2619,6 +2619,40 @@ function compactNutritionMutationForModel(response: unknown): unknown {
   };
 }
 
+/**
+ * Strip Notion MCP XML markup from a page fetch result so Gemini sees only plain
+ * text — critical for constructing correct selection_with_ellipsis anchors.
+ * The raw notion-fetch result.text is a JSON string like:
+ *   {"metadata":{...},"title":"...","url":"...","text":"...<page>...<block>..."}
+ * We parse it, strip the XML tags, and return a clean plain-text representation.
+ */
+function cleanNotionFetchContent(rawText: string): string {
+  try {
+    const parsed = JSON.parse(rawText);
+    if (typeof parsed === "object" && parsed !== null && typeof parsed.text === "string") {
+      const cleaned = parsed.text
+        // Strip all XML-like tags: <page>, </page>, <block type="text">, <empty-block/>, <ancestor-path>, etc.
+        .replace(/<[^>]+>/g, "\n")
+        // Collapse 3+ consecutive newlines into 2
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+
+      const parts: string[] = [];
+      if (typeof parsed.title === "string" && parsed.title) {
+        parts.push(`Title: ${parsed.title}`);
+      }
+      if (typeof parsed.url === "string" && parsed.url) {
+        parts.push(`URL: ${parsed.url}`);
+      }
+      parts.push("", cleaned);
+      return parts.join("\n");
+    }
+  } catch {
+    // Not valid JSON — return as-is
+  }
+  return rawText;
+}
+
 function compactMcpResultForModel(response: unknown): unknown {
   const payload = asRecord(response);
   if (!payload) {
@@ -2634,7 +2668,17 @@ function compactMcpResultForModel(response: unknown): unknown {
     };
   }
 
-  const statusText = asNonEmptyString(result.text);
+  const toolName = asNonEmptyString(payload.tool) ?? "tool";
+  const isNotionFetch = toolName === "notion-fetch";
+
+  let statusText = asNonEmptyString(result.text);
+  // For notion-fetch, strip XML markup so Gemini sees plain page text
+  // and give it more room (MCP limit) since this content is used for update anchors
+  if (isNotionFetch && statusText) {
+    statusText = cleanNotionFetchContent(statusText);
+  }
+
+  const statusTextLimit = isNotionFetch ? MCP_TOOL_RESULT_TEXT_MAX_CHARS : TOOL_RESULT_TEXT_MAX_CHARS;
   const resourceText = asNonEmptyString(result.resourceText);
   const resourceUris = Array.isArray(result.resourceUris)
     ? result.resourceUris
@@ -2644,9 +2688,9 @@ function compactMcpResultForModel(response: unknown): unknown {
 
   return {
     serverLabel: asNonEmptyString(payload.serverLabel) ?? "MCP server",
-    tool: asNonEmptyString(payload.tool) ?? "tool",
+    tool: toolName,
     isError: result.isError === true,
-    statusText: statusText ? compactTextValue(statusText, TOOL_RESULT_TEXT_MAX_CHARS) : null,
+    statusText: statusText ? compactTextValue(statusText, statusTextLimit) : null,
     contentText: resourceText ? compactTextValue(resourceText, MCP_TOOL_RESULT_TEXT_MAX_CHARS) : null,
     resourceUris: resourceUris.length > 0 ? resourceUris : undefined,
     structuredContent: result.structuredContent ? compactGenericValue(result.structuredContent, 1) : undefined
