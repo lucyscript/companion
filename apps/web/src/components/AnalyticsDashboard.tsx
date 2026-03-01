@@ -27,10 +27,10 @@ function formatGeneratedAt(value: string, localeTag: string): string {
 }
 
 const CHALLENGE_ICONS: Record<ChallengePrompt["type"], ReactNode> = {
-  connect: <IconLink size={16} />,
-  predict: <IconCrystalBall size={16} />,
-  reflect: <IconThought size={16} />,
-  commit: <IconFist size={16} />
+  connect: <IconLink size={16} style={{ color: '#60a5fa' }} />,
+  predict: <IconCrystalBall size={16} style={{ color: '#a78bfa' }} />,
+  reflect: <IconThought size={16} style={{ color: '#f59e0b' }} />,
+  commit: <IconFist size={16} style={{ color: '#34d399' }} />
 };
 
 const CHALLENGE_LABELS: Record<ChallengePrompt["type"], string> = {
