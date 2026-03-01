@@ -180,7 +180,8 @@ function renderInlineMarkdown(text: string): ReactNode[] {
 
     const token = match[0];
     if (token.startsWith("**") && token.endsWith("**")) {
-      nodes.push(<strong key={`strong-${key++}`}>{token.slice(2, -2)}</strong>);
+      const inner = token.slice(2, -2);
+      nodes.push(<strong key={`strong-${key++}`}>{renderInlineMarkdown(inner)}</strong>);
     } else if (token.startsWith("[")) {
       const linkMatch = token.match(/^\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)$/);
       if (linkMatch) {
@@ -189,7 +190,8 @@ function renderInlineMarkdown(text: string): ReactNode[] {
         nodes.push(<Fragment key={`token-${key++}`}>{token}</Fragment>);
       }
     } else if (token.startsWith("*") && token.endsWith("*")) {
-      nodes.push(<em key={`em-${key++}`}>{token.slice(1, -1)}</em>);
+      const inner = token.slice(1, -1);
+      nodes.push(<em key={`em-${key++}`}>{renderInlineMarkdown(inner)}</em>);
     } else {
       nodes.push(<Fragment key={`token-${key++}`}>{token}</Fragment>);
     }
