@@ -611,8 +611,9 @@ export function NutritionView({ onNavigateToChat, onOpenChatOverlay }: { onNavig
     };
   }, [targetDraft.weightKg]);
 
-  const refresh = async (): Promise<void> => {
-    setLoading(true);
+  const refresh = async (forceLoading = false): Promise<void> => {
+    const isFirstLoad = summary === null && meals.length === 0;
+    if (isFirstLoad || forceLoading) setLoading(true);
     const [nextSummary, nextMeals, nextCustomFoods, nextSnapshots] = await Promise.all([
       getNutritionSummary(todayKey),
       getNutritionMeals({ date: todayKey }),
@@ -845,7 +846,8 @@ export function NutritionView({ onNavigateToChat, onOpenChatOverlay }: { onNavig
     setTargetDraft(toTargetDraft(saved));
     setTargetDraftDirty(false);
     setMessage("Macro targets saved.");
-    await refresh();
+    // Background refresh — no loading flash
+    void refresh();
   };
 
   const handleMealSubmit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
@@ -876,18 +878,21 @@ export function NutritionView({ onNavigateToChat, onOpenChatOverlay }: { onNavig
       name: ""
     });
     setMealItemDrafts([toMealItemDraft(undefined, customFoods[0]?.id ?? "")]);
-    await refresh();
+    // Add the new meal to state directly, then background sync
+    setMeals((prev) => {
+      const nextMeals = [...prev, created];
+      setSummary((current) => withMealsSummary(current, nextMeals));
+      return nextMeals;
+    });
+    void refresh();
   };
 
   const handleDeleteMeal = async (mealId: string): Promise<void> => {
-    const deleted = await deleteNutritionMeal(mealId);
-    if (!deleted) {
-      setMessage("Could not delete meal right now.");
-      return;
-    }
-    hapticSuccess();
-    setMeals((previous) => {
-      const nextMeals = previous.filter((meal) => meal.id !== mealId);
+    // Optimistic: remove from UI immediately
+    const previousMeals = meals;
+    const previousSummary = summary;
+    setMeals((prev) => {
+      const nextMeals = prev.filter((meal) => meal.id !== mealId);
       setSummary((current) => withMealsSummary(current, nextMeals));
       return nextMeals;
     });
@@ -896,6 +901,15 @@ export function NutritionView({ onNavigateToChat, onOpenChatOverlay }: { onNavig
       delete next[mealId];
       return next;
     });
+    hapticSuccess();
+
+    const deleted = await deleteNutritionMeal(mealId);
+    if (!deleted) {
+      // Revert on failure
+      setMeals(previousMeals);
+      setSummary(previousSummary);
+      setMessage("Could not delete meal right now.");
+    }
   };
 
   const handleAdjustMealPortion = async (mealId: string, direction: "up" | "down"): Promise<void> => {
@@ -948,16 +962,30 @@ export function NutritionView({ onNavigateToChat, onOpenChatOverlay }: { onNavig
 
     const nextCompleted = !isMealCompleted(currentMeal);
     const nextNotes = mealNotesWithDone(currentMeal.notes, nextCompleted);
+
+    // Optimistic: update UI immediately
+    const optimistic: NutritionMeal = {
+      ...currentMeal,
+      notes: nextNotes ?? currentMeal.notes,
+      ...(nextCompleted ? { consumedAt: new Date().toISOString() } : {})
+    };
+    const previousMeals = meals;
+    const previousSummary = summary;
+    replaceMealInState(optimistic);
+    hapticSuccess();
+
     const updated = await updateNutritionMeal(mealId, {
       notes: nextNotes ?? "",
       ...(nextCompleted ? { consumedAt: new Date().toISOString() } : {})
     });
     if (!updated) {
+      // Revert on failure
+      setMeals(previousMeals);
+      setSummary(previousSummary);
       setMessage("Could not update meal completion right now.");
       return;
     }
 
-    hapticSuccess();
     replaceMealInState(updated);
   };
 
@@ -1094,23 +1122,33 @@ export function NutritionView({ onNavigateToChat, onOpenChatOverlay }: { onNavig
     }
 
     const nextItems = currentMeal.items.filter((_, index) => index !== itemIndex);
+
+    // Optimistic: update UI immediately
+    const optimistic: NutritionMeal = {
+      ...currentMeal,
+      items: nextItems,
+      ...(nextItems.length === 0
+        ? { calories: 0, proteinGrams: 0, carbsGrams: 0, fatGrams: 0 }
+        : {})
+    };
+    const previousMeals = meals;
+    const previousSummary = summary;
+    replaceMealInState(optimistic);
+    hapticSuccess();
+
     const updated = await updateNutritionMeal(mealId, {
       items: nextItems.map(stripMealItemId),
       ...(nextItems.length === 0
-        ? {
-            calories: 0,
-            proteinGrams: 0,
-            carbsGrams: 0,
-            fatGrams: 0
-          }
+        ? { calories: 0, proteinGrams: 0, carbsGrams: 0, fatGrams: 0 }
         : {})
     });
     if (!updated) {
+      setMeals(previousMeals);
+      setSummary(previousSummary);
       setMessage("Could not remove food item right now.");
       return;
     }
 
-    hapticSuccess();
     replaceMealInState(updated);
   };
 
@@ -1167,15 +1205,23 @@ export function NutritionView({ onNavigateToChat, onOpenChatOverlay }: { onNavig
       }
     ];
 
+    // Optimistic: add food to UI immediately
+    const optimistic: NutritionMeal = { ...currentMeal, items: nextItems };
+    const previousMeals = meals;
+    const previousSummary = summary;
+    replaceMealInState(optimistic);
+    hapticSuccess();
+
     const updated = await updateNutritionMeal(mealId, {
       items: nextItems.map(stripMealItemId)
     });
     if (!updated) {
+      setMeals(previousMeals);
+      setSummary(previousSummary);
       setMessage("Could not add food item right now.");
       return;
     }
 
-    hapticSuccess();
     replaceMealInState(updated);
   };
 
@@ -1200,19 +1246,27 @@ export function NutritionView({ onNavigateToChat, onOpenChatOverlay }: { onNavig
       consumedAt: new Date(dayStart + orderIndex * 60_000).toISOString()
     }));
 
-    const updatedMeals: NutritionMeal[] = [];
-    for (const patch of patchPlan) {
-      const updated = await updateNutritionMeal(patch.mealId, { consumedAt: patch.consumedAt });
-      if (!updated) {
-        setMessage("Could not reorder meals right now.");
-        return;
-      }
-      updatedMeals.push(updated);
+    // Optimistic: reorder in UI immediately
+    const previousMeals = meals;
+    const previousSummary = summary;
+    setMeals(reordered);
+    hapticSuccess();
+
+    // Persist in parallel
+    const results = await Promise.all(
+      patchPlan.map((patch) => updateNutritionMeal(patch.mealId, { consumedAt: patch.consumedAt }))
+    );
+
+    if (results.some((r) => !r)) {
+      // Revert on any failure
+      setMeals(previousMeals);
+      setSummary(previousSummary);
+      setMessage("Could not reorder meals right now.");
+      return;
     }
 
-    const updatedById = new Map(updatedMeals.map((meal) => [meal.id, meal]));
+    const updatedById = new Map(results.filter(Boolean).map((meal) => [meal!.id, meal!]));
     const nextMeals = reordered.map((meal) => updatedById.get(meal.id) ?? meal);
-    hapticSuccess();
     setMeals(nextMeals);
     setSummary((current) => withMealsSummary(current, nextMeals));
   };
@@ -1347,7 +1401,13 @@ export function NutritionView({ onNavigateToChat, onOpenChatOverlay }: { onNavig
     hapticSuccess();
     setMessage(editingCustomFoodId ? "Custom food updated." : "Custom food created.");
     resetCustomFoodDraft();
-    await refresh();
+    // Update custom foods directly, background sync for rest
+    if (editingCustomFoodId) {
+      setCustomFoods((prev) => prev.map((f) => (f.id === saved.id ? saved : f)));
+    } else {
+      setCustomFoods((prev) => [...prev, saved]);
+    }
+    void refresh();
   };
 
   const handleEditCustomFood = (food: NutritionCustomFood): void => {
@@ -1380,7 +1440,7 @@ export function NutritionView({ onNavigateToChat, onOpenChatOverlay }: { onNavig
     if (editingCustomFoodId === foodId) {
       resetCustomFoodDraft();
     }
-    await refresh();
+    setCustomFoods((prev) => prev.filter((f) => f.id !== foodId));
   };
 
   return (

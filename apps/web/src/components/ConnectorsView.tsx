@@ -121,7 +121,7 @@ const CONNECTORS: ConnectorMeta[] = [
   {
     service: "timeedit",
     label: "TimeEdit Schedule",
-    icon: { src: iconPath("icons/integrations/timeedit.svg"), alt: "TimeEdit" },
+    icon: { src: iconPath("icons/integrations/timeedit.png"), alt: "TimeEdit" },
     description: "Import your timetable from TimeEdit.",
     readMoreItems: [
       "Sync lecture and lab events from your TimeEdit subscription feed.",
